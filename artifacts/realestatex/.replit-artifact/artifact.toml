@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "RealEstateX"
+description = "A responsive real-estate intelligence dashboard for managing properties, valuations, rental returns, mortgage scenarios, and market trends."
+version = "1.0.0"
+id = "artifacts/realestatex"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22730
+
+[services.development]
+run = "pnpm --filter @workspace/realestatex run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/realestatex", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/realestatex/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22730"
+BASE_PATH = "/"

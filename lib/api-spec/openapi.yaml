@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: RealEstateX property intelligence API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: properties
+    description: Property portfolio operations
+  - name: valuation
+    description: Property valuation calculations
+  - name: rental
+    description: Rental return calculations
+  - name: mortgage
+    description: Mortgage scenario calculations
+  - name: market
+    description: Market trend insights
+  - name: dashboard
+    description: Portfolio summary insights
 paths:
   /healthz:
     get:
@@ -24,7 +36,196 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List saved properties
+      responses:
+        "200":
+          description: Saved properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+    post:
+      operationId: createProperty
+      tags: [properties]
+      summary: Add a property to the portfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyInput"
+      responses:
+        "201":
+          description: Created property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /properties/{propertyId}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      summary: Get a saved property
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "200":
+          description: Property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateProperty
+      tags: [properties]
+      summary: Update a saved property
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyUpdate"
+      responses:
+        "200":
+          description: Updated property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      summary: Remove a property from the portfolio
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "204":
+          description: Property removed
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /valuations/calculate:
+    post:
+      operationId: calculateValuation
+      tags: [valuation]
+      summary: Estimate property value
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValuationInput"
+      responses:
+        "200":
+          description: Valuation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValuationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /rentals/overview:
+    post:
+      operationId: calculateRentalOverview
+      tags: [rental]
+      summary: Calculate annual rental return
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalInput"
+      responses:
+        "200":
+          description: Rental return result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /mortgages/calculate:
+    post:
+      operationId: calculateMortgage
+      tags: [mortgage]
+      summary: Calculate monthly mortgage payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MortgageInput"
+      responses:
+        "200":
+          description: Mortgage calculation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MortgageResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /market/trends:
+    get:
+      operationId: getMarketTrends
+      tags: [market]
+      summary: Get current market trend
+      responses:
+        "200":
+          description: Market trend
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketTrend"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get portfolio dashboard summary
+      responses:
+        "200":
+          description: Portfolio summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
 components:
+  parameters:
+    PropertyId:
+      name: propertyId
+      in: path
+      required: true
+      description: Stable property identifier
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +234,175 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Property:
+      allOf:
+        - $ref: "#/components/schemas/PropertyInput"
+        - type: object
+          properties:
+            propertyId:
+              type: string
+          required: [propertyId]
+    PropertyInput:
+      type: object
+      properties:
+        adres:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        bouwjaar:
+          type: integer
+          minimum: 1000
+          maximum: 2100
+        woonoppervlak:
+          type: number
+          minimum: 1
+        perceel:
+          type: number
+          minimum: 0
+        energielabel:
+          type: string
+          minLength: 1
+        kenmerken:
+          type: object
+          additionalProperties:
+            type: string
+      required: [adres, type, bouwjaar, woonoppervlak, energielabel]
+    PropertyUpdate:
+      type: object
+      properties:
+        adres:
+          type: string
+          minLength: 1
+        type:
+          type: string
+          minLength: 1
+        bouwjaar:
+          type: integer
+          minimum: 1000
+          maximum: 2100
+        woonoppervlak:
+          type: number
+          minimum: 1
+        perceel:
+          type: number
+          minimum: 0
+        energielabel:
+          type: string
+          minLength: 1
+        kenmerken:
+          type: object
+          additionalProperties:
+            type: string
+    ValuationInput:
+      type: object
+      properties:
+        woonoppervlak:
+          type: number
+          minimum: 1
+        energielabel:
+          type: string
+        locatieFactor:
+          type: number
+          minimum: 0
+          default: 1
+      required: [woonoppervlak]
+    ValuationResult:
+      type: object
+      properties:
+        status:
+          type: string
+        valuation:
+          type: number
+        pricePerSquareMeter:
+          type: number
+      required: [status, valuation, pricePerSquareMeter]
+    RentalInput:
+      type: object
+      properties:
+        huurprijs:
+          type: number
+          minimum: 0
+        kosten:
+          type: number
+          minimum: 0
+        investering:
+          type: number
+          minimum: 0
+      required: [huurprijs, kosten]
+    RentalResult:
+      type: object
+      properties:
+        status:
+          type: string
+        annualRendement:
+          type: number
+        grossYield:
+          type: number
+      required: [status, annualRendement, grossYield]
+    MortgageInput:
+      type: object
+      properties:
+        principal:
+          type: number
+          minimum: 0
+        interest:
+          type: number
+          minimum: 0
+        years:
+          type: integer
+          minimum: 1
+          maximum: 50
+      required: [principal, interest, years]
+    MortgageResult:
+      type: object
+      properties:
+        status:
+          type: string
+        monthlyPayment:
+          type: number
+        totalRepayment:
+          type: number
+      required: [status, monthlyPayment, totalRepayment]
+    MarketTrend:
+      type: object
+      properties:
+        status:
+          type: string
+        trend:
+          type: string
+        change:
+          type: number
+        period:
+          type: string
+      required: [status, trend, change, period]
+    DashboardSummary:
+      type: object
+      properties:
+        propertyCount:
+          type: integer
+        totalArea:
+          type: number
+        averageValuation:
+          type: number
+        averageRentalYield:
+          type: number
+        marketTrend:
+          type: string
+        lastUpdated:
+          type: string
+      required:
+        - propertyCount
+        - totalArea
+        - averageValuation
+        - averageRentalYield
+        - marketTrend
+        - lastUpdated
 
