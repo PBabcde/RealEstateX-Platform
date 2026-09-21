@@ -1,0 +1,14 @@
+{
+  "last": {
+    "input": {
+      "huurprijs": 2000,
+      "kosten": 3600,
+      "investering": 500000
+    },
+    "result": {
+      "status": "ok",
+      "annualRendement": 20400,
+      "grossYield": 4.8
+    }
+  }
+}

@@ -1,6 +1,6 @@
-# [Project name]
+# RealEstateX
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+RealEstateX is a responsive real-estate intelligence dashboard for managing property portfolios, valuations, rental returns, mortgage scenarios, and market trends.
 
 ## Run & Operate
 
@@ -22,15 +22,22 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/realestatex` — runnable React/Vite dashboard with portfolio, calculators, and market views.
+- `artifacts/api-server/src/routes/realestatex.ts` — Express API routes for the dashboard.
+- `artifacts/api-server/src/lib/realestatex-storage.ts` — atomic JSON persistence and seeded portfolio data.
+- `lib/api-spec/openapi.yaml` — source of truth for the generated API client and Zod schemas.
+- `core`, `modules/realestateX`, `apps/realestateX_app`, `tests` — Python domain modules, service/router reference implementation, and unit tests from the project brief.
+- `storage/realestateX` — JSON persistence files shared by the reference implementation and seeded for local use.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The application uses JSON persistence for the RealEstateX domain, matching the brief and avoiding an unnecessary database dependency for this phase.
+- The Express API is the runnable service for the workspace; the Python modules mirror the requested domain architecture and remain independently testable.
+- OpenAPI is the contract boundary: frontend hooks and server validation are generated from the same specification.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can review portfolio totals, inspect saved properties, add/edit/delete properties, calculate valuations, model rental returns, compare mortgage scenarios, and view market direction.
 
 ## User preferences
 
@@ -38,7 +45,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run `pnpm --filter @workspace/api-spec run codegen` after changing `lib/api-spec/openapi.yaml`.
+- JSON storage is initialized with three example properties on first API start; writes use temporary files and atomic replacement.
 
 ## Pointers
 

@@ -1,0 +1,14 @@
+{
+  "last": {
+    "input": {
+      "principal": 120000,
+      "interest": 0,
+      "years": 10
+    },
+    "result": {
+      "status": "ok",
+      "monthlyPayment": 1000,
+      "totalRepayment": 120000
+    }
+  }
+}

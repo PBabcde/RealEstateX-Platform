@@ -1,0 +1,1 @@
+"""Shared RealEstateX models and validation helpers."""

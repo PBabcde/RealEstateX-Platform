@@ -1,0 +1,1 @@
+- [TypeScript DOM iterable compatibility](typescript-dom-iterable.md) — generated fetch clients need `dom.iterable` enabled for Headers.entries().

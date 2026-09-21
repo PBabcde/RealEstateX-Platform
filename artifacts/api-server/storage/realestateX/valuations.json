@@ -1,0 +1,14 @@
+{
+  "last": {
+    "input": {
+      "woonoppervlak": 100,
+      "energielabel": "A",
+      "locatieFactor": 1
+    },
+    "result": {
+      "status": "ok",
+      "valuation": 315000,
+      "pricePerSquareMeter": 3150
+    }
+  }
+}
