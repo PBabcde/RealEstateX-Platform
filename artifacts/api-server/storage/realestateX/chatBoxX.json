@@ -1,0 +1,19 @@
+{
+  "chat-mucoadmd": {
+    "sessionId": "chat-mucoadmd",
+    "userId": "preview",
+    "createdAt": "2026-09-22T12:51:09.301Z",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hoe bereken ik mijn huurrendement?",
+        "at": "2026-09-22T12:51:09.317Z"
+      },
+      {
+        "role": "assistant",
+        "content": "Ik kan huur, kosten en rendement naast elkaar zetten.",
+        "at": "2026-09-22T12:51:09.317Z"
+      }
+    ]
+  }
+}

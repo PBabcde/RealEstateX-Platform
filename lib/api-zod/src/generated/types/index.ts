@@ -6,9 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './assistantInput';
+export * from './assistantInputContext';
+export * from './assistantResponse';
 export * from './badRequestResponse';
+export * from './chatHistoryResponse';
+export * from './chatMessage';
+export * from './chatMessageInput';
+export * from './chatReplyResponse';
+export * from './chatSessionResponse';
+export * from './chatStartInput';
 export * from './dashboardSummary';
 export * from './errorResponse';
+export * from './getChatHistoryParams';
 export * from './healthStatus';
 export * from './marketTrend';
 export * from './mortgageInput';
@@ -21,5 +31,7 @@ export * from './propertyUpdate';
 export * from './propertyUpdateKenmerken';
 export * from './rentalInput';
 export * from './rentalResult';
+export * from './suiteModule';
+export * from './suiteOverview';
 export * from './valuationInput';
 export * from './valuationResult';

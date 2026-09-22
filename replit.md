@@ -24,20 +24,24 @@ RealEstateX is a responsive real-estate intelligence dashboard for managing prop
 
 - `artifacts/realestatex` — runnable React/Vite dashboard with portfolio, calculators, and market views.
 - `artifacts/api-server/src/routes/realestatex.ts` — Express API routes for the dashboard.
+- `artifacts/api-server/src/routes/phase2.ts` — live registry endpoint for the 20-module Master Suite.
+- `artifacts/api-server/src/routes/assistant-chat.ts` — AssistantX and ChatBoxX API flows.
 - `artifacts/api-server/src/lib/realestatex-storage.ts` — atomic JSON persistence and seeded portfolio data.
 - `lib/api-spec/openapi.yaml` — source of truth for the generated API client and Zod schemas.
 - `core`, `modules/realestateX`, `apps/realestateX_app`, `tests` — Python domain modules, service/router reference implementation, and unit tests from the project brief.
 - `storage/realestateX` — JSON persistence files shared by the reference implementation and seeded for local use.
+- `artifacts/realestatex/src/pages/pages.tsx` — the user-facing Suite registry at `/suite`.
 
 ## Architecture decisions
 
 - The application uses JSON persistence for the RealEstateX domain, matching the brief and avoiding an unnecessary database dependency for this phase.
 - The Express API is the runnable service for the workspace; the Python modules mirror the requested domain architecture and remain independently testable.
 - OpenAPI is the contract boundary: frontend hooks and server validation are generated from the same specification.
+- Phase 2 keeps assistant and RAG behavior provider-neutral, so a real model or document provider can be connected without changing the Suite registry or chat contract.
 
 ## Product
 
-Users can review portfolio totals, inspect saved properties, add/edit/delete properties, calculate valuations, model rental returns, compare mortgage scenarios, and view market direction.
+Users can review portfolio totals, inspect saved properties, add/edit/delete properties, calculate valuations, model rental returns, compare mortgage scenarios, view market direction, inspect all 20 Phase 2 modules, and use AssistantX/ChatBoxX through the API.
 
 ## User preferences
 

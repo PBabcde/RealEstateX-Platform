@@ -1,4 +1,4 @@
-import { BarChart3, Calculator, ChevronRight, LayoutDashboard, Menu, Plus, Search, X } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, LayoutDashboard, Menu, Plus, Search, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 
@@ -7,6 +7,7 @@ const navItems = [
   { href: '/properties', label: 'Objecten', note: 'Je vastgoed', icon: ChevronRight },
   { href: '/calculators', label: 'Rekentools', note: 'Scenario’s', icon: Calculator },
   { href: '/market', label: 'Markt', note: 'Richting & tempo', icon: BarChart3 },
+  { href: '/suite', label: 'Suite', note: '20 verbonden modules', icon: Boxes },
 ];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {

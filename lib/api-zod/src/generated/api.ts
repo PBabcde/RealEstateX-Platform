@@ -289,3 +289,103 @@ export const GetDashboardSummaryResponse = zod.object({
 })
 
 
+/**
+ * @summary Get RealEstateX Phase 2 suite overview
+ */
+export const GetSuiteOverviewResponse = zod.object({
+  "status": zod.string(),
+  "connectedModules": zod.number().int(),
+  "activeServices": zod.number().int(),
+  "moduleCount": zod.number().int(),
+  "modules": zod.array(zod.object({
+  "name": zod.string(),
+  "category": zod.string(),
+  "status": zod.string(),
+  "capability": zod.string()
+})),
+  "lastUpdated": zod.string()
+})
+
+
+/**
+ * @summary Ask the real-estate assistant
+ */
+
+
+
+export const AskAssistantBody = zod.object({
+  "question": zod.string().min(1),
+  "context": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const AskAssistantResponse = zod.object({
+  "status": zod.string(),
+  "module": zod.string(),
+  "intent": zod.string(),
+  "answer": zod.string(),
+  "nextSteps": zod.array(zod.string()),
+  "contextUsed": zod.boolean(),
+  "ragReady": zod.boolean()
+})
+
+
+/**
+ * @summary Start a ChatBoxX session
+ */
+export const StartChatBody = zod.object({
+  "userId": zod.string().optional()
+})
+
+export const StartChatResponse = zod.object({
+  "status": zod.string(),
+  "module": zod.string(),
+  "sessionId": zod.string()
+})
+
+
+/**
+ * @summary Send a message to ChatBoxX
+ */
+
+
+
+export const SendChatMessageBody = zod.object({
+  "sessionId": zod.string(),
+  "message": zod.string().min(1)
+})
+
+export const SendChatMessageResponse = zod.object({
+  "status": zod.string(),
+  "module": zod.string(),
+  "sessionId": zod.string(),
+  "reply": zod.object({
+  "status": zod.string(),
+  "module": zod.string(),
+  "intent": zod.string(),
+  "answer": zod.string(),
+  "nextSteps": zod.array(zod.string()),
+  "contextUsed": zod.boolean(),
+  "ragReady": zod.boolean()
+})
+})
+
+
+/**
+ * @summary Read ChatBoxX session history
+ */
+export const GetChatHistoryQueryParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const GetChatHistoryResponse = zod.object({
+  "status": zod.string(),
+  "module": zod.string(),
+  "sessionId": zod.string(),
+  "messages": zod.array(zod.object({
+  "role": zod.string(),
+  "content": zod.string(),
+  "at": zod.string()
+}))
+})
+
+

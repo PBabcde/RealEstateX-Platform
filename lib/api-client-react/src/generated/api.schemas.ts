@@ -122,6 +122,76 @@ export interface DashboardSummary {
   lastUpdated: string;
 }
 
+export interface SuiteModule {
+  name: string;
+  category: string;
+  status: string;
+  capability: string;
+}
+
+export interface SuiteOverview {
+  status: string;
+  connectedModules: number;
+  activeServices: number;
+  moduleCount: number;
+  modules: SuiteModule[];
+  lastUpdated: string;
+}
+
+export type AssistantInputContext = { [key: string]: unknown };
+
+export interface AssistantInput {
+  /** @minLength 1 */
+  question: string;
+  context?: AssistantInputContext;
+}
+
+export interface AssistantResponse {
+  status: string;
+  module: string;
+  intent: string;
+  answer: string;
+  nextSteps: string[];
+  contextUsed: boolean;
+  ragReady: boolean;
+}
+
+export interface ChatStartInput {
+  userId?: string;
+}
+
+export interface ChatMessageInput {
+  sessionId: string;
+  /** @minLength 1 */
+  message: string;
+}
+
+export interface ChatMessage {
+  role: string;
+  content: string;
+  at: string;
+}
+
+export interface ChatSessionResponse {
+  status: string;
+  module: string;
+  sessionId: string;
+}
+
+export interface ChatReplyResponse {
+  status: string;
+  module: string;
+  sessionId: string;
+  reply: AssistantResponse;
+}
+
+export interface ChatHistoryResponse {
+  status: string;
+  module: string;
+  sessionId: string;
+  messages: ChatMessage[];
+}
+
 /**
  * Invalid request
  */
@@ -131,4 +201,8 @@ export type BadRequestResponse = ErrorResponse;
  * Resource not found
  */
 export type NotFoundResponse = ErrorResponse;
+
+export type GetChatHistoryParams = {
+sessionId: string;
+};
 

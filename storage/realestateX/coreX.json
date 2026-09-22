@@ -1,0 +1,6 @@
+{
+  "modules": ["EnergyX", "RealEstateX", "CRM", "MarketplaceX", "InvestorHubX", "AnalyticsX", "RAGSuperEngineX"],
+  "services": [],
+  "events": [],
+  "audit": []
+}

@@ -20,8 +20,16 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AssistantInput,
+  AssistantResponse,
   BadRequestResponse,
+  ChatHistoryResponse,
+  ChatMessageInput,
+  ChatReplyResponse,
+  ChatSessionResponse,
+  ChatStartInput,
   DashboardSummary,
+  GetChatHistoryParams,
   HealthStatus,
   MarketTrend,
   MortgageInput,
@@ -32,6 +40,7 @@ import type {
   PropertyUpdate,
   RentalInput,
   RentalResult,
+  SuiteOverview,
   ValuationInput,
   ValuationResult
 } from './api.schemas';
@@ -952,6 +961,431 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSuiteOverviewUrl = () => {
+
+
+
+
+  return `/api/suite/overview`
+}
+
+/**
+ * @summary Get RealEstateX Phase 2 suite overview
+ */
+export const getSuiteOverview = async ( options?: Parameters<typeof customFetch>[1]): Promise<SuiteOverview> => {
+
+  return customFetch<SuiteOverview>(getGetSuiteOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSuiteOverviewQueryKey = () => {
+    return [
+    `/api/suite/overview`
+    ] as const;
+    }
+
+
+export const getGetSuiteOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getSuiteOverview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSuiteOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSuiteOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSuiteOverview>>> = ({ signal }) => getSuiteOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSuiteOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSuiteOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getSuiteOverview>>>
+export type GetSuiteOverviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get RealEstateX Phase 2 suite overview
+ */
+
+export function useGetSuiteOverview<TData = Awaited<ReturnType<typeof getSuiteOverview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSuiteOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSuiteOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAskAssistantUrl = () => {
+
+
+
+
+  return `/api/assistant/ask`
+}
+
+/**
+ * @summary Ask the real-estate assistant
+ */
+export const askAssistant = async (assistantInput: AssistantInput, options?: Parameters<typeof customFetch>[1]): Promise<AssistantResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<AssistantResponse>(getAskAssistantUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(assistantInput)
+  }
+);}
+
+
+
+
+
+export const getAskAssistantMutationKey = () => ['askAssistant'] as const;
+
+export const getAskAssistantMutationOptions = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext> => {
+
+const mutationKey = getAskAssistantMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askAssistant>>, AskAssistantMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  askAssistant(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskAssistantMutationResult = NonNullable<Awaited<ReturnType<typeof askAssistant>>>
+    export type AskAssistantMutationBody = BodyType<AssistantInput>
+    export type AskAssistantMutationError = ErrorType<BadRequestResponse>
+    export type AskAssistantMutationVariables = {data: BodyType<AssistantInput>}
+
+    /**
+ * @summary Ask the real-estate assistant
+ */
+export const useAskAssistant = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof askAssistant>>,
+        TError,
+        AskAssistantMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAskAssistantMutationOptions(options));
+    }
+
+export const getStartChatUrl = () => {
+
+
+
+
+  return `/api/chat/start`
+}
+
+/**
+ * @summary Start a ChatBoxX session
+ */
+export const startChat = async (chatStartInput?: ChatStartInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatSessionResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ChatSessionResponse>(getStartChatUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(chatStartInput)
+  }
+);}
+
+
+
+
+
+export const getStartChatMutationKey = () => ['startChat'] as const;
+
+export const getStartChatMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext> => {
+
+const mutationKey = getStartChatMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startChat>>, StartChatMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  startChat(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartChatMutationResult = NonNullable<Awaited<ReturnType<typeof startChat>>>
+    export type StartChatMutationBody = BodyType<ChatStartInput> | undefined
+    export type StartChatMutationError = ErrorType<unknown>
+    export type StartChatMutationVariables = {data?: BodyType<ChatStartInput>}
+
+    /**
+ * @summary Start a ChatBoxX session
+ */
+export const useStartChat = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startChat>>,
+        TError,
+        StartChatMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStartChatMutationOptions(options));
+    }
+
+export const getSendChatMessageUrl = () => {
+
+
+
+
+  return `/api/chat/send`
+}
+
+/**
+ * @summary Send a message to ChatBoxX
+ */
+export const sendChatMessage = async (chatMessageInput: ChatMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<ChatReplyResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<ChatReplyResponse>(getSendChatMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(chatMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendChatMessageMutationKey = () => ['sendChatMessage'] as const;
+
+export const getSendChatMessageMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext> => {
+
+const mutationKey = getSendChatMessageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendChatMessage>>, SendChatMessageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendChatMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendChatMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendChatMessage>>>
+    export type SendChatMessageMutationBody = BodyType<ChatMessageInput>
+    export type SendChatMessageMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type SendChatMessageMutationVariables = {data: BodyType<ChatMessageInput>}
+
+    /**
+ * @summary Send a message to ChatBoxX
+ */
+export const useSendChatMessage = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendChatMessage>>,
+        TError,
+        SendChatMessageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendChatMessageMutationOptions(options));
+    }
+
+export const getGetChatHistoryUrl = (params: GetChatHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/chat/history?${stringifiedParams}` : `/api/chat/history`
+}
+
+/**
+ * @summary Read ChatBoxX session history
+ */
+export const getChatHistory = async (params: GetChatHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<ChatHistoryResponse> => {
+
+  return customFetch<ChatHistoryResponse>(getGetChatHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetChatHistoryQueryKey = (params?: GetChatHistoryParams,) => {
+    return [
+    `/api/chat/history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetChatHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<NotFoundResponse>>(params: GetChatHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetChatHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getChatHistory>>> = ({ signal }) => getChatHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetChatHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getChatHistory>>>
+export type GetChatHistoryQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Read ChatBoxX session history
+ */
+
+export function useGetChatHistory<TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<NotFoundResponse>>(
+ params: GetChatHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetChatHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

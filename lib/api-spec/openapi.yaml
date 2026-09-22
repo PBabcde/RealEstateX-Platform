@@ -22,6 +22,12 @@ tags:
     description: Market trend insights
   - name: dashboard
     description: Portfolio summary insights
+  - name: suite
+    description: Phase 2 suite registry and system overview
+  - name: assistant
+    description: AssistantX guidance
+  - name: chat
+    description: ChatBoxX sessions
 paths:
   /healthz:
     get:
@@ -203,6 +209,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
+  /suite/overview:
+    get:
+      operationId: getSuiteOverview
+      tags: [suite]
+      summary: Get RealEstateX Phase 2 suite overview
+      responses:
+        "200":
+          description: Connected suite modules and service status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuiteOverview"
+  /assistant/ask:
+    post:
+      operationId: askAssistant
+      tags: [assistant]
+      summary: Ask the real-estate assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantInput"
+      responses:
+        "200":
+          description: Assistant response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /chat/start:
+    post:
+      operationId: startChat
+      tags: [chat]
+      summary: Start a ChatBoxX session
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatStartInput"
+      responses:
+        "201":
+          description: Chat session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSessionResponse"
+  /chat/send:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a message to ChatBoxX
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "200":
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReplyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /chat/history:
+    get:
+      operationId: getChatHistory
+      tags: [chat]
+      summary: Read ChatBoxX session history
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat session history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatHistoryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   parameters:
     PropertyId:
@@ -405,4 +503,130 @@ components:
         - averageRentalYield
         - marketTrend
         - lastUpdated
+    SuiteModule:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        status:
+          type: string
+        capability:
+          type: string
+      required: [name, category, status, capability]
+    SuiteOverview:
+      type: object
+      properties:
+        status:
+          type: string
+        connectedModules:
+          type: integer
+        activeServices:
+          type: integer
+        moduleCount:
+          type: integer
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuiteModule"
+        lastUpdated:
+          type: string
+      required:
+        - status
+        - connectedModules
+        - activeServices
+        - moduleCount
+        - modules
+        - lastUpdated
+    AssistantInput:
+      type: object
+      properties:
+        question:
+          type: string
+          minLength: 1
+        context:
+          type: object
+          additionalProperties: true
+      required: [question]
+    AssistantResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        module:
+          type: string
+        intent:
+          type: string
+        answer:
+          type: string
+        nextSteps:
+          type: array
+          items:
+            type: string
+        contextUsed:
+          type: boolean
+        ragReady:
+          type: boolean
+      required: [status, module, intent, answer, nextSteps, contextUsed, ragReady]
+    ChatStartInput:
+      type: object
+      properties:
+        userId:
+          type: string
+    ChatMessageInput:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        message:
+          type: string
+          minLength: 1
+      required: [sessionId, message]
+    ChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+        at:
+          type: string
+      required: [role, content, at]
+    ChatSessionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        module:
+          type: string
+        sessionId:
+          type: string
+      required: [status, module, sessionId]
+    ChatReplyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        module:
+          type: string
+        sessionId:
+          type: string
+        reply:
+          $ref: "#/components/schemas/AssistantResponse"
+      required: [status, module, sessionId, reply]
+    ChatHistoryResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        module:
+          type: string
+        sessionId:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+      required: [status, module, sessionId, messages]
 
