@@ -1,0 +1,100 @@
+AGENT 3 – ALL-IN-ONE EXECUTION
+
+MISSIE
+Bereid het volledige vastgoed-platform voor op productie-uitrol zodat na ontvangst van de Contabo VPS alleen nog deployment, configuratie en eindtesten nodig zijn.
+
+UIT TE VOEREN TAKEN
+
+1. PROJECT AUDIT
+- Controleer volledige repositorystructuur.
+- Identificeer ontbrekende bestanden.
+- Detecteer dubbele bestanden.
+- Zoek hardcoded secrets.
+- Controleer omgevingsvariabelen.
+- Controleer import errors.
+- Controleer dependency conflicts.
+
+2. SECURITY REVIEW
+- Controleer authenticatie-flow.
+- Controleer gebruikersrechten.
+- Controleer API-beveiliging.
+- Controleer inputvalidatie.
+- Controleer file-upload risico's.
+- Identificeer OWASP Top 10 risico's.
+- Stel concrete verbeteringen voor.
+
+3. RAG ENGINE VALIDATIE
+- Controleer retrieval pipeline.
+- Controleer document indexing.
+- Controleer chunking-strategie.
+- Controleer embedding-flow.
+- Controleer antwoordkwaliteit.
+- Geef optimalisaties voor snelheid en nauwkeurigheid.
+
+4. DATABASE REVIEW
+- Controleer datamodel.
+- Controleer CRUD-operaties.
+- Controleer gegevensconsistentie.
+- Controleer migratiegereedheid.
+- Controleer backup-strategie.
+
+5. API REVIEW
+- Controleer alle endpoints.
+- Controleer foutafhandeling.
+- Controleer response-format.
+- Controleer logging.
+- Controleer schaalbaarheid.
+
+6. FRONTEND REVIEW
+- Controleer gebruikersflow.
+- Controleer UI-consistentie.
+- Controleer mobiele bruikbaarheid.
+- Controleer foutmeldingen.
+- Controleer toegankelijkheid.
+
+7. TESTING
+- Maak test-overzicht.
+- Detecteer ontbrekende testen.
+- Controleer coverage.
+- Lever prioriteitenlijst.
+
+8. DEPLOYMENT PREPARATION
+- Maak deployment checklist.
+- Maak productie checklist.
+- Maak rollback checklist.
+- Maak monitoring checklist.
+- Maak backup checklist.
+
+9. DOCUMENTATIE
+- Update README.
+- Maak installatiehandleiding.
+- Maak beheerhandleiding.
+- Maak gebruikershandleiding.
+- Maak troubleshooting gids.
+
+10. EINDRAPPORT
+
+Lever op:
+
+A. Kritieke issues
+B. Hoge prioriteit
+C. Middel prioriteit
+D. Lage prioriteit
+
+Per issue:
+- Beschrijving
+- Impact
+- Oplossing
+- Benodigde tijd
+
+Sluit af met:
+
+"PRODUCTIEGEREEDHEID SCORE"
+
+0-100%
+
+en
+
+"Benodigde acties vóór Contabo deployment"
+
+in prioriteitsvolgorde.
