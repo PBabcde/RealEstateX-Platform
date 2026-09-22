@@ -80,9 +80,11 @@ export function readJson<T>(filename: string, fallback: T): T {
 
   try {
     return JSON.parse(fs.readFileSync(target, "utf8")) as T;
-  } catch {
-    writeJson(filename, fallback);
-    return fallback;
+  } catch (error) {
+    throw new Error(
+      `Storage file "${filename}" is unreadable or contains invalid JSON`,
+      { cause: error },
+    );
   }
 }
 

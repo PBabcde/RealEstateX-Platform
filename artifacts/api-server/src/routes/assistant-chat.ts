@@ -1,8 +1,16 @@
 import { Router, type IRouter } from "express";
+import { randomUUID } from "node:crypto";
 import {
-  readJson,
-  writeJson,
-} from "../lib/realestatex-storage";
+  AskAssistantBody,
+  AskAssistantResponse,
+  GetChatHistoryQueryParams,
+  GetChatHistoryResponse,
+  SendChatMessageBody,
+  SendChatMessageResponse,
+  StartChatBody,
+  StartChatResponse,
+} from "@workspace/api-zod";
+import { readJson, writeJson } from "../lib/realestatex-storage";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -64,62 +72,85 @@ function assistantReply(question: string): {
   };
 }
 
-router.post("/assistant/ask", (req, res): void => {
-  const question = req.body?.question;
-  if (typeof question !== "string" || !question.trim()) {
-    res.status(400).json({ error: "question is required" });
-    return;
-  }
-  res.json({
-    status: "ok",
+function assistantResponse(question: string, context?: unknown) {
+  return {
+    status: "ok" as const,
     module: "AssistantX",
     ...assistantReply(question),
-    contextUsed: Boolean(req.body?.context),
+    contextUsed: Boolean(context),
     ragReady: true,
-  });
+  };
+}
+
+router.post("/assistant/ask", (req, res): void => {
+  const body = AskAssistantBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  res.json(AskAssistantResponse.parse(assistantResponse(body.data.question, body.data.context)));
 });
 
 router.post("/chat/start", (req, res): void => {
+  const body = StartChatBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
   const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
-  const sessionId = `chat-${Date.now().toString(36)}`;
+  const sessionId = `chat-${randomUUID()}`;
   sessions[sessionId] = {
     sessionId,
-    userId: typeof req.body?.userId === "string" ? req.body.userId : "default",
+    userId: body.data.userId ?? "default",
     createdAt: now(),
     messages: [],
   };
   writeJson("chatBoxX.json", sessions);
-  res.status(201).json({ status: "ok", module: "ChatBoxX", sessionId });
+  res.status(201).json(StartChatResponse.parse({ status: "ok", module: "ChatBoxX", sessionId }));
 });
 
 router.post("/chat/send", (req, res): void => {
-  const { sessionId, message } = req.body ?? {};
-  if (typeof sessionId !== "string" || typeof message !== "string" || !message.trim()) {
-    res.status(400).json({ error: "sessionId and message are required" });
+  const body = SendChatMessageBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
     return;
   }
   const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
-  const session = sessions[sessionId];
+  const session = sessions[body.data.sessionId];
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
-  const reply = assistantReply(message);
-  session.messages.push({ role: "user", content: message, at: now() });
+  const reply = assistantResponse(body.data.message);
+  session.messages.push({ role: "user", content: body.data.message, at: now() });
   session.messages.push({ role: "assistant", content: reply.answer, at: now() });
   writeJson("chatBoxX.json", sessions);
-  res.json({ status: "ok", module: "ChatBoxX", sessionId, reply });
+  res.json(SendChatMessageResponse.parse({
+    status: "ok",
+    module: "ChatBoxX",
+    sessionId: body.data.sessionId,
+    reply,
+  }));
 });
 
 router.get("/chat/history", (req, res): void => {
-  const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : "";
+  const query = GetChatHistoryQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
   const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
-  const session = sessions[sessionId];
+  const session = sessions[query.data.sessionId];
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
-  res.json({ status: "ok", module: "ChatBoxX", sessionId, messages: session.messages });
+  res.json(GetChatHistoryResponse.parse({
+    status: "ok",
+    module: "ChatBoxX",
+    sessionId: query.data.sessionId,
+    messages: session.messages,
+  }));
 });
 
 export default router;

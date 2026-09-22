@@ -9,7 +9,7 @@ RealEstateX is a responsive real-estate intelligence dashboard for managing prop
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Optional env for the currently unused Drizzle schema tooling: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
