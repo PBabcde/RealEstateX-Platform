@@ -31,6 +31,9 @@ import type {
   ChatSessionResponse,
   ChatStartInput,
   DashboardSummary,
+  DocumentInput,
+  DocumentListResponse,
+  DocumentResponse,
   ForbiddenResponse,
   GetChatHistoryParams,
   HandleBrowserLoginCallbackParams,
@@ -48,6 +51,8 @@ import type {
   PropertyUpdate,
   RentalInput,
   RentalResult,
+  RetrievalInput,
+  RetrievalResponse,
   SuiteOverview,
   UnauthorizedResponse,
   ValuationInput,
@@ -1145,6 +1150,333 @@ export const useAskAssistant = <TError = ErrorType<BadRequestResponse | Unauthor
         TContext
       > => {
       return useMutation(getAskAssistantMutationOptions(options));
+    }
+
+export const getListAssistantDocumentsUrl = () => {
+
+
+
+
+  return `/api/assistant/documents`
+}
+
+/**
+ * @summary List indexed documents for the authenticated tenant
+ */
+export const listAssistantDocuments = async ( options?: Parameters<typeof customFetch>[1]): Promise<DocumentListResponse> => {
+
+  return customFetch<DocumentListResponse>(getListAssistantDocumentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssistantDocumentsQueryKey = () => {
+    return [
+    `/api/assistant/documents`
+    ] as const;
+    }
+
+
+export const getListAssistantDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listAssistantDocuments>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssistantDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssistantDocumentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssistantDocuments>>> = ({ signal }) => listAssistantDocuments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssistantDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAssistantDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssistantDocuments>>>
+export type ListAssistantDocumentsQueryError = ErrorType<UnauthorizedResponse>
+
+
+/**
+ * @summary List indexed documents for the authenticated tenant
+ */
+
+export function useListAssistantDocuments<TData = Awaited<ReturnType<typeof listAssistantDocuments>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAssistantDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAssistantDocumentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getIngestAssistantDocumentUrl = () => {
+
+
+
+
+  return `/api/assistant/documents`
+}
+
+/**
+ * @summary Validate, index and store a text document
+ */
+export const ingestAssistantDocument = async (documentInput: DocumentInput, options?: Parameters<typeof customFetch>[1]): Promise<DocumentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DocumentResponse>(getIngestAssistantDocumentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(documentInput)
+  }
+);}
+
+
+
+
+
+export const getIngestAssistantDocumentMutationKey = () => ['ingestAssistantDocument'] as const;
+
+export const getIngestAssistantDocumentMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestAssistantDocument>>, TError,IngestAssistantDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestAssistantDocument>>, TError,IngestAssistantDocumentMutationVariables, TContext> => {
+
+const mutationKey = getIngestAssistantDocumentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestAssistantDocument>>, IngestAssistantDocumentMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  ingestAssistantDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IngestAssistantDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof ingestAssistantDocument>>>
+    export type IngestAssistantDocumentMutationBody = BodyType<DocumentInput>
+    export type IngestAssistantDocumentMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type IngestAssistantDocumentMutationVariables = {data: BodyType<DocumentInput>}
+
+    /**
+ * @summary Validate, index and store a text document
+ */
+export const useIngestAssistantDocument = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestAssistantDocument>>, TError,IngestAssistantDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof ingestAssistantDocument>>,
+        TError,
+        IngestAssistantDocumentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getIngestAssistantDocumentMutationOptions(options));
+    }
+
+export const getDeleteAssistantDocumentUrl = (documentId: string,) => {
+
+
+
+
+  return `/api/assistant/documents/${documentId}`
+}
+
+/**
+ * @summary Delete an indexed document
+ */
+export const deleteAssistantDocument = async (documentId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteAssistantDocumentUrl(documentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAssistantDocumentMutationKey = () => ['deleteAssistantDocument'] as const;
+
+export const getDeleteAssistantDocumentMutationOptions = <TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantDocument>>, TError,DeleteAssistantDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantDocument>>, TError,DeleteAssistantDocumentMutationVariables, TContext> => {
+
+const mutationKey = getDeleteAssistantDocumentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAssistantDocument>>, DeleteAssistantDocumentMutationVariables> = (props) => {
+          const {documentId} = props ?? {};
+
+          return  deleteAssistantDocument(documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAssistantDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAssistantDocument>>>
+
+    export type DeleteAssistantDocumentMutationError = ErrorType<UnauthorizedResponse | NotFoundResponse>
+    export type DeleteAssistantDocumentMutationVariables = {documentId: string}
+
+    /**
+ * @summary Delete an indexed document
+ */
+export const useDeleteAssistantDocument = <TError = ErrorType<UnauthorizedResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantDocument>>, TError,DeleteAssistantDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAssistantDocument>>,
+        TError,
+        DeleteAssistantDocumentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteAssistantDocumentMutationOptions(options));
+    }
+
+export const getRetrieveAssistantContextUrl = () => {
+
+
+
+
+  return `/api/assistant/retrieve`
+}
+
+/**
+ * @summary Retrieve tenant-scoped passages with source citations
+ */
+export const retrieveAssistantContext = async (retrievalInput: RetrievalInput, options?: Parameters<typeof customFetch>[1]): Promise<RetrievalResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RetrievalResponse>(getRetrieveAssistantContextUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(retrievalInput)
+  }
+);}
+
+
+
+
+
+export const getRetrieveAssistantContextMutationKey = () => ['retrieveAssistantContext'] as const;
+
+export const getRetrieveAssistantContextMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retrieveAssistantContext>>, TError,RetrieveAssistantContextMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retrieveAssistantContext>>, TError,RetrieveAssistantContextMutationVariables, TContext> => {
+
+const mutationKey = getRetrieveAssistantContextMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retrieveAssistantContext>>, RetrieveAssistantContextMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  retrieveAssistantContext(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetrieveAssistantContextMutationResult = NonNullable<Awaited<ReturnType<typeof retrieveAssistantContext>>>
+    export type RetrieveAssistantContextMutationBody = BodyType<RetrievalInput>
+    export type RetrieveAssistantContextMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type RetrieveAssistantContextMutationVariables = {data: BodyType<RetrievalInput>}
+
+    /**
+ * @summary Retrieve tenant-scoped passages with source citations
+ */
+export const useRetrieveAssistantContext = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retrieveAssistantContext>>, TError,RetrieveAssistantContextMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retrieveAssistantContext>>,
+        TError,
+        RetrieveAssistantContextMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRetrieveAssistantContextMutationOptions(options));
     }
 
 export const getStartChatUrl = () => {

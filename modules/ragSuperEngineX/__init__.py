@@ -1,3 +1,3 @@
-from .ragSuperEngineX import RAGSuperEngineX
+from .ragSuperEngineX import DocumentValidationError, RAGSuperEngineX
 
-__all__ = ["RAGSuperEngineX"]
+__all__ = ["DocumentValidationError", "RAGSuperEngineX"]

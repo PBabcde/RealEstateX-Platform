@@ -325,7 +325,114 @@ export const AskAssistantResponse = zod.object({
   "answer": zod.string(),
   "nextSteps": zod.array(zod.string()),
   "contextUsed": zod.boolean(),
-  "ragReady": zod.boolean()
+  "ragReady": zod.boolean(),
+  "citations": zod.array(zod.object({
+  "citationId": zod.string(),
+  "documentId": zod.string(),
+  "chunkId": zod.string(),
+  "filename": zod.string(),
+  "quote": zod.string(),
+  "score": zod.number()
+})),
+  "missingSources": zod.boolean()
+})
+
+
+/**
+ * @summary List indexed documents for the authenticated tenant
+ */
+export const ListAssistantDocumentsResponse = zod.object({
+  "status": zod.string(),
+  "documents": zod.array(zod.object({
+  "documentId": zod.string(),
+  "filename": zod.string(),
+  "documentType": zod.string(),
+  "contentHash": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "chunkCount": zod.number().int()
+}))
+})
+
+
+/**
+ * @summary Validate, index and store a text document
+ */
+export const ingestAssistantDocumentBodyFilenameMax = 180;
+
+export const ingestAssistantDocumentBodyContentMax = 250000;
+
+export const ingestAssistantDocumentBodyRetentionDaysMax = 3650;
+
+
+
+export const IngestAssistantDocumentBody = zod.object({
+  "filename": zod.string().min(1).max(ingestAssistantDocumentBodyFilenameMax),
+  "content": zod.string().min(1).max(ingestAssistantDocumentBodyContentMax),
+  "contentType": zod.string().optional(),
+  "documentType": zod.string().optional(),
+  "retentionDays": zod.number().int().min(1).max(ingestAssistantDocumentBodyRetentionDaysMax).optional()
+})
+
+export const IngestAssistantDocumentResponse = zod.object({
+  "status": zod.string(),
+  "document": zod.object({
+  "documentId": zod.string(),
+  "filename": zod.string(),
+  "documentType": zod.string(),
+  "contentHash": zod.string(),
+  "createdAt": zod.string(),
+  "expiresAt": zod.string(),
+  "chunkCount": zod.number().int()
+})
+})
+
+
+/**
+ * @summary Delete an indexed document
+ */
+export const DeleteAssistantDocumentParams = zod.object({
+  "documentId": zod.coerce.string()
+})
+
+export const DeleteAssistantDocumentResponse = zod.void()
+
+
+/**
+ * @summary Retrieve tenant-scoped passages with source citations
+ */
+
+export const retrieveAssistantContextBodyTopKMax = 20;
+
+
+
+export const RetrieveAssistantContextBody = zod.object({
+  "query": zod.string().min(1),
+  "topK": zod.number().int().min(1).max(retrieveAssistantContextBodyTopKMax).optional()
+})
+
+export const RetrieveAssistantContextResponse = zod.object({
+  "status": zod.string(),
+  "passages": zod.array(zod.object({
+  "citationId": zod.string(),
+  "documentId": zod.string(),
+  "chunkId": zod.string(),
+  "filename": zod.string(),
+  "quote": zod.string(),
+  "score": zod.number()
+}).and(zod.object({
+  "documentType": zod.string(),
+  "text": zod.string()
+}))),
+  "citations": zod.array(zod.object({
+  "citationId": zod.string(),
+  "documentId": zod.string(),
+  "chunkId": zod.string(),
+  "filename": zod.string(),
+  "quote": zod.string(),
+  "score": zod.number()
+})),
+  "missingSources": zod.boolean()
 })
 
 
@@ -365,7 +472,16 @@ export const SendChatMessageResponse = zod.object({
   "answer": zod.string(),
   "nextSteps": zod.array(zod.string()),
   "contextUsed": zod.boolean(),
-  "ragReady": zod.boolean()
+  "ragReady": zod.boolean(),
+  "citations": zod.array(zod.object({
+  "citationId": zod.string(),
+  "documentId": zod.string(),
+  "chunkId": zod.string(),
+  "filename": zod.string(),
+  "quote": zod.string(),
+  "score": zod.number()
+})),
+  "missingSources": zod.boolean()
 })
 })
 

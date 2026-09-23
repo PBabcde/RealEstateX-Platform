@@ -28,6 +28,8 @@ tags:
     description: Phase 2 suite registry and system overview
   - name: assistant
     description: AssistantX guidance
+  - name: documents
+    description: Tenant-scoped document ingestion and retrieval
   - name: chat
     description: ChatBoxX sessions
 paths:
@@ -267,6 +269,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssistantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /assistant/documents:
+    get:
+      operationId: listAssistantDocuments
+      tags: [documents]
+      summary: List indexed documents for the authenticated tenant
+      responses:
+        "200":
+          description: Indexed documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: ingestAssistantDocument
+      tags: [documents]
+      summary: Validate, index and store a text document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Indexed document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /assistant/documents/{documentId}:
+    delete:
+      operationId: deleteAssistantDocument
+      tags: [documents]
+      summary: Delete an indexed document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Document removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /assistant/retrieve:
+    post:
+      operationId: retrieveAssistantContext
+      tags: [documents]
+      summary: Retrieve tenant-scoped passages with source citations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrievalInput"
+      responses:
+        "200":
+          description: Retrieved passages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrievalResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -740,7 +817,142 @@ components:
           type: boolean
         ragReady:
           type: boolean
-      required: [status, module, intent, answer, nextSteps, contextUsed, ragReady]
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentCitation"
+        missingSources:
+          type: boolean
+      required:
+        [
+          status,
+          module,
+          intent,
+          answer,
+          nextSteps,
+          contextUsed,
+          ragReady,
+          citations,
+          missingSources,
+        ]
+    DocumentInput:
+      type: object
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 180
+        content:
+          type: string
+          minLength: 1
+          maxLength: 250000
+        contentType:
+          type: string
+        documentType:
+          type: string
+        retentionDays:
+          type: integer
+          minimum: 1
+          maximum: 3650
+      required: [filename, content]
+    DocumentSummary:
+      type: object
+      properties:
+        documentId:
+          type: string
+        filename:
+          type: string
+        documentType:
+          type: string
+        contentHash:
+          type: string
+        createdAt:
+          type: string
+        expiresAt:
+          type: string
+        chunkCount:
+          type: integer
+      required:
+        [
+          documentId,
+          filename,
+          documentType,
+          contentHash,
+          createdAt,
+          expiresAt,
+          chunkCount,
+        ]
+    DocumentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        document:
+          $ref: "#/components/schemas/DocumentSummary"
+      required: [status, document]
+    DocumentListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentSummary"
+      required: [status, documents]
+    DocumentCitation:
+      type: object
+      properties:
+        citationId:
+          type: string
+        documentId:
+          type: string
+        chunkId:
+          type: string
+        filename:
+          type: string
+        quote:
+          type: string
+        score:
+          type: number
+      required: [citationId, documentId, chunkId, filename, quote, score]
+    DocumentPassage:
+      allOf:
+        - $ref: "#/components/schemas/DocumentCitation"
+        - type: object
+          properties:
+            documentType:
+              type: string
+            text:
+              type: string
+          required: [documentType, text]
+    RetrievalInput:
+      type: object
+      properties:
+        query:
+          type: string
+          minLength: 1
+        topK:
+          type: integer
+          minimum: 1
+          maximum: 20
+      required: [query]
+    RetrievalResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        passages:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentPassage"
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentCitation"
+        missingSources:
+          type: boolean
+      required: [status, passages, citations, missingSources]
     ChatStartInput:
       type: object
     ChatMessageInput:
@@ -857,4 +1069,3 @@ components:
           type: boolean
           const: true
       required: [success]
-

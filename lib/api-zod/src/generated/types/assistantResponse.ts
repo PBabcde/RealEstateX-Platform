@@ -5,6 +5,7 @@
  * RealEstateX property intelligence API
  * OpenAPI spec version: 0.1.0
  */
+import type { DocumentCitation } from './documentCitation';
 
 export interface AssistantResponse {
   status: string;
@@ -14,4 +15,6 @@ export interface AssistantResponse {
   nextSteps: string[];
   contextUsed: boolean;
   ragReady: boolean;
+  citations: DocumentCitation[];
+  missingSources: boolean;
 }

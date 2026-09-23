@@ -18,8 +18,8 @@ main blockers are:
 1. No authentication or authorization is implemented.
 2. The active runtime persists data in local JSON files; the PostgreSQL
    scaffold is empty and unused.
-3. The RAG engine is a regex extractor, not retrieval, indexing, chunking,
-   embedding, or grounded answer generation.
+3. The RAG engine now has controlled text ingestion, indexing, retrieval, and
+   grounded citations; binary parsing and production malware scanning remain.
 4. Most of the twenty Phase 2 Python routers are not mounted in the runnable
    Express API.
 5. Rate limiting, abuse controls, automated API integration tests, restore
@@ -61,18 +61,18 @@ missing application-level controls.
   indexes, backup/restore tests, and a controlled data import.
 - **Estimated time:** 3–6 days.
 
-### C3 — RAGSuperEngineX is not yet a RAG engine
+### C3 — RAGSuperEngineX needs a production parser and vector provider
 
-- **Description:** The current scan extracts a few prices, address-like
-  strings, and percentages with regular expressions. There is no upload
-  pipeline, document store, text chunking, index, embedding flow, retrieval
-  evaluation, citation, or grounded answer generation.
-- **Impact:** Assistant answers cannot safely use source documents. Contract,
-  valuation, subsidy, tenant, and financing claims would not be traceable.
-- **Solution:** Add a controlled document-ingestion pipeline, file-type and
-  malware limits, tenant-scoped storage, chunking, embeddings, retrieval,
-  source citations, deletion/retention rules, and a quality test set.
-- **Estimated time:** 5–10 days depending on provider and document scope.
+- **Description:** The active API validates text documents, rejects unsafe
+  filenames/content, stores hashed tenant partitions, chunks and indexes
+  content with deterministic embeddings, and returns citations. It supports
+  text/Markdown/CSV/JSON only; PDF/OCR parsing, antivirus scanning, and a
+  managed vector database are not yet connected.
+- **Impact:** The bounded text path is auditable, but arbitrary binary uploads
+  must remain disabled until an isolated parser/scanner boundary exists.
+- **Solution:** Add an isolated parser/scanner worker and a managed vector
+  provider only when the deployment requires PDF/OCR or larger corpora.
+- **Estimated time:** 2–5 days depending on parser and provider scope.
 
 ## High-priority issues
 
@@ -144,12 +144,13 @@ The API no longer silently replaces invalid JSON with a fallback. This avoids
 silent data loss but requires a tested restore procedure until the database
 migration is complete.
 
-### M4 — Document upload security is not implemented
+### M4 — Document ingestion is bounded but binary scanning remains
 
-There is no upload route today, so there is no current upload vulnerability.
-When ingestion is added, enforce file size/type limits, content scanning,
-non-executable storage, tenant isolation, retention, and safe parser
-boundaries.
+The document routes enforce size/type/content limits, plain filenames, hashed
+tenant partitions, expiration, deletion, and server-derived ownership. The
+current contract accepts textual JSON bodies rather than multipart binaries;
+malware scanning and non-executable object storage belong in the future
+parser/scanner worker before binary uploads are enabled.
 
 ## Low-priority issues
 
@@ -233,7 +234,9 @@ Missing before production:
 - Reproducible pytest setup and coverage.
 - API integration and concurrent-write tests.
 - Authentication/authorization tests.
-- RAG retrieval quality and citation tests.
+- Tenant isolation, missing-source refusal, deletion, retention, and unsafe
+  document validation are covered by the Python reference test set and a
+  deterministic retrieval smoke test.
 - Clean-host deployment and restore tests.
 
 ## Benodigde acties vóór Contabo deployment

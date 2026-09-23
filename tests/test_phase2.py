@@ -1,10 +1,15 @@
+import time
+
 from modules.assistantX.assistantX import AssistantX
 from modules.chatBoxX.chatBoxX import ChatBoxX
 from modules.dealEngineX.dealEngineX import DealEngineX
 from modules.dealFinanceX.dealFinanceX import DealFinanceX
 from modules.dealScoreX.dealScoreX import DealScoreX
 from modules.greenX.greenX import GreenX
-from modules.ragSuperEngineX.ragSuperEngineX import RAGSuperEngineX
+from modules.ragSuperEngineX.ragSuperEngineX import (
+    DocumentValidationError,
+    RAGSuperEngineX,
+)
 from modules.riskX.riskX import RiskX
 
 
@@ -50,6 +55,78 @@ def test_rag_engine_extracts_key_document_fields() -> None:
     )
     assert result["extracted"]["prices"]
     assert result["filledTargets"] == ["CRM", "Deals", "Objecten", "Portfolio"]
+
+
+def test_rag_retrieval_is_tenant_scoped_and_cited(tmp_path) -> None:
+    rag = RAGSuperEngineX(str(tmp_path))
+    rag.ingest_document(
+        "tenant-a",
+        "koopakte",
+        "Keizersgracht 148 heeft een koopprijs van €680.000.",
+        filename="koopakte.txt",
+        document_id="doc-a",
+    )
+
+    passages = rag.retrieve("tenant-a", "Wat is de koopprijs?")
+    assert passages[0]["documentId"] == "doc-a"
+    assert passages[0]["citationId"] == "S1"
+    assert rag.retrieve("tenant-b", "Wat is de koopprijs?") == []
+
+    response = AssistantX().assist(
+        "Wat is de koopprijs?",
+        rag.retrieve_context("tenant-a", "Wat is de koopprijs?"),
+    )
+    assert response["contextUsed"] is True
+    assert response["missingSources"] is False
+    assert response["citations"][0]["documentId"] == "doc-a"
+
+
+def test_rag_reports_missing_sources_and_supports_delete_and_retention(tmp_path) -> None:
+    rag = RAGSuperEngineX(str(tmp_path))
+    missing = AssistantX().assist(
+        "Wat staat in mijn contract?",
+        rag.retrieve_context("tenant-a", "Wat staat in mijn contract?"),
+    )
+    assert missing["missingSources"] is True
+    assert "geen toegestane" in missing["answer"]
+
+    rag.ingest_document(
+        "tenant-a",
+        "rapport",
+        "Een korte bron.",
+        filename="rapport.md",
+        document_id="doc-expired",
+    )
+    index = rag._load()
+    index["documents"]["doc-expired"]["expiresAt"] = "2000-01-01T00:00:00+00:00"
+    rag._save(index)
+    assert rag.purge_expired("tenant-a") == 1
+    assert rag.delete_document("tenant-a", "doc-expired") is False
+
+    try:
+        rag.ingest_document("tenant-a", "contract", "unsafe", filename="../contract.exe")
+    except DocumentValidationError:
+        pass
+    else:
+        raise AssertionError("unsafe document was accepted")
+
+
+def test_rag_retrieval_stays_within_small_corpus_latency_budget(tmp_path) -> None:
+    rag = RAGSuperEngineX(str(tmp_path))
+    for index in range(20):
+        rag.ingest_document(
+            "tenant-a",
+            "market-report",
+            f"Marktrapport {index}: Amsterdam huurprijs rendement locatie.",
+            filename=f"report-{index}.txt",
+        )
+
+    started = time.perf_counter()
+    passages = rag.retrieve("tenant-a", "Amsterdam huurprijs rendement")
+    elapsed = time.perf_counter() - started
+
+    assert passages
+    assert elapsed < 2.0
 
 
 def test_deal_score_includes_all_public_scores() -> None:

@@ -146,6 +146,15 @@ export interface AssistantInput {
   context?: AssistantInputContext;
 }
 
+export interface DocumentCitation {
+  citationId: string;
+  documentId: string;
+  chunkId: string;
+  filename: string;
+  quote: string;
+  score: number;
+}
+
 export interface AssistantResponse {
   status: string;
   module: string;
@@ -154,6 +163,70 @@ export interface AssistantResponse {
   nextSteps: string[];
   contextUsed: boolean;
   ragReady: boolean;
+  citations: DocumentCitation[];
+  missingSources: boolean;
+}
+
+export interface DocumentInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  filename: string;
+  /**
+     * @minLength 1
+     * @maxLength 250000
+     */
+  content: string;
+  contentType?: string;
+  documentType?: string;
+  /**
+     * @minimum 1
+     * @maximum 3650
+     */
+  retentionDays?: number;
+}
+
+export interface DocumentSummary {
+  documentId: string;
+  filename: string;
+  documentType: string;
+  contentHash: string;
+  createdAt: string;
+  expiresAt: string;
+  chunkCount: number;
+}
+
+export interface DocumentResponse {
+  status: string;
+  document: DocumentSummary;
+}
+
+export interface DocumentListResponse {
+  status: string;
+  documents: DocumentSummary[];
+}
+
+export type DocumentPassage = DocumentCitation & {
+  documentType: string;
+  text: string;
+};
+
+export interface RetrievalInput {
+  /** @minLength 1 */
+  query: string;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  topK?: number;
+}
+
+export interface RetrievalResponse {
+  status: string;
+  passages: DocumentPassage[];
+  citations: DocumentCitation[];
+  missingSources: boolean;
 }
 
 export interface ChatStartInput { [key: string]: unknown }
