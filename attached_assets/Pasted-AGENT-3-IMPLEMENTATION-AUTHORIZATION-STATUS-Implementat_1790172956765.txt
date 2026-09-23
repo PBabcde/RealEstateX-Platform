@@ -1,0 +1,278 @@
+AGENT 3 – IMPLEMENTATION AUTHORIZATION
+
+STATUS
+
+Implementation approved.
+
+You are now authorized to begin Enterprise Script 1.
+
+This is no longer an architecture review.
+
+This is the first implementation phase.
+
+=================================================
+
+ENTERPRISE DECISION
+
+=================================================
+
+The existing running platform is:
+
+- Express
+- React
+- TypeScript
+
+Current PostgreSQL scaffold:
+
+- Drizzle
+
+Decision:
+
+DO NOT introduce a second runtime stack.
+
+Do NOT build a parallel FastAPI platform.
+
+Use the existing Express + React + TypeScript runtime as the official Enterprise Core foundation.
+
+FastAPI may remain an experimental environment only and must not become a competing production core.
+
+=================================================
+
+PHASE 1
+
+ENTERPRISE CORE FOUNDATION
+
+=================================================
+
+Implement only:
+
+1 Identity
+2 Trust
+3 Audit
+4 Security
+5 Recovery Foundation
+
+Do NOT build business modules yet.
+
+=================================================
+
+STEP 1
+
+IDENTITY LAYER
+
+=================================================
+
+Implement:
+
+Users
+
+Tenants
+
+Roles
+
+Ownership
+
+Entity IDs
+
+Requirements:
+
+Every entity receives immutable ID.
+
+Support:
+
+user
+property
+deal
+energy
+subsidy
+investor
+crm
+audit
+
+=================================================
+
+STEP 2
+
+TRUST LAYER
+
+=================================================
+
+Implement source governance.
+
+Supported:
+
+CANONICAL
+
+SHADOW
+
+PAPER
+
+LIVE
+
+Requirements:
+
+No mixed-source calculations.
+
+Source tagging enforced.
+
+Boundary metadata mandatory.
+
+Mixed data warning enforcement.
+
+=================================================
+
+STEP 3
+
+AUDIT LAYER
+
+=================================================
+
+Create audit tables.
+
+Track:
+
+actor
+
+action
+
+timestamp
+
+entity
+
+result
+
+Every future module must use this layer.
+
+Audit must become mandatory.
+
+=================================================
+
+STEP 4
+
+SECURITY LAYER
+
+=================================================
+
+Implement:
+
+JWT
+
+Role Based Access
+
+Permission Enforcement
+
+API key support
+
+Environment variable management
+
+Secret isolation
+
+Roles:
+
+Admin
+
+Operator
+
+Analyst
+
+Investor
+
+User
+
+=================================================
+
+STEP 5
+
+RECOVERY FOUNDATION
+
+=================================================
+
+Implement:
+
+Backup metadata
+
+Recovery metadata
+
+Rollback checkpoints
+
+Integrity verification
+
+No full disaster recovery automation yet.
+
+Only foundation.
+
+=================================================
+
+RESTRICTIONS
+
+=================================================
+
+Do NOT build:
+
+Energy
+
+Subsidies
+
+CRM
+
+Investor Marketplace
+
+Deal Structuring
+
+SaaS Billing
+
+Property Intelligence
+
+These belong to Script 2.
+
+=================================================
+
+REQUIRED OUTPUT
+
+=================================================
+
+Deliver:
+
+1 Current-state review
+
+2 Gap analysis
+
+3 Files changed
+
+4 Database schema changes
+
+5 New security model
+
+6 Audit model
+
+7 Recovery model
+
+8 Readiness score
+
+=================================================
+
+SUCCESS CRITERIA
+
+=================================================
+
+When finished:
+
+Future modules can plug into:
+
+Trust
+
+Identity
+
+Audit
+
+Security
+
+Recovery
+
+without redesign.
+
+This becomes Enterprise Core V1.
+
+Only after Enterprise Core V1 is stable may Script 2 implementation begin.
+
+END AUTHORIZATION.
