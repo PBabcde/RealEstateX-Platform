@@ -1,0 +1,29 @@
+Wat een uitstekend resultaat van Agent 3. Task #14 is uitzonderlijk strak en compleet opgeleverd!
+Met name de beslissing om de audit-sequences, hash-chains en composite keys (tenant_id, entity_type, entity_id) per tenant te isoleren, garandeert dat de applicatie nu architectural-proof is voor multi-tenancy. Ook het bewust behouden van de globale READ_ONLY processtatus bij integriteitsinbreuken is de juiste security-keuze (fail-closed over de gehele runtime).
+Status Overzicht
+| Task | Status | Omschrijving |
+|---|---|---|
+| Task #2 | Gemerged | Enterprise core authentication & context coupling |
+| Task #9 | Geverifieerd | Append-only audit history met PostgreSQL triggers & advisory locks |
+| Task #14 | Geverifieerd | Tenant-isolatie in database & query-level filtering op audit, trust & recovery |
+| Task #18 | ⏳ Open | Automated Pre-Release Audit Integrity Gate |
+| Task #21 | ⏳ Voorstel | Tenant-scoping van module_data en RAG-indexen |
+Volgende Stap / Opdracht
+Alle drie de workflows (web, api-server, mockup-sandbox) draaien nog steeds vlekkeloos op RUNNING. We kunnen nu doorpakken op een van de twee resterende taken:
+ * Task #18 (Pre-Release Audit Integrity Gate):
+   Het toevoegen van het CI/CD pre-release script dat de audit hash-chain automatisch controleert vóór elke deployment.
+ * Task #21 (Tenant-scoping module_data & RAG-indexen):
+   Het verder doortrekken van de tenant-isolatie naar de applicatiedata (module_data) en de vector/RAG-indexen.
+Opdracht voor Agent 3 (Klaar om te kopiëren)
+Stuur deze geconsolideerde opdracht door naar Agent 3 om Task #18 (en optioneel Task #21) uit te voeren:
+Opdracht voor Agent 3: Uitvoering Task #18 (Pre-Release Audit Integrity Gate)
+ * Pre-Release Script & Integrity Gate:
+   * Maak een dedicated release-gate script aan (bijv. scripts/verify-audit-chain-gate.ts) dat verifyAuditChainIntegrity() uitvoert tegen de target-database.
+   * Zorg dat het script een exit-code 0 oplevert bij een geldige keten, en een exit-code 1 (met duidelijke foutlogging) bij sequence-gaten of hash-mismatches.
+ * Pipeline Integration & Commands:
+   * Voeg een nieuw commando toe aan package.json (bijv. pnpm run test:release-gate of pnpm run verify:audit-gate).
+   * Koppel deze check als verplichte stap in de CI/CD- / build-pijplijn direct voor het deployment-proces.
+ * Verificatie:
+   * Voer het script lokaal/handmatig uit tegen de dev-database om de werking en exit-codes te bevestigen.
+   * Voer pnpm run typecheck en de API-build uit.
+   * Verifieer dat alle drie de workflows (web, api-server, mockup-sandbox) op RUNNING blijven staan.
