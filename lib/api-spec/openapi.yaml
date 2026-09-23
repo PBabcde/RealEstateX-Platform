@@ -32,6 +32,8 @@ tags:
     description: Tenant-scoped document ingestion and retrieval
   - name: chat
     description: ChatBoxX sessions
+  - name: enterprise
+    description: Tenant-scoped Dealing Room, investor, CRM and SaaS operations
 paths:
   /healthz:
     get:
@@ -418,6 +420,400 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /deals:
+    get:
+      operationId: listDeals
+      tags: [enterprise]
+      summary: List tenant-scoped deals
+      responses:
+        "200":
+          description: Deals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DealRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createDeal
+      tags: [enterprise]
+      summary: Create a deal from an accessible property
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealInput"
+      responses:
+        "201":
+          description: Deal created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /deals/{dealId}:
+    get:
+      operationId: getDeal
+      tags: [enterprise]
+      summary: Get deal detail with energy, subsidy and ROI analysis
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Deal detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealDetailResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateDeal
+      tags: [enterprise]
+      summary: Update a deal
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DealInput"
+      responses:
+        "200":
+          description: Updated deal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDeal
+      tags: [enterprise]
+      summary: Delete a deal
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "204":
+          description: Deal deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/score:
+    post:
+      operationId: scoreDeal
+      tags: [enterprise]
+      summary: Calculate the five-part deal score
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Deal score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealScore"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/energy:
+    get:
+      operationId: getDealEnergyAnalysis
+      tags: [enterprise]
+      summary: Calculate energy, subsidy and net ROI analysis
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Energy and subsidy analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnergyResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/matches:
+    get:
+      operationId: getDealMatches
+      tags: [enterprise]
+      summary: Return the top ten investor matches
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Investor matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvestorMatch"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/investor-ready-sheet:
+    get:
+      operationId: downloadInvestorReadySheet
+      tags: [enterprise]
+      summary: Download an investor-ready PDF sheet
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Investor-ready PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /investors:
+    get:
+      operationId: listInvestors
+      tags: [enterprise]
+      summary: List tenant-scoped investors
+      responses:
+        "200":
+          description: Investors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvestorRecord"
+    post:
+      operationId: createInvestor
+      tags: [enterprise]
+      summary: Create an investor profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvestorInput"
+      responses:
+        "201":
+          description: Investor created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvestorRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /investors/{investorId}:
+    get:
+      operationId: getInvestor
+      tags: [enterprise]
+      summary: Get an investor profile
+      parameters:
+        - $ref: "#/components/parameters/InvestorId"
+      responses:
+        "200":
+          description: Investor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvestorRecord"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateInvestor
+      tags: [enterprise]
+      summary: Update an investor profile
+      parameters:
+        - $ref: "#/components/parameters/InvestorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvestorInput"
+      responses:
+        "200":
+          description: Updated investor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvestorRecord"
+    delete:
+      operationId: deleteInvestor
+      tags: [enterprise]
+      summary: Delete an investor profile
+      parameters:
+        - $ref: "#/components/parameters/InvestorId"
+      responses:
+        "204":
+          description: Investor deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /crm/contacts:
+    get:
+      operationId: listCrmContacts
+      tags: [enterprise]
+      summary: List tenant-scoped CRM contacts
+      responses:
+        "200":
+          description: CRM contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrmContactRecord"
+    post:
+      operationId: createCrmContact
+      tags: [enterprise]
+      summary: Create a CRM contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrmContactInput"
+      responses:
+        "201":
+          description: CRM contact created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrmContactRecord"
+  /crm/contacts/{contactId}:
+    get:
+      operationId: getCrmContact
+      tags: [enterprise]
+      summary: Get a CRM contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: CRM contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrmContactRecord"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /crm/contacts/{contactId}/activities:
+    get:
+      operationId: listCrmActivities
+      tags: [enterprise]
+      summary: List communication history for a CRM contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "200":
+          description: Communication history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrmActivityRecord"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createCrmActivity
+      tags: [enterprise]
+      summary: Add a communication activity to a CRM contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrmActivityInput"
+      responses:
+        "201":
+          description: Communication activity created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrmActivityRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateCrmContact
+      tags: [enterprise]
+      summary: Update a CRM contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrmContactInput"
+      responses:
+        "200":
+          description: Updated CRM contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrmContactRecord"
+    delete:
+      operationId: deleteCrmContact
+      tags: [enterprise]
+      summary: Delete a CRM contact
+      parameters:
+        - $ref: "#/components/parameters/ContactId"
+      responses:
+        "204":
+          description: CRM contact deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /enterprise/overview:
+    get:
+      operationId: getEnterpriseOverview
+      tags: [enterprise]
+      summary: Get tenant-scoped Enterprise Core overview
+      responses:
+        "200":
+          description: Enterprise overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnterpriseOverview"
+  /saas/entitlements:
+    get:
+      operationId: getSaasEntitlements
+      tags: [enterprise]
+      summary: Get SaaS tier entitlements
+      parameters:
+        - name: tier
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [STARTER, PROFESSIONAL, INVESTOR, ENTERPRISE]
+      responses:
+        "200":
+          description: SaaS entitlements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaasEntitlements"
+  /saas/billing/status:
+    get:
+      operationId: getSaasBillingStatus
+      tags: [enterprise]
+      summary: Report provider-neutral SaaS billing readiness
+      responses:
+        "200":
+          description: Billing readiness
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingReadiness"
   /auth/user:
     get:
       tags: [Auth]
@@ -548,6 +944,27 @@ components:
       description: Browser session cookie
       schema:
         type: string
+    DealId:
+      name: dealId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    InvestorId:
+      name: investorId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ContactId:
+      name: contactId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
   responses:
     BadRequest:
       description: Invalid request
@@ -574,6 +991,218 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    DealInput:
+      type: object
+      required: [propertyId, title, region, askingPrice, expectedValue]
+      properties:
+        propertyId: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        region: { type: string, minLength: 1 }
+        askingPrice: { type: number, minimum: 1 }
+        renovationCost: { type: number, minimum: 0 }
+        expectedValue: { type: number, minimum: 1 }
+        monthlyRent: { type: number, minimum: 0 }
+        municipality: { type: string }
+    DealScore:
+      type: object
+      required: [flitsScore, splitScore, transformationScore, energyScore, subsidyScore, totalScore, decision, margin, grossYield]
+      properties:
+        flitsScore: { type: number }
+        splitScore: { type: number }
+        transformationScore: { type: number }
+        energyScore: { type: number }
+        subsidyScore: { type: number }
+        totalScore: { type: number }
+        decision: { type: string, enum: [GO, HOLD, REJECT] }
+        margin: { type: number }
+        grossYield: { type: number }
+    DealRecord:
+      allOf:
+        - $ref: "#/components/schemas/DealInput"
+        - type: object
+          required: [dealId, propertyType, energyLabel, woonoppervlak, status, ownerId, score, createdAt, updatedAt]
+          properties:
+            dealId: { type: string }
+            propertyType: { type: string }
+            energyLabel: { type: string }
+            woonoppervlak: { type: number }
+            status: { type: string, enum: [DRAFT, REVIEW, GO, HOLD, REJECT] }
+            ownerId: { type: string }
+            score: { $ref: "#/components/schemas/DealScore" }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    EnergyMeasure:
+      type: object
+      required: [name, investment, annualSavings]
+      properties:
+        name: { type: string }
+        investment: { type: number }
+        annualSavings: { type: number }
+    EnergyAnalysis:
+      type: object
+      required: [currentLabel, labelScore, annualEnergyCost, annualSavings, paybackYears, revisedValue, measures]
+      properties:
+        currentLabel: { type: string }
+        labelScore: { type: number }
+        annualEnergyCost: { type: number }
+        annualSavings: { type: number }
+        paybackYears: { type: number }
+        revisedValue: { type: number }
+        measures:
+          type: array
+          items: { $ref: "#/components/schemas/EnergyMeasure" }
+    Subsidy:
+      type: object
+      required: [code, name, reason, estimatedAmount]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        reason: { type: string }
+        estimatedAmount: { type: number }
+    NetRoi:
+      type: object
+      required: [totalInvestment, valueCreation, netRoi, revisedValue]
+      properties:
+        totalInvestment: { type: number }
+        valueCreation: { type: number }
+        netRoi: { type: number }
+        revisedValue: { type: number }
+    DealDetailResponse:
+      type: object
+      required: [deal, energy, subsidies, netRoi]
+      properties:
+        deal: { $ref: "#/components/schemas/DealRecord" }
+        energy: { $ref: "#/components/schemas/EnergyAnalysis" }
+        subsidies:
+          type: object
+          required: [triggers, totalEstimatedAmount]
+          properties:
+            triggers:
+              type: array
+              items: { $ref: "#/components/schemas/Subsidy" }
+            totalEstimatedAmount: { type: number }
+        netRoi: { $ref: "#/components/schemas/NetRoi" }
+    EnergyResponse:
+      type: object
+      required: [energy, subsidies, netRoi]
+      properties:
+        energy: { $ref: "#/components/schemas/EnergyAnalysis" }
+        subsidies:
+          type: object
+          required: [triggers, totalEstimatedAmount]
+          properties:
+            triggers:
+              type: array
+              items: { $ref: "#/components/schemas/Subsidy" }
+            totalEstimatedAmount: { type: number }
+        netRoi: { $ref: "#/components/schemas/NetRoi" }
+    InvestorInput:
+      type: object
+      required: [name, email, budgetMin, budgetMax]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        company: { type: string }
+        riskProfile: { type: string, enum: [LOW, MEDIUM, HIGH] }
+        budgetMin: { type: number, minimum: 0 }
+        budgetMax: { type: number, minimum: 0 }
+        preferredRegions: { type: array, items: { type: string } }
+        interests: { type: array, items: { type: string } }
+    InvestorRecord:
+      allOf:
+        - $ref: "#/components/schemas/InvestorInput"
+        - type: object
+          required: [investorId, riskProfile, preferredRegions, interests, ownerId, createdAt, updatedAt]
+          properties:
+            investorId: { type: string }
+            riskProfile: { type: string, enum: [LOW, MEDIUM, HIGH] }
+            preferredRegions: { type: array, items: { type: string } }
+            interests: { type: array, items: { type: string } }
+            ownerId: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    InvestorMatch:
+      allOf:
+        - $ref: "#/components/schemas/InvestorRecord"
+        - type: object
+          required: [matchScore, reasons]
+          properties:
+            matchScore: { type: number }
+            reasons: { type: array, items: { type: string } }
+    CrmContactInput:
+      type: object
+      required: [type, name]
+      properties:
+        type: { type: string, enum: [INVESTOR, MAKELAAR, PARTNER] }
+        name: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        phone: { type: string }
+        company: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        notes: { type: string }
+    CrmContactRecord:
+      allOf:
+        - $ref: "#/components/schemas/CrmContactInput"
+        - type: object
+          required: [contactId, status, ownerId, createdAt, updatedAt]
+          properties:
+            contactId: { type: string }
+            status: { type: string, enum: [ACTIVE, INACTIVE] }
+            ownerId: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    CrmActivityInput:
+      type: object
+      required: [kind, summary]
+      properties:
+        kind: { type: string, enum: [NOTE, CALL, EMAIL, MEETING] }
+        summary: { type: string, minLength: 1 }
+        occurredAt: { type: string, format: date-time }
+    CrmActivityRecord:
+      allOf:
+        - $ref: "#/components/schemas/CrmActivityInput"
+        - type: object
+          required: [activityId, contactId, actorId, ownerId, createdAt]
+          properties:
+            activityId: { type: string }
+            contactId: { type: string }
+            actorId: { type: string }
+            ownerId: { type: string }
+            createdAt: { type: string, format: date-time }
+    EnterpriseOverview:
+      type: object
+      required: [status, tenantId, counts, goDeals, averageDealScore, lastUpdated]
+      properties:
+        status: { type: string }
+        tenantId: { type: string }
+        counts:
+          type: object
+          required: [deals, investors, crmContacts]
+          properties:
+            deals: { type: integer }
+            investors: { type: integer }
+            crmContacts: { type: integer }
+        goDeals: { type: integer }
+        averageDealScore: { type: number }
+        lastUpdated: { type: string, format: date-time }
+    SaasEntitlements:
+      type: object
+      required: [tier, label, maxProperties, maxInvestors, features]
+      properties:
+        tier: { type: string, enum: [STARTER, PROFESSIONAL, INVESTOR, ENTERPRISE] }
+        label: { type: string }
+        maxProperties: { type: number }
+        maxInvestors: { type: number }
+        features: { type: array, items: { type: string } }
+    BillingReadiness:
+      type: object
+      required: [provider, configured, webhookReady, supportedTiers, message]
+      properties:
+        provider: { type: string, enum: [stripe, whop, unconfigured] }
+        configured: { type: boolean }
+        webhookReady: { type: boolean }
+        supportedTiers: { type: array, items: { type: string } }
+        message: { type: string }
     HealthStatus:
       type: object
       properties:

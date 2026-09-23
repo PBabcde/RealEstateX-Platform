@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuth } from '@workspace/replit-auth-web';
 import NotFound from '@/pages/not-found';
 import { Calculators, Dashboard, Market, Properties, Suite } from '@/pages/pages';
+import { DealingRoom } from '@/pages/enterprise';
 import {
   Route,
   Switch,
@@ -26,6 +27,7 @@ function Router() {
          <Route path="/calculators" component={Calculators} />
          <Route path="/market" component={Market} />
          <Route path="/suite" component={Suite} />
+          <Route path="/dealing-room" component={DealingRoom} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

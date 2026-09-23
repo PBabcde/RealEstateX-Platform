@@ -5,6 +5,287 @@
  * RealEstateX property intelligence API
  * OpenAPI spec version: 0.1.0
  */
+export interface DealInput {
+  /** @minLength 1 */
+  propertyId: string;
+  /** @minLength 1 */
+  title: string;
+  /** @minLength 1 */
+  region: string;
+  /** @minimum 1 */
+  askingPrice: number;
+  /** @minimum 0 */
+  renovationCost?: number;
+  /** @minimum 1 */
+  expectedValue: number;
+  /** @minimum 0 */
+  monthlyRent?: number;
+  municipality?: string;
+}
+
+export type DealScoreDecision = typeof DealScoreDecision[keyof typeof DealScoreDecision];
+
+
+export const DealScoreDecision = {
+  GO: 'GO',
+  HOLD: 'HOLD',
+  REJECT: 'REJECT',
+} as const;
+
+export interface DealScore {
+  flitsScore: number;
+  splitScore: number;
+  transformationScore: number;
+  energyScore: number;
+  subsidyScore: number;
+  totalScore: number;
+  decision: DealScoreDecision;
+  margin: number;
+  grossYield: number;
+}
+
+export type DealRecordStatus = typeof DealRecordStatus[keyof typeof DealRecordStatus];
+
+
+export const DealRecordStatus = {
+  DRAFT: 'DRAFT',
+  REVIEW: 'REVIEW',
+  GO: 'GO',
+  HOLD: 'HOLD',
+  REJECT: 'REJECT',
+} as const;
+
+export type DealRecord = DealInput & {
+  dealId: string;
+  propertyType: string;
+  energyLabel: string;
+  woonoppervlak: number;
+  status: DealRecordStatus;
+  ownerId: string;
+  score: DealScore;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export interface EnergyMeasure {
+  name: string;
+  investment: number;
+  annualSavings: number;
+}
+
+export interface EnergyAnalysis {
+  currentLabel: string;
+  labelScore: number;
+  annualEnergyCost: number;
+  annualSavings: number;
+  paybackYears: number;
+  revisedValue: number;
+  measures: EnergyMeasure[];
+}
+
+export interface Subsidy {
+  code: string;
+  name: string;
+  reason: string;
+  estimatedAmount: number;
+}
+
+export interface NetRoi {
+  totalInvestment: number;
+  valueCreation: number;
+  netRoi: number;
+  revisedValue: number;
+}
+
+export type DealDetailResponseSubsidies = {
+  triggers: Subsidy[];
+  totalEstimatedAmount: number;
+};
+
+export interface DealDetailResponse {
+  deal: DealRecord;
+  energy: EnergyAnalysis;
+  subsidies: DealDetailResponseSubsidies;
+  netRoi: NetRoi;
+}
+
+export type EnergyResponseSubsidies = {
+  triggers: Subsidy[];
+  totalEstimatedAmount: number;
+};
+
+export interface EnergyResponse {
+  energy: EnergyAnalysis;
+  subsidies: EnergyResponseSubsidies;
+  netRoi: NetRoi;
+}
+
+export type InvestorInputRiskProfile = typeof InvestorInputRiskProfile[keyof typeof InvestorInputRiskProfile];
+
+
+export const InvestorInputRiskProfile = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface InvestorInput {
+  /** @minLength 1 */
+  name: string;
+  email: string;
+  company?: string;
+  riskProfile?: InvestorInputRiskProfile;
+  /** @minimum 0 */
+  budgetMin: number;
+  /** @minimum 0 */
+  budgetMax: number;
+  preferredRegions?: string[];
+  interests?: string[];
+}
+
+export type InvestorRecordRiskProfile = typeof InvestorRecordRiskProfile[keyof typeof InvestorRecordRiskProfile];
+
+
+export const InvestorRecordRiskProfile = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export type InvestorRecord = InvestorInput & {
+  investorId: string;
+  riskProfile: InvestorRecordRiskProfile;
+  preferredRegions: string[];
+  interests: string[];
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InvestorMatch = InvestorRecord & {
+  matchScore: number;
+  reasons: string[];
+};
+
+export type CrmContactInputType = typeof CrmContactInputType[keyof typeof CrmContactInputType];
+
+
+export const CrmContactInputType = {
+  INVESTOR: 'INVESTOR',
+  MAKELAAR: 'MAKELAAR',
+  PARTNER: 'PARTNER',
+} as const;
+
+export type CrmContactInputStatus = typeof CrmContactInputStatus[keyof typeof CrmContactInputStatus];
+
+
+export const CrmContactInputStatus = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+} as const;
+
+export interface CrmContactInput {
+  type: CrmContactInputType;
+  /** @minLength 1 */
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  status?: CrmContactInputStatus;
+  notes?: string;
+}
+
+export type CrmContactRecordStatus = typeof CrmContactRecordStatus[keyof typeof CrmContactRecordStatus];
+
+
+export const CrmContactRecordStatus = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+} as const;
+
+export type CrmContactRecord = CrmContactInput & {
+  contactId: string;
+  status: CrmContactRecordStatus;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CrmActivityInputKind = typeof CrmActivityInputKind[keyof typeof CrmActivityInputKind];
+
+
+export const CrmActivityInputKind = {
+  NOTE: 'NOTE',
+  CALL: 'CALL',
+  EMAIL: 'EMAIL',
+  MEETING: 'MEETING',
+} as const;
+
+export interface CrmActivityInput {
+  kind: CrmActivityInputKind;
+  /** @minLength 1 */
+  summary: string;
+  occurredAt?: string;
+}
+
+export type CrmActivityRecord = CrmActivityInput & {
+  activityId: string;
+  contactId: string;
+  actorId: string;
+  ownerId: string;
+  createdAt: string;
+};
+
+export type EnterpriseOverviewCounts = {
+  deals: number;
+  investors: number;
+  crmContacts: number;
+};
+
+export interface EnterpriseOverview {
+  status: string;
+  tenantId: string;
+  counts: EnterpriseOverviewCounts;
+  goDeals: number;
+  averageDealScore: number;
+  lastUpdated: string;
+}
+
+export type SaasEntitlementsTier = typeof SaasEntitlementsTier[keyof typeof SaasEntitlementsTier];
+
+
+export const SaasEntitlementsTier = {
+  STARTER: 'STARTER',
+  PROFESSIONAL: 'PROFESSIONAL',
+  INVESTOR: 'INVESTOR',
+  ENTERPRISE: 'ENTERPRISE',
+} as const;
+
+export interface SaasEntitlements {
+  tier: SaasEntitlementsTier;
+  label: string;
+  maxProperties: number;
+  maxInvestors: number;
+  features: string[];
+}
+
+export type BillingReadinessProvider = typeof BillingReadinessProvider[keyof typeof BillingReadinessProvider];
+
+
+export const BillingReadinessProvider = {
+  stripe: 'stripe',
+  whop: 'whop',
+  unconfigured: 'unconfigured',
+} as const;
+
+export interface BillingReadiness {
+  provider: BillingReadinessProvider;
+  configured: boolean;
+  webhookReady: boolean;
+  supportedTiers: string[];
+  message: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -339,6 +620,20 @@ export type AuthorizationSessionHeaderParameter = string;
 export type GetChatHistoryParams = {
 sessionId: string;
 };
+
+export type GetSaasEntitlementsParams = {
+tier?: GetSaasEntitlementsTier;
+};
+
+export type GetSaasEntitlementsTier = typeof GetSaasEntitlementsTier[keyof typeof GetSaasEntitlementsTier];
+
+
+export const GetSaasEntitlementsTier = {
+  STARTER: 'STARTER',
+  PROFESSIONAL: 'PROFESSIONAL',
+  INVESTOR: 'INVESTOR',
+  ENTERPRISE: 'ENTERPRISE',
+} as const;
 
 export type BeginBrowserLoginParams = {
 returnTo?: string;

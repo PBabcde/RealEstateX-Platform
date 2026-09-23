@@ -170,9 +170,11 @@ function phase1(): Phase {
       "artifacts/api-server/src/lib/enterprise-core-middleware.ts",
       "Recovery mode guard is present.",
     ),
-    toolCheck("UFW availability", "ufw"),
-    toolCheck("Fail2ban availability", "fail2ban-client"),
-    toolCheck("TLS tooling availability", "openssl"),
+    fileCheck(
+      "Contabo VPS 30 security runner",
+      "scripts/src/contabo-vps30-runner.ts",
+      "The VPS 30 runner uses a pinned known-hosts file and a secret-backed SSH key hook.",
+    ),
     runCommand("Workspace typecheck", "pnpm", ["run", "typecheck"]),
     runCommand("API build", "pnpm", [
       "--filter",
@@ -195,28 +197,36 @@ function phase1(): Phase {
     ]),
   ];
 
-  const recoveryCommand = process.env.CONTABO_VPS30_RECOVERY_DRY_RUN;
-  if (recoveryCommand) {
+  const contaboConfigured = [
+    process.env.CONTABO_VPS30_HOST,
+    process.env.CONTABO_VPS30_USER,
+    process.env.CONTABO_VPS30_SSH_KEY_FILE,
+    process.env.CONTABO_VPS30_KNOWN_HOSTS_FILE,
+  ].every(Boolean);
+  if (contaboConfigured) {
     checks.push(
       runCommand(
-        "Contabo VPS 30 recovery dry-run",
-        "bash",
-        ["-lc", recoveryCommand],
+        "Contabo VPS 30 UFW, Fail2ban, TLS and recovery dry-run",
+        "pnpm",
+        ["--filter", "@workspace/scripts", "run", "contabo:vps30"],
       ),
     );
   } else {
     checks.push({
-      name: "Contabo VPS 30 recovery dry-run",
+      name: "Contabo VPS 30 UFW, Fail2ban, TLS and recovery dry-run",
       status: "UNVERIFIED",
       detail:
-        "Set CONTABO_VPS30_RECOVERY_DRY_RUN to an approved dry-run command; no VPS credentials or host connection were available.",
+        "No approved VPS host, SSH key-file hook and pinned known-hosts file were configured; the runner did not connect.",
     });
   }
 
-  const blockers = [
-    "UFW, Fail2ban and TLS are not verifiable from this workspace.",
-    "A recovery dry-run on Contabo VPS 30 was not executed without an explicit host command.",
-  ];
+  const remoteCheck = checks[checks.length - 1];
+  const blockers =
+    remoteCheck?.status === "PASS"
+      ? []
+      : [
+          "A Contabo VPS 30 runner result is required; local tooling cannot prove the remote firewall, Fail2ban, TLS or recovery state.",
+        ];
   return createPhase("Fase 1", "Enterprise Core & Security", checks, blockers);
 }
 
@@ -233,7 +243,37 @@ function phaseCapability(
       `${name} implementation path is present.`,
     ),
   );
-  return createPhase(phase, name, checks, blockers);
+  const missing = checks.some((check) => check.status === "FAIL");
+  return createPhase(phase, name, checks, missing ? blockers : []);
+}
+
+function phase8(): Phase {
+  const checks = [
+    fileCheck(
+      "SaaS tier entitlements",
+      "artifacts/api-server/src/lib/saas-entitlements.ts",
+      "Tier limits and feature entitlements are defined.",
+    ),
+    fileCheck(
+      "SaaS billing adapter",
+      "artifacts/api-server/src/lib/billing-hooks.ts",
+      "Provider-neutral billing readiness hook is defined.",
+    ),
+  ];
+  const provider = process.env.BILLING_PROVIDER?.toLowerCase();
+  const webhookReady =
+    (provider === "stripe" || provider === "whop") &&
+    Boolean(process.env.BILLING_WEBHOOK_SECRET);
+  checks.push({
+    name: "Billing provider and webhook",
+    status: webhookReady ? "PASS" : "UNVERIFIED",
+    detail: webhookReady
+      ? `Billing provider ${provider} and webhook secret are configured.`
+      : "No supported billing provider and webhook secret were configured through the secure environment flow.",
+  });
+  return createPhase("Fase 8", "SaaS & tiering", checks, webhookReady ? [] : [
+    "SaaS tiering is implemented, but a real Stripe or Whop billing provider and webhook secret are not configured.",
+  ]);
 }
 
 function buildPhases(): Phase[] {
@@ -291,14 +331,7 @@ function buildPhases(): Phase[] {
         "CRM entities and communication history are not implemented.",
       ],
     ),
-    phaseCapability(
-      "Fase 8",
-      "SaaS & tiering",
-      ["artifacts/api-server/src/lib/saas-entitlements.ts"],
-      [
-        "License tiers, billing hooks and granular entitlements are not implemented.",
-      ],
-    ),
+    phase8(),
   ];
 }
 

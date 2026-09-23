@@ -25,19 +25,34 @@ import type {
   AuthUserEnvelope,
   BadRequestResponse,
   BeginBrowserLoginParams,
+  BillingReadiness,
   ChatHistoryResponse,
   ChatMessageInput,
   ChatReplyResponse,
   ChatSessionResponse,
   ChatStartInput,
+  CrmActivityInput,
+  CrmActivityRecord,
+  CrmContactInput,
+  CrmContactRecord,
   DashboardSummary,
+  DealDetailResponse,
+  DealInput,
+  DealRecord,
+  DealScore,
   DocumentInput,
   DocumentListResponse,
   DocumentResponse,
+  EnergyResponse,
+  EnterpriseOverview,
   ForbiddenResponse,
   GetChatHistoryParams,
+  GetSaasEntitlementsParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
+  InvestorInput,
+  InvestorMatch,
+  InvestorRecord,
   LogoutBrowserSessionParams,
   LogoutSuccess,
   MarketTrend,
@@ -53,6 +68,7 @@ import type {
   RentalResult,
   RetrievalInput,
   RetrievalResponse,
+  SaasEntitlements,
   SuiteOverview,
   UnauthorizedResponse,
   ValuationInput,
@@ -1727,6 +1743,1930 @@ export function useGetChatHistory<TData = Awaited<ReturnType<typeof getChatHisto
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetChatHistoryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDealsUrl = () => {
+
+
+
+
+  return `/api/deals`
+}
+
+/**
+ * @summary List tenant-scoped deals
+ */
+export const listDeals = async ( options?: Parameters<typeof customFetch>[1]): Promise<DealRecord[]> => {
+
+  return customFetch<DealRecord[]>(getListDealsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDealsQueryKey = () => {
+    return [
+    `/api/deals`
+    ] as const;
+    }
+
+
+export const getListDealsQueryOptions = <TData = Awaited<ReturnType<typeof listDeals>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDealsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeals>>> = ({ signal }) => listDeals({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDealsQueryResult = NonNullable<Awaited<ReturnType<typeof listDeals>>>
+export type ListDealsQueryError = ErrorType<UnauthorizedResponse>
+
+
+/**
+ * @summary List tenant-scoped deals
+ */
+
+export function useListDeals<TData = Awaited<ReturnType<typeof listDeals>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDealsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateDealUrl = () => {
+
+
+
+
+  return `/api/deals`
+}
+
+/**
+ * @summary Create a deal from an accessible property
+ */
+export const createDeal = async (dealInput: DealInput, options?: Parameters<typeof customFetch>[1]): Promise<DealRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DealRecord>(getCreateDealUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dealInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDealMutationKey = () => ['createDeal'] as const;
+
+export const getCreateDealMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeal>>, TError,CreateDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDeal>>, TError,CreateDealMutationVariables, TContext> => {
+
+const mutationKey = getCreateDealMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDeal>>, CreateDealMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDeal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDealMutationResult = NonNullable<Awaited<ReturnType<typeof createDeal>>>
+    export type CreateDealMutationBody = BodyType<DealInput>
+    export type CreateDealMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type CreateDealMutationVariables = {data: BodyType<DealInput>}
+
+    /**
+ * @summary Create a deal from an accessible property
+ */
+export const useCreateDeal = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeal>>, TError,CreateDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDeal>>,
+        TError,
+        CreateDealMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDealMutationOptions(options));
+    }
+
+export const getGetDealUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}`
+}
+
+/**
+ * @summary Get deal detail with energy, subsidy and ROI analysis
+ */
+export const getDeal = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<DealDetailResponse> => {
+
+  return customFetch<DealDetailResponse>(getGetDealUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}`
+    ] as const;
+    }
+
+
+export const getGetDealQueryOptions = <TData = Awaited<ReturnType<typeof getDeal>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeal>>> = ({ signal }) => getDeal(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeal>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealQueryResult = NonNullable<Awaited<ReturnType<typeof getDeal>>>
+export type GetDealQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get deal detail with energy, subsidy and ROI analysis
+ */
+
+export function useGetDeal<TData = Awaited<ReturnType<typeof getDeal>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDeal>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateDealUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}`
+}
+
+/**
+ * @summary Update a deal
+ */
+export const updateDeal = async (dealId: string,
+    dealInput: DealInput, options?: Parameters<typeof customFetch>[1]): Promise<DealRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<DealRecord>(getUpdateDealUrl(dealId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(dealInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateDealMutationKey = () => ['updateDeal'] as const;
+
+export const getUpdateDealMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDeal>>, TError,UpdateDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDeal>>, TError,UpdateDealMutationVariables, TContext> => {
+
+const mutationKey = getUpdateDealMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDeal>>, UpdateDealMutationVariables> = (props) => {
+          const {dealId,data} = props ?? {};
+
+          return  updateDeal(dealId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDealMutationResult = NonNullable<Awaited<ReturnType<typeof updateDeal>>>
+    export type UpdateDealMutationBody = BodyType<DealInput>
+    export type UpdateDealMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type UpdateDealMutationVariables = {dealId: string;data: BodyType<DealInput>}
+
+    /**
+ * @summary Update a deal
+ */
+export const useUpdateDeal = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDeal>>, TError,UpdateDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDeal>>,
+        TError,
+        UpdateDealMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateDealMutationOptions(options));
+    }
+
+export const getDeleteDealUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}`
+}
+
+/**
+ * @summary Delete a deal
+ */
+export const deleteDeal = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteDealUrl(dealId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDealMutationKey = () => ['deleteDeal'] as const;
+
+export const getDeleteDealMutationOptions = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDeal>>, TError,DeleteDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDeal>>, TError,DeleteDealMutationVariables, TContext> => {
+
+const mutationKey = getDeleteDealMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDeal>>, DeleteDealMutationVariables> = (props) => {
+          const {dealId} = props ?? {};
+
+          return  deleteDeal(dealId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDealMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDeal>>>
+
+    export type DeleteDealMutationError = ErrorType<NotFoundResponse>
+    export type DeleteDealMutationVariables = {dealId: string}
+
+    /**
+ * @summary Delete a deal
+ */
+export const useDeleteDeal = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDeal>>, TError,DeleteDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDeal>>,
+        TError,
+        DeleteDealMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteDealMutationOptions(options));
+    }
+
+export const getScoreDealUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/score`
+}
+
+/**
+ * @summary Calculate the five-part deal score
+ */
+export const scoreDeal = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<DealScore> => {
+
+  return customFetch<DealScore>(getScoreDealUrl(dealId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getScoreDealMutationKey = () => ['scoreDeal'] as const;
+
+export const getScoreDealMutationOptions = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scoreDeal>>, TError,ScoreDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scoreDeal>>, TError,ScoreDealMutationVariables, TContext> => {
+
+const mutationKey = getScoreDealMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scoreDeal>>, ScoreDealMutationVariables> = (props) => {
+          const {dealId} = props ?? {};
+
+          return  scoreDeal(dealId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScoreDealMutationResult = NonNullable<Awaited<ReturnType<typeof scoreDeal>>>
+
+    export type ScoreDealMutationError = ErrorType<NotFoundResponse>
+    export type ScoreDealMutationVariables = {dealId: string}
+
+    /**
+ * @summary Calculate the five-part deal score
+ */
+export const useScoreDeal = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scoreDeal>>, TError,ScoreDealMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scoreDeal>>,
+        TError,
+        ScoreDealMutationVariables,
+        TContext
+      > => {
+      return useMutation(getScoreDealMutationOptions(options));
+    }
+
+export const getGetDealEnergyAnalysisUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/energy`
+}
+
+/**
+ * @summary Calculate energy, subsidy and net ROI analysis
+ */
+export const getDealEnergyAnalysis = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<EnergyResponse> => {
+
+  return customFetch<EnergyResponse>(getGetDealEnergyAnalysisUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealEnergyAnalysisQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/energy`
+    ] as const;
+    }
+
+
+export const getGetDealEnergyAnalysisQueryOptions = <TData = Awaited<ReturnType<typeof getDealEnergyAnalysis>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealEnergyAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealEnergyAnalysisQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealEnergyAnalysis>>> = ({ signal }) => getDealEnergyAnalysis(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealEnergyAnalysis>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealEnergyAnalysisQueryResult = NonNullable<Awaited<ReturnType<typeof getDealEnergyAnalysis>>>
+export type GetDealEnergyAnalysisQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Calculate energy, subsidy and net ROI analysis
+ */
+
+export function useGetDealEnergyAnalysis<TData = Awaited<ReturnType<typeof getDealEnergyAnalysis>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealEnergyAnalysis>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealEnergyAnalysisQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDealMatchesUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/matches`
+}
+
+/**
+ * @summary Return the top ten investor matches
+ */
+export const getDealMatches = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<InvestorMatch[]> => {
+
+  return customFetch<InvestorMatch[]>(getGetDealMatchesUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealMatchesQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/matches`
+    ] as const;
+    }
+
+
+export const getGetDealMatchesQueryOptions = <TData = Awaited<ReturnType<typeof getDealMatches>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealMatchesQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealMatches>>> = ({ signal }) => getDealMatches(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealMatches>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealMatchesQueryResult = NonNullable<Awaited<ReturnType<typeof getDealMatches>>>
+export type GetDealMatchesQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Return the top ten investor matches
+ */
+
+export function useGetDealMatches<TData = Awaited<ReturnType<typeof getDealMatches>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealMatches>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealMatchesQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadInvestorReadySheetUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/investor-ready-sheet`
+}
+
+/**
+ * @summary Download an investor-ready PDF sheet
+ */
+export const downloadInvestorReadySheet = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadInvestorReadySheetUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadInvestorReadySheetQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/investor-ready-sheet`
+    ] as const;
+    }
+
+
+export const getDownloadInvestorReadySheetQueryOptions = <TData = Awaited<ReturnType<typeof downloadInvestorReadySheet>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvestorReadySheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadInvestorReadySheetQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadInvestorReadySheet>>> = ({ signal }) => downloadInvestorReadySheet(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadInvestorReadySheet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadInvestorReadySheetQueryResult = NonNullable<Awaited<ReturnType<typeof downloadInvestorReadySheet>>>
+export type DownloadInvestorReadySheetQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Download an investor-ready PDF sheet
+ */
+
+export function useDownloadInvestorReadySheet<TData = Awaited<ReturnType<typeof downloadInvestorReadySheet>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadInvestorReadySheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadInvestorReadySheetQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListInvestorsUrl = () => {
+
+
+
+
+  return `/api/investors`
+}
+
+/**
+ * @summary List tenant-scoped investors
+ */
+export const listInvestors = async ( options?: Parameters<typeof customFetch>[1]): Promise<InvestorRecord[]> => {
+
+  return customFetch<InvestorRecord[]>(getListInvestorsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInvestorsQueryKey = () => {
+    return [
+    `/api/investors`
+    ] as const;
+    }
+
+
+export const getListInvestorsQueryOptions = <TData = Awaited<ReturnType<typeof listInvestors>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvestors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInvestorsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInvestors>>> = ({ signal }) => listInvestors({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInvestors>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInvestorsQueryResult = NonNullable<Awaited<ReturnType<typeof listInvestors>>>
+export type ListInvestorsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List tenant-scoped investors
+ */
+
+export function useListInvestors<TData = Awaited<ReturnType<typeof listInvestors>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInvestors>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInvestorsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateInvestorUrl = () => {
+
+
+
+
+  return `/api/investors`
+}
+
+/**
+ * @summary Create an investor profile
+ */
+export const createInvestor = async (investorInput: InvestorInput, options?: Parameters<typeof customFetch>[1]): Promise<InvestorRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<InvestorRecord>(getCreateInvestorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(investorInput)
+  }
+);}
+
+
+
+
+
+export const getCreateInvestorMutationKey = () => ['createInvestor'] as const;
+
+export const getCreateInvestorMutationOptions = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvestor>>, TError,CreateInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInvestor>>, TError,CreateInvestorMutationVariables, TContext> => {
+
+const mutationKey = getCreateInvestorMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInvestor>>, CreateInvestorMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createInvestor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInvestorMutationResult = NonNullable<Awaited<ReturnType<typeof createInvestor>>>
+    export type CreateInvestorMutationBody = BodyType<InvestorInput>
+    export type CreateInvestorMutationError = ErrorType<BadRequestResponse>
+    export type CreateInvestorMutationVariables = {data: BodyType<InvestorInput>}
+
+    /**
+ * @summary Create an investor profile
+ */
+export const useCreateInvestor = <TError = ErrorType<BadRequestResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInvestor>>, TError,CreateInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInvestor>>,
+        TError,
+        CreateInvestorMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateInvestorMutationOptions(options));
+    }
+
+export const getGetInvestorUrl = (investorId: string,) => {
+
+
+
+
+  return `/api/investors/${investorId}`
+}
+
+/**
+ * @summary Get an investor profile
+ */
+export const getInvestor = async (investorId: string, options?: Parameters<typeof customFetch>[1]): Promise<InvestorRecord> => {
+
+  return customFetch<InvestorRecord>(getGetInvestorUrl(investorId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvestorQueryKey = (investorId: string,) => {
+    return [
+    `/api/investors/${investorId}`
+    ] as const;
+    }
+
+
+export const getGetInvestorQueryOptions = <TData = Awaited<ReturnType<typeof getInvestor>>, TError = ErrorType<NotFoundResponse>>(investorId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvestor>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvestorQueryKey(investorId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvestor>>> = ({ signal }) => getInvestor(investorId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: investorId !== null && investorId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvestor>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvestorQueryResult = NonNullable<Awaited<ReturnType<typeof getInvestor>>>
+export type GetInvestorQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get an investor profile
+ */
+
+export function useGetInvestor<TData = Awaited<ReturnType<typeof getInvestor>>, TError = ErrorType<NotFoundResponse>>(
+ investorId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvestor>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvestorQueryOptions(investorId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateInvestorUrl = (investorId: string,) => {
+
+
+
+
+  return `/api/investors/${investorId}`
+}
+
+/**
+ * @summary Update an investor profile
+ */
+export const updateInvestor = async (investorId: string,
+    investorInput: InvestorInput, options?: Parameters<typeof customFetch>[1]): Promise<InvestorRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<InvestorRecord>(getUpdateInvestorUrl(investorId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(investorInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateInvestorMutationKey = () => ['updateInvestor'] as const;
+
+export const getUpdateInvestorMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInvestor>>, TError,UpdateInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInvestor>>, TError,UpdateInvestorMutationVariables, TContext> => {
+
+const mutationKey = getUpdateInvestorMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInvestor>>, UpdateInvestorMutationVariables> = (props) => {
+          const {investorId,data} = props ?? {};
+
+          return  updateInvestor(investorId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInvestorMutationResult = NonNullable<Awaited<ReturnType<typeof updateInvestor>>>
+    export type UpdateInvestorMutationBody = BodyType<InvestorInput>
+    export type UpdateInvestorMutationError = ErrorType<unknown>
+    export type UpdateInvestorMutationVariables = {investorId: string;data: BodyType<InvestorInput>}
+
+    /**
+ * @summary Update an investor profile
+ */
+export const useUpdateInvestor = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInvestor>>, TError,UpdateInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInvestor>>,
+        TError,
+        UpdateInvestorMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateInvestorMutationOptions(options));
+    }
+
+export const getDeleteInvestorUrl = (investorId: string,) => {
+
+
+
+
+  return `/api/investors/${investorId}`
+}
+
+/**
+ * @summary Delete an investor profile
+ */
+export const deleteInvestor = async (investorId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteInvestorUrl(investorId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteInvestorMutationKey = () => ['deleteInvestor'] as const;
+
+export const getDeleteInvestorMutationOptions = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteInvestor>>, TError,DeleteInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteInvestor>>, TError,DeleteInvestorMutationVariables, TContext> => {
+
+const mutationKey = getDeleteInvestorMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteInvestor>>, DeleteInvestorMutationVariables> = (props) => {
+          const {investorId} = props ?? {};
+
+          return  deleteInvestor(investorId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteInvestorMutationResult = NonNullable<Awaited<ReturnType<typeof deleteInvestor>>>
+
+    export type DeleteInvestorMutationError = ErrorType<NotFoundResponse>
+    export type DeleteInvestorMutationVariables = {investorId: string}
+
+    /**
+ * @summary Delete an investor profile
+ */
+export const useDeleteInvestor = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteInvestor>>, TError,DeleteInvestorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteInvestor>>,
+        TError,
+        DeleteInvestorMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteInvestorMutationOptions(options));
+    }
+
+export const getListCrmContactsUrl = () => {
+
+
+
+
+  return `/api/crm/contacts`
+}
+
+/**
+ * @summary List tenant-scoped CRM contacts
+ */
+export const listCrmContacts = async ( options?: Parameters<typeof customFetch>[1]): Promise<CrmContactRecord[]> => {
+
+  return customFetch<CrmContactRecord[]>(getListCrmContactsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCrmContactsQueryKey = () => {
+    return [
+    `/api/crm/contacts`
+    ] as const;
+    }
+
+
+export const getListCrmContactsQueryOptions = <TData = Awaited<ReturnType<typeof listCrmContacts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCrmContacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCrmContactsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCrmContacts>>> = ({ signal }) => listCrmContacts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCrmContacts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCrmContactsQueryResult = NonNullable<Awaited<ReturnType<typeof listCrmContacts>>>
+export type ListCrmContactsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List tenant-scoped CRM contacts
+ */
+
+export function useListCrmContacts<TData = Awaited<ReturnType<typeof listCrmContacts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCrmContacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCrmContactsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCrmContactUrl = () => {
+
+
+
+
+  return `/api/crm/contacts`
+}
+
+/**
+ * @summary Create a CRM contact
+ */
+export const createCrmContact = async (crmContactInput: CrmContactInput, options?: Parameters<typeof customFetch>[1]): Promise<CrmContactRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CrmContactRecord>(getCreateCrmContactUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(crmContactInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCrmContactMutationKey = () => ['createCrmContact'] as const;
+
+export const getCreateCrmContactMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCrmContact>>, TError,CreateCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCrmContact>>, TError,CreateCrmContactMutationVariables, TContext> => {
+
+const mutationKey = getCreateCrmContactMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCrmContact>>, CreateCrmContactMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCrmContact(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCrmContactMutationResult = NonNullable<Awaited<ReturnType<typeof createCrmContact>>>
+    export type CreateCrmContactMutationBody = BodyType<CrmContactInput>
+    export type CreateCrmContactMutationError = ErrorType<unknown>
+    export type CreateCrmContactMutationVariables = {data: BodyType<CrmContactInput>}
+
+    /**
+ * @summary Create a CRM contact
+ */
+export const useCreateCrmContact = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCrmContact>>, TError,CreateCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCrmContact>>,
+        TError,
+        CreateCrmContactMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCrmContactMutationOptions(options));
+    }
+
+export const getGetCrmContactUrl = (contactId: string,) => {
+
+
+
+
+  return `/api/crm/contacts/${contactId}`
+}
+
+/**
+ * @summary Get a CRM contact
+ */
+export const getCrmContact = async (contactId: string, options?: Parameters<typeof customFetch>[1]): Promise<CrmContactRecord> => {
+
+  return customFetch<CrmContactRecord>(getGetCrmContactUrl(contactId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCrmContactQueryKey = (contactId: string,) => {
+    return [
+    `/api/crm/contacts/${contactId}`
+    ] as const;
+    }
+
+
+export const getGetCrmContactQueryOptions = <TData = Awaited<ReturnType<typeof getCrmContact>>, TError = ErrorType<NotFoundResponse>>(contactId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCrmContact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCrmContactQueryKey(contactId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCrmContact>>> = ({ signal }) => getCrmContact(contactId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: contactId !== null && contactId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCrmContact>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCrmContactQueryResult = NonNullable<Awaited<ReturnType<typeof getCrmContact>>>
+export type GetCrmContactQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get a CRM contact
+ */
+
+export function useGetCrmContact<TData = Awaited<ReturnType<typeof getCrmContact>>, TError = ErrorType<NotFoundResponse>>(
+ contactId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCrmContact>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCrmContactQueryOptions(contactId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCrmActivitiesUrl = (contactId: string,) => {
+
+
+
+
+  return `/api/crm/contacts/${contactId}/activities`
+}
+
+/**
+ * @summary List communication history for a CRM contact
+ */
+export const listCrmActivities = async (contactId: string, options?: Parameters<typeof customFetch>[1]): Promise<CrmActivityRecord[]> => {
+
+  return customFetch<CrmActivityRecord[]>(getListCrmActivitiesUrl(contactId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCrmActivitiesQueryKey = (contactId: string,) => {
+    return [
+    `/api/crm/contacts/${contactId}/activities`
+    ] as const;
+    }
+
+
+export const getListCrmActivitiesQueryOptions = <TData = Awaited<ReturnType<typeof listCrmActivities>>, TError = ErrorType<NotFoundResponse>>(contactId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCrmActivities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCrmActivitiesQueryKey(contactId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCrmActivities>>> = ({ signal }) => listCrmActivities(contactId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: contactId !== null && contactId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCrmActivities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCrmActivitiesQueryResult = NonNullable<Awaited<ReturnType<typeof listCrmActivities>>>
+export type ListCrmActivitiesQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary List communication history for a CRM contact
+ */
+
+export function useListCrmActivities<TData = Awaited<ReturnType<typeof listCrmActivities>>, TError = ErrorType<NotFoundResponse>>(
+ contactId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCrmActivities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCrmActivitiesQueryOptions(contactId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCrmActivityUrl = (contactId: string,) => {
+
+
+
+
+  return `/api/crm/contacts/${contactId}/activities`
+}
+
+/**
+ * @summary Add a communication activity to a CRM contact
+ */
+export const createCrmActivity = async (contactId: string,
+    crmActivityInput: CrmActivityInput, options?: Parameters<typeof customFetch>[1]): Promise<CrmActivityRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CrmActivityRecord>(getCreateCrmActivityUrl(contactId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(crmActivityInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCrmActivityMutationKey = () => ['createCrmActivity'] as const;
+
+export const getCreateCrmActivityMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCrmActivity>>, TError,CreateCrmActivityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCrmActivity>>, TError,CreateCrmActivityMutationVariables, TContext> => {
+
+const mutationKey = getCreateCrmActivityMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCrmActivity>>, CreateCrmActivityMutationVariables> = (props) => {
+          const {contactId,data} = props ?? {};
+
+          return  createCrmActivity(contactId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCrmActivityMutationResult = NonNullable<Awaited<ReturnType<typeof createCrmActivity>>>
+    export type CreateCrmActivityMutationBody = BodyType<CrmActivityInput>
+    export type CreateCrmActivityMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type CreateCrmActivityMutationVariables = {contactId: string;data: BodyType<CrmActivityInput>}
+
+    /**
+ * @summary Add a communication activity to a CRM contact
+ */
+export const useCreateCrmActivity = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCrmActivity>>, TError,CreateCrmActivityMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCrmActivity>>,
+        TError,
+        CreateCrmActivityMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCrmActivityMutationOptions(options));
+    }
+
+export const getUpdateCrmContactUrl = (contactId: string,) => {
+
+
+
+
+  return `/api/crm/contacts/${contactId}/activities`
+}
+
+/**
+ * @summary Update a CRM contact
+ */
+export const updateCrmContact = async (contactId: string,
+    crmContactInput: CrmContactInput, options?: Parameters<typeof customFetch>[1]): Promise<CrmContactRecord> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CrmContactRecord>(getUpdateCrmContactUrl(contactId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(crmContactInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCrmContactMutationKey = () => ['updateCrmContact'] as const;
+
+export const getUpdateCrmContactMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCrmContact>>, TError,UpdateCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCrmContact>>, TError,UpdateCrmContactMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCrmContactMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCrmContact>>, UpdateCrmContactMutationVariables> = (props) => {
+          const {contactId,data} = props ?? {};
+
+          return  updateCrmContact(contactId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCrmContactMutationResult = NonNullable<Awaited<ReturnType<typeof updateCrmContact>>>
+    export type UpdateCrmContactMutationBody = BodyType<CrmContactInput>
+    export type UpdateCrmContactMutationError = ErrorType<unknown>
+    export type UpdateCrmContactMutationVariables = {contactId: string;data: BodyType<CrmContactInput>}
+
+    /**
+ * @summary Update a CRM contact
+ */
+export const useUpdateCrmContact = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCrmContact>>, TError,UpdateCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCrmContact>>,
+        TError,
+        UpdateCrmContactMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCrmContactMutationOptions(options));
+    }
+
+export const getDeleteCrmContactUrl = (contactId: string,) => {
+
+
+
+
+  return `/api/crm/contacts/${contactId}/activities`
+}
+
+/**
+ * @summary Delete a CRM contact
+ */
+export const deleteCrmContact = async (contactId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteCrmContactUrl(contactId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCrmContactMutationKey = () => ['deleteCrmContact'] as const;
+
+export const getDeleteCrmContactMutationOptions = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCrmContact>>, TError,DeleteCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCrmContact>>, TError,DeleteCrmContactMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCrmContactMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCrmContact>>, DeleteCrmContactMutationVariables> = (props) => {
+          const {contactId} = props ?? {};
+
+          return  deleteCrmContact(contactId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCrmContactMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCrmContact>>>
+
+    export type DeleteCrmContactMutationError = ErrorType<NotFoundResponse>
+    export type DeleteCrmContactMutationVariables = {contactId: string}
+
+    /**
+ * @summary Delete a CRM contact
+ */
+export const useDeleteCrmContact = <TError = ErrorType<NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCrmContact>>, TError,DeleteCrmContactMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCrmContact>>,
+        TError,
+        DeleteCrmContactMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCrmContactMutationOptions(options));
+    }
+
+export const getGetEnterpriseOverviewUrl = () => {
+
+
+
+
+  return `/api/enterprise/overview`
+}
+
+/**
+ * @summary Get tenant-scoped Enterprise Core overview
+ */
+export const getEnterpriseOverview = async ( options?: Parameters<typeof customFetch>[1]): Promise<EnterpriseOverview> => {
+
+  return customFetch<EnterpriseOverview>(getGetEnterpriseOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEnterpriseOverviewQueryKey = () => {
+    return [
+    `/api/enterprise/overview`
+    ] as const;
+    }
+
+
+export const getGetEnterpriseOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getEnterpriseOverview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEnterpriseOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEnterpriseOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEnterpriseOverview>>> = ({ signal }) => getEnterpriseOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEnterpriseOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEnterpriseOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getEnterpriseOverview>>>
+export type GetEnterpriseOverviewQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get tenant-scoped Enterprise Core overview
+ */
+
+export function useGetEnterpriseOverview<TData = Awaited<ReturnType<typeof getEnterpriseOverview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEnterpriseOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEnterpriseOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSaasEntitlementsUrl = (params?: GetSaasEntitlementsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/saas/entitlements?${stringifiedParams}` : `/api/saas/entitlements`
+}
+
+/**
+ * @summary Get SaaS tier entitlements
+ */
+export const getSaasEntitlements = async (params?: GetSaasEntitlementsParams, options?: Parameters<typeof customFetch>[1]): Promise<SaasEntitlements> => {
+
+  return customFetch<SaasEntitlements>(getGetSaasEntitlementsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSaasEntitlementsQueryKey = (params?: GetSaasEntitlementsParams,) => {
+    return [
+    `/api/saas/entitlements`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSaasEntitlementsQueryOptions = <TData = Awaited<ReturnType<typeof getSaasEntitlements>>, TError = ErrorType<unknown>>(params?: GetSaasEntitlementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSaasEntitlements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSaasEntitlementsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSaasEntitlements>>> = ({ signal }) => getSaasEntitlements(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSaasEntitlements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSaasEntitlementsQueryResult = NonNullable<Awaited<ReturnType<typeof getSaasEntitlements>>>
+export type GetSaasEntitlementsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get SaaS tier entitlements
+ */
+
+export function useGetSaasEntitlements<TData = Awaited<ReturnType<typeof getSaasEntitlements>>, TError = ErrorType<unknown>>(
+ params?: GetSaasEntitlementsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSaasEntitlements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSaasEntitlementsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSaasBillingStatusUrl = () => {
+
+
+
+
+  return `/api/saas/billing/status`
+}
+
+/**
+ * @summary Report provider-neutral SaaS billing readiness
+ */
+export const getSaasBillingStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<BillingReadiness> => {
+
+  return customFetch<BillingReadiness>(getGetSaasBillingStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSaasBillingStatusQueryKey = () => {
+    return [
+    `/api/saas/billing/status`
+    ] as const;
+    }
+
+
+export const getGetSaasBillingStatusQueryOptions = <TData = Awaited<ReturnType<typeof getSaasBillingStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSaasBillingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSaasBillingStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSaasBillingStatus>>> = ({ signal }) => getSaasBillingStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSaasBillingStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSaasBillingStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getSaasBillingStatus>>>
+export type GetSaasBillingStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Report provider-neutral SaaS billing readiness
+ */
+
+export function useGetSaasBillingStatus<TData = Awaited<ReturnType<typeof getSaasBillingStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSaasBillingStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSaasBillingStatusQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

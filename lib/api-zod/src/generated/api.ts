@@ -506,6 +506,848 @@ export const GetChatHistoryResponse = zod.object({
 
 
 /**
+ * @summary List tenant-scoped deals
+ */
+
+
+
+
+export const listDealsResponseOneRenovationCostMin = 0;
+
+
+export const listDealsResponseOneMonthlyRentMin = 0;
+
+
+
+export const ListDealsResponseItem = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(listDealsResponseOneRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(listDealsResponseOneMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+}).and(zod.object({
+  "dealId": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "status": zod.enum(['DRAFT', 'REVIEW', 'GO', 'HOLD', 'REJECT']),
+  "ownerId": zod.string(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListDealsResponse = zod.array(ListDealsResponseItem)
+
+
+/**
+ * @summary Create a deal from an accessible property
+ */
+
+
+
+
+export const createDealBodyRenovationCostMin = 0;
+
+
+export const createDealBodyMonthlyRentMin = 0;
+
+
+
+export const CreateDealBody = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(createDealBodyRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(createDealBodyMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+})
+
+
+
+
+
+export const createDealResponseOneRenovationCostMin = 0;
+
+
+export const createDealResponseOneMonthlyRentMin = 0;
+
+
+
+export const CreateDealResponse = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(createDealResponseOneRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(createDealResponseOneMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+}).and(zod.object({
+  "dealId": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "status": zod.enum(['DRAFT', 'REVIEW', 'GO', 'HOLD', 'REJECT']),
+  "ownerId": zod.string(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Get deal detail with energy, subsidy and ROI analysis
+ */
+
+
+
+export const GetDealParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+
+
+
+
+export const getDealResponseDealOneRenovationCostMin = 0;
+
+
+export const getDealResponseDealOneMonthlyRentMin = 0;
+
+
+
+export const GetDealResponse = zod.object({
+  "deal": zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(getDealResponseDealOneRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(getDealResponseDealOneMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+}).and(zod.object({
+  "dealId": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "status": zod.enum(['DRAFT', 'REVIEW', 'GO', 'HOLD', 'REJECT']),
+  "ownerId": zod.string(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "energy": zod.object({
+  "currentLabel": zod.string(),
+  "labelScore": zod.number(),
+  "annualEnergyCost": zod.number(),
+  "annualSavings": zod.number(),
+  "paybackYears": zod.number(),
+  "revisedValue": zod.number(),
+  "measures": zod.array(zod.object({
+  "name": zod.string(),
+  "investment": zod.number(),
+  "annualSavings": zod.number()
+}))
+}),
+  "subsidies": zod.object({
+  "triggers": zod.array(zod.object({
+  "code": zod.string(),
+  "name": zod.string(),
+  "reason": zod.string(),
+  "estimatedAmount": zod.number()
+})),
+  "totalEstimatedAmount": zod.number()
+}),
+  "netRoi": zod.object({
+  "totalInvestment": zod.number(),
+  "valueCreation": zod.number(),
+  "netRoi": zod.number(),
+  "revisedValue": zod.number()
+})
+})
+
+
+/**
+ * @summary Update a deal
+ */
+
+
+
+export const UpdateDealParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+
+
+
+
+export const updateDealBodyRenovationCostMin = 0;
+
+
+export const updateDealBodyMonthlyRentMin = 0;
+
+
+
+export const UpdateDealBody = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(updateDealBodyRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(updateDealBodyMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+})
+
+
+
+
+
+export const updateDealResponseOneRenovationCostMin = 0;
+
+
+export const updateDealResponseOneMonthlyRentMin = 0;
+
+
+
+export const UpdateDealResponse = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(updateDealResponseOneRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(updateDealResponseOneMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+}).and(zod.object({
+  "dealId": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "status": zod.enum(['DRAFT', 'REVIEW', 'GO', 'HOLD', 'REJECT']),
+  "ownerId": zod.string(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number()
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Delete a deal
+ */
+
+
+
+export const DeleteDealParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const DeleteDealResponse = zod.void()
+
+
+/**
+ * @summary Calculate the five-part deal score
+ */
+
+
+
+export const ScoreDealParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const ScoreDealResponse = zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number()
+})
+
+
+/**
+ * @summary Calculate energy, subsidy and net ROI analysis
+ */
+
+
+
+export const GetDealEnergyAnalysisParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const GetDealEnergyAnalysisResponse = zod.object({
+  "energy": zod.object({
+  "currentLabel": zod.string(),
+  "labelScore": zod.number(),
+  "annualEnergyCost": zod.number(),
+  "annualSavings": zod.number(),
+  "paybackYears": zod.number(),
+  "revisedValue": zod.number(),
+  "measures": zod.array(zod.object({
+  "name": zod.string(),
+  "investment": zod.number(),
+  "annualSavings": zod.number()
+}))
+}),
+  "subsidies": zod.object({
+  "triggers": zod.array(zod.object({
+  "code": zod.string(),
+  "name": zod.string(),
+  "reason": zod.string(),
+  "estimatedAmount": zod.number()
+})),
+  "totalEstimatedAmount": zod.number()
+}),
+  "netRoi": zod.object({
+  "totalInvestment": zod.number(),
+  "valueCreation": zod.number(),
+  "netRoi": zod.number(),
+  "revisedValue": zod.number()
+})
+})
+
+
+/**
+ * @summary Return the top ten investor matches
+ */
+
+
+
+export const GetDealMatchesParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+
+export const getDealMatchesResponseOneOneBudgetMinMin = 0;
+
+export const getDealMatchesResponseOneOneBudgetMaxMin = 0;
+
+
+
+export const GetDealMatchesResponseItem = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(getDealMatchesResponseOneOneBudgetMinMin),
+  "budgetMax": zod.number().min(getDealMatchesResponseOneOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})).and(zod.object({
+  "matchScore": zod.number(),
+  "reasons": zod.array(zod.string())
+}))
+export const GetDealMatchesResponse = zod.array(GetDealMatchesResponseItem)
+
+
+/**
+ * @summary Download an investor-ready PDF sheet
+ */
+
+
+
+export const DownloadInvestorReadySheetParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const DownloadInvestorReadySheetResponse = zod.unknown()
+
+
+/**
+ * @summary List tenant-scoped investors
+ */
+
+export const listInvestorsResponseOneBudgetMinMin = 0;
+
+export const listInvestorsResponseOneBudgetMaxMin = 0;
+
+
+
+export const ListInvestorsResponseItem = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(listInvestorsResponseOneBudgetMinMin),
+  "budgetMax": zod.number().min(listInvestorsResponseOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListInvestorsResponse = zod.array(ListInvestorsResponseItem)
+
+
+/**
+ * @summary Create an investor profile
+ */
+
+export const createInvestorBodyBudgetMinMin = 0;
+
+export const createInvestorBodyBudgetMaxMin = 0;
+
+
+
+export const CreateInvestorBody = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  "budgetMin": zod.number().min(createInvestorBodyBudgetMinMin),
+  "budgetMax": zod.number().min(createInvestorBodyBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()).optional(),
+  "interests": zod.array(zod.string()).optional()
+})
+
+
+export const createInvestorResponseOneBudgetMinMin = 0;
+
+export const createInvestorResponseOneBudgetMaxMin = 0;
+
+
+
+export const CreateInvestorResponse = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(createInvestorResponseOneBudgetMinMin),
+  "budgetMax": zod.number().min(createInvestorResponseOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Get an investor profile
+ */
+
+
+
+export const GetInvestorParams = zod.object({
+  "investorId": zod.coerce.string().min(1)
+})
+
+
+export const getInvestorResponseOneBudgetMinMin = 0;
+
+export const getInvestorResponseOneBudgetMaxMin = 0;
+
+
+
+export const GetInvestorResponse = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(getInvestorResponseOneBudgetMinMin),
+  "budgetMax": zod.number().min(getInvestorResponseOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Update an investor profile
+ */
+
+
+
+export const UpdateInvestorParams = zod.object({
+  "investorId": zod.coerce.string().min(1)
+})
+
+
+export const updateInvestorBodyBudgetMinMin = 0;
+
+export const updateInvestorBodyBudgetMaxMin = 0;
+
+
+
+export const UpdateInvestorBody = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  "budgetMin": zod.number().min(updateInvestorBodyBudgetMinMin),
+  "budgetMax": zod.number().min(updateInvestorBodyBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()).optional(),
+  "interests": zod.array(zod.string()).optional()
+})
+
+
+export const updateInvestorResponseOneBudgetMinMin = 0;
+
+export const updateInvestorResponseOneBudgetMaxMin = 0;
+
+
+
+export const UpdateInvestorResponse = zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(updateInvestorResponseOneBudgetMinMin),
+  "budgetMax": zod.number().min(updateInvestorResponseOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Delete an investor profile
+ */
+
+
+
+export const DeleteInvestorParams = zod.object({
+  "investorId": zod.coerce.string().min(1)
+})
+
+export const DeleteInvestorResponse = zod.void()
+
+
+/**
+ * @summary List tenant-scoped CRM contacts
+ */
+
+
+
+export const ListCrmContactsResponseItem = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "contactId": zod.string(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListCrmContactsResponse = zod.array(ListCrmContactsResponseItem)
+
+
+/**
+ * @summary Create a CRM contact
+ */
+
+
+
+export const CreateCrmContactBody = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']).optional(),
+  "notes": zod.string().optional()
+})
+
+
+
+
+export const CreateCrmContactResponse = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "contactId": zod.string(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Get a CRM contact
+ */
+
+
+
+export const GetCrmContactParams = zod.object({
+  "contactId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const GetCrmContactResponse = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "contactId": zod.string(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary List communication history for a CRM contact
+ */
+
+
+
+export const ListCrmActivitiesParams = zod.object({
+  "contactId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const ListCrmActivitiesResponseItem = zod.object({
+  "kind": zod.enum(['NOTE', 'CALL', 'EMAIL', 'MEETING']),
+  "summary": zod.string().min(1),
+  "occurredAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "activityId": zod.string(),
+  "contactId": zod.string(),
+  "actorId": zod.string(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+export const ListCrmActivitiesResponse = zod.array(ListCrmActivitiesResponseItem)
+
+
+/**
+ * @summary Add a communication activity to a CRM contact
+ */
+
+
+
+export const CreateCrmActivityParams = zod.object({
+  "contactId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const CreateCrmActivityBody = zod.object({
+  "kind": zod.enum(['NOTE', 'CALL', 'EMAIL', 'MEETING']),
+  "summary": zod.string().min(1),
+  "occurredAt": zod.coerce.date().optional()
+})
+
+
+
+
+export const CreateCrmActivityResponse = zod.object({
+  "kind": zod.enum(['NOTE', 'CALL', 'EMAIL', 'MEETING']),
+  "summary": zod.string().min(1),
+  "occurredAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "activityId": zod.string(),
+  "contactId": zod.string(),
+  "actorId": zod.string(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Update a CRM contact
+ */
+
+
+
+export const UpdateCrmContactParams = zod.object({
+  "contactId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const UpdateCrmContactBody = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']).optional(),
+  "notes": zod.string().optional()
+})
+
+
+
+
+export const UpdateCrmContactResponse = zod.object({
+  "type": zod.enum(['INVESTOR', 'MAKELAAR', 'PARTNER']),
+  "name": zod.string().min(1),
+  "email": zod.string().email().optional(),
+  "phone": zod.string().optional(),
+  "company": zod.string().optional(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "notes": zod.string().optional()
+}).and(zod.object({
+  "contactId": zod.string(),
+  "status": zod.enum(['ACTIVE', 'INACTIVE']),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Delete a CRM contact
+ */
+
+
+
+export const DeleteCrmContactParams = zod.object({
+  "contactId": zod.coerce.string().min(1)
+})
+
+export const DeleteCrmContactResponse = zod.void()
+
+
+/**
+ * @summary Get tenant-scoped Enterprise Core overview
+ */
+export const GetEnterpriseOverviewResponse = zod.object({
+  "status": zod.string(),
+  "tenantId": zod.string(),
+  "counts": zod.object({
+  "deals": zod.number().int(),
+  "investors": zod.number().int(),
+  "crmContacts": zod.number().int()
+}),
+  "goDeals": zod.number().int(),
+  "averageDealScore": zod.number(),
+  "lastUpdated": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get SaaS tier entitlements
+ */
+export const GetSaasEntitlementsQueryParams = zod.object({
+  "tier": zod.enum(['STARTER', 'PROFESSIONAL', 'INVESTOR', 'ENTERPRISE']).optional()
+})
+
+export const GetSaasEntitlementsResponse = zod.object({
+  "tier": zod.enum(['STARTER', 'PROFESSIONAL', 'INVESTOR', 'ENTERPRISE']),
+  "label": zod.string(),
+  "maxProperties": zod.number(),
+  "maxInvestors": zod.number(),
+  "features": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Report provider-neutral SaaS billing readiness
+ */
+export const GetSaasBillingStatusResponse = zod.object({
+  "provider": zod.enum(['stripe', 'whop', 'unconfigured']),
+  "configured": zod.boolean(),
+  "webhookReady": zod.boolean(),
+  "supportedTiers": zod.array(zod.string()),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({
