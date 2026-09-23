@@ -348,6 +348,45 @@ async function validateRestore(databaseUrl: string): Promise<void> {
   );
 }
 
+async function validateReleaseAuditIntegrity(
+  databaseUrl: string,
+): Promise<void> {
+  try {
+    const result = await execFileAsync(
+      "pnpm",
+      ["--filter", "@workspace/scripts", "run", "test:release-integrity"],
+      {
+        cwd: workspaceRoot,
+        env: {
+          ...process.env,
+          DATABASE_URL: databaseUrl,
+        },
+      },
+    );
+    if (result.stdout) {
+      process.stdout.write(result.stdout);
+    }
+    if (result.stderr) {
+      process.stderr.write(result.stderr);
+    }
+  } catch (error) {
+    const commandError = error as typeof error & {
+      stdout?: string;
+      stderr?: string;
+    };
+    if (commandError.stdout) {
+      process.stdout.write(commandError.stdout);
+    }
+    if (commandError.stderr) {
+      process.stderr.write(commandError.stderr);
+    }
+    throw new Error(
+      "Release audit integrity validation failed; the restored database is not releasable.",
+      { cause: error },
+    );
+  }
+}
+
 async function releaseRestoreTest(inputPath?: string): Promise<void> {
   const adminUrl = requiredEnvironment("RESTORE_ADMIN_DATABASE_URL");
   const targetName = `realestatex_restore_${process.pid}_${Date.now()}`;
@@ -373,6 +412,7 @@ async function releaseRestoreTest(inputPath?: string): Promise<void> {
       target,
     ]);
     await validateRestore(targetUrl);
+    await validateReleaseAuditIntegrity(targetUrl);
     console.log(`Release restore test completed successfully from ${target}.`);
   } catch (error) {
     operationError = error;

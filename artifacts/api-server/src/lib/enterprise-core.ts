@@ -301,8 +301,9 @@ export type AuditChainValidation = {
 
 export async function validateAuditHashChain(
   tenantId: string,
+  database: AuditDatabase = requireDatabase(),
 ): Promise<AuditChainValidation> {
-  const events = await requireDatabase()
+  const events = await database
     .select()
     .from(auditEventsTable)
     .where(eq(auditEventsTable.tenantId, tenantId))
@@ -312,7 +313,7 @@ export async function validateAuditHashChain(
   let previousSequenceId = 0;
 
   for (const event of events) {
-    if (event.sequenceId <= previousSequenceId) {
+    if (event.sequenceId !== previousSequenceId + 1) {
       errors.push(`Invalid sequence_id at sequence_id ${event.sequenceId}.`);
     }
 
@@ -320,7 +321,7 @@ export async function validateAuditHashChain(
       errors.push(`Invalid previous_hash at sequence_id ${event.sequenceId}.`);
     }
 
-    const metadataResult = await requireDatabase().execute(
+    const metadataResult = await database.execute(
       sql`select ${JSON.stringify(event.metadata)}::jsonb::text as metadata_text`,
     );
     const [metadataRow] = metadataResult.rows as unknown as Array<{

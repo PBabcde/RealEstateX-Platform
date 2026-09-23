@@ -23,7 +23,8 @@ Audit events are append-only at the database boundary as well as in the
 application. PostgreSQL rejects every `UPDATE` and `DELETE` on `audit_events`
 with a `RESTRICT_VIOLATION`; direct database access cannot silently rewrite or
 remove audit history. Inserts remain allowed for the application and import
-paths. Verify this protection after applying migrations with:
+paths. Verify this protection and the audit hash chain after applying
+migrations with:
 
 ```bash
 pnpm --filter @workspace/scripts run test:audit-immutability
@@ -118,7 +119,9 @@ RESTORE_ADMIN_DATABASE_URL='postgresql://...' \
 The release check validates the five RealEstateX tables
 (`properties`, `module_data`, `chat_sessions`, `chat_messages`, and
 `audit_events`), requires imported property and RealEstateX module records,
-and drops the temporary database even when restore or validation fails.
+validates every tenant's audit sequence and hash chain, runs the append-only
+trigger test, logs the number of validated events, and drops the temporary
+database even when restore or validation fails.
 
 ## Enterprise Core recovery operations
 

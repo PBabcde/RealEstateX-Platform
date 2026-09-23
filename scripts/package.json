@@ -12,6 +12,7 @@
     "realestatex:restore-test": "tsx ./src/realestatex-ops.ts restore-test",
     "realestatex:release-restore-test": "tsx ./src/realestatex-ops.ts release-restore-test",
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
+    "test:release-integrity": "tsx ../tests/audit_immutability.test.js",
     "test:tenant-isolation": "tsx ../tests/enterprise_tenant_isolation.test.js",
     "test:enterprise-core-tenant-isolation": "tsx ../tests/enterprise_core_tenant_isolation.test.js",
     "test:ownerworld-compatibility": "tsx ../tests/module_data_ownerworld_compatibility.test.js",

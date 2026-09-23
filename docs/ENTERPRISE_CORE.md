@@ -38,7 +38,7 @@ There is no application repository path that updates or deletes audit rows.
 
 `validateAuditHashChain()` reads events in `sequence_id` order and verifies:
 
-1. IDs start at `1` and increase without gaps;
+1. IDs start at `1` and increase by exactly one without gaps;
 2. each `previous_hash` equals the preceding event's `event_hash`;
 3. each `event_hash` matches the canonical event payload;
 4. the chain is valid from the first event through the newest event.
@@ -57,3 +57,13 @@ pnpm --filter @workspace/scripts run test:audit-immutability
 
 The test inserts an event, confirms that `UPDATE` and `DELETE` are rejected by
 the database trigger, and rolls back the transaction so test data is not kept.
+The same test suite also validates every tenant's sequence and hash chain and
+prints the number of validated events.
+
+Every release restore verification runs this suite against the restored
+disposable database. A failed sequence, `previous_hash`, or `event_hash`
+validation exits non-zero and blocks the release:
+
+```bash
+pnpm --filter @workspace/scripts run test:release-integrity
+```

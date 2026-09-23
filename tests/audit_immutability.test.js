@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { hashAuditEvent, requireDb } from "@workspace/db";
+import { DEFAULT_TENANT_ID } from "@workspace/db/schema";
+import { validateAuditHashChain } from "../artifacts/api-server/src/lib/enterprise-core.ts";
 
 const { pool } = requireDb();
 
@@ -21,7 +23,8 @@ test("audit_events is append-only and rejects UPDATE and DELETE", async () => {
   try {
     await client.query("BEGIN");
     const previousResult = await client.query(
-      "SELECT sequence_id, event_hash FROM audit_events ORDER BY sequence_id DESC LIMIT 1",
+      "SELECT sequence_id, event_hash FROM audit_events WHERE tenant_id = $1 ORDER BY sequence_id DESC LIMIT 1",
+      [DEFAULT_TENANT_ID],
     );
     const previous = previousResult.rows[0];
     const sequenceId = Number(previous?.sequence_id ?? 0) + 1;
@@ -44,11 +47,12 @@ test("audit_events is append-only and rejects UPDATE and DELETE", async () => {
 
     const insertResult = await client.query(
       `INSERT INTO audit_events
-        (event_id, sequence_id, previous_hash, event_hash, action,
+        (event_id, tenant_id, sequence_id, previous_hash, event_hash, action,
          entity_type, entity_id, actor_id, metadata, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)`,
       [
         eventId,
+        DEFAULT_TENANT_ID,
         sequenceId,
         previousHash,
         eventHash,
@@ -100,4 +104,25 @@ test("audit_events is append-only and rejects UPDATE and DELETE", async () => {
   } finally {
     client.release();
   }
+});
+
+test("audit_events sequence and hash chain are valid", async () => {
+  const tenantsResult = await pool.query(
+    "SELECT DISTINCT tenant_id::text AS tenant_id FROM audit_events ORDER BY tenant_id",
+  );
+  let validatedEvents = 0;
+
+  for (const row of tenantsResult.rows) {
+    const validation = await validateAuditHashChain(row.tenant_id);
+    validatedEvents += validation.eventCount;
+    assert.equal(
+      validation.valid,
+      true,
+      `Audit hash-chain validation failed for tenant ${row.tenant_id}: ${validation.errors.join(" ")}`,
+    );
+  }
+
+  console.log(
+    `Audit hash-chain validation passed: ${validatedEvents} event(s) across ${tenantsResult.rowCount ?? 0} tenant(s).`,
+  );
 });

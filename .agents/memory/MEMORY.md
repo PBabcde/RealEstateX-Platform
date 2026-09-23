@@ -5,3 +5,4 @@
 - [Audit trigger testing](audit-trigger-testing.md) — PostgreSQL aborts a transaction after a trigger error; use savepoints to verify multiple rejected mutations.
 - [Enterprise tenant isolation](enterprise-tenant-isolation.md) — tenant-scoped audit chains and trust uniqueness are required; runtime recovery mode remains global.
 - [Offsite backup safety](offsite-backup-safety.md) — backup jobs must fail closed when durable offsite storage is missing or inside the runtime.
+- [Release audit validation target](release-audit-validation.md) — run audit checks in a child process bound to the disposable restore database.
