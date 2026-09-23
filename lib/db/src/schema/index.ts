@@ -9,7 +9,10 @@ import {
   timestamp,
   index,
   check,
+  unique,
+  uuid,
 } from "drizzle-orm/pg-core";
+import { DEFAULT_TENANT_ID, tenantsTable } from "./auth";
 export * from "./auth";
 
 export type PropertyFeatures = Record<string, string>;
@@ -86,24 +89,41 @@ export const chatMessagesTable = pgTable(
   }),
 );
 
-export const auditEventsTable = pgTable("audit_events", {
-  eventId: text("event_id").primaryKey(),
-  sequenceId: bigint("sequence_id", { mode: "number" }).notNull().unique(),
-  previousHash: text("previous_hash"),
-  eventHash: text("event_hash").notNull(),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id"),
-  actorId: text("actor_id"),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const auditEventsTable = pgTable(
+  "audit_events",
+  {
+    eventId: text("event_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
+    sequenceId: bigint("sequence_id", { mode: "number" }).notNull(),
+    previousHash: text("previous_hash"),
+    eventHash: text("event_hash").notNull(),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    actorId: text("actor_id"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    auditTenantSequenceUnique: unique("audit_events_tenant_sequence_unique").on(
+      table.tenantId,
+      table.sequenceId,
+    ),
+  }),
+);
 
 export const trustMetadataTable = pgTable(
   "trust_metadata",
   {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id").notNull(),
     sourceClass: text("source_class").notNull(),
@@ -123,7 +143,7 @@ export const trustMetadataTable = pgTable(
   },
   (table) => ({
     trustMetadataPrimaryKey: primaryKey({
-      columns: [table.entityType, table.entityId],
+      columns: [table.tenantId, table.entityType, table.entityId],
     }),
     trustSourceClassCheck: check(
       "trust_metadata_source_class_check",
@@ -139,6 +159,10 @@ export const recoveryPointsTable = pgTable(
   "recovery_points",
   {
     recoveryPointId: text("recovery_point_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
     kind: text("kind").notNull(),
     status: text("status").notNull(),
     label: text("label"),
@@ -173,6 +197,10 @@ export const integrityChecksTable = pgTable(
   "integrity_checks",
   {
     checkId: text("check_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
     scope: text("scope").notNull(),
     status: text("status").notNull(),
     expectedChecksum: text("expected_checksum"),

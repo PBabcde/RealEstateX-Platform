@@ -25,6 +25,7 @@ router.get(
   async (req, res, next): Promise<void> => {
   try {
     const trust = await getTrustMetadata(
+      req.enterpriseContext!.tenantId,
       routeParam(req.params.entityType),
       routeParam(req.params.entityId),
     );
@@ -53,6 +54,7 @@ router.get(
       return date;
     };
     const events = await queryAuditEvents({
+      tenantId: req.enterpriseContext!.tenantId,
       actorId: typeof req.query.actorId === "string" ? req.query.actorId : undefined,
       entityType:
         typeof req.query.entityType === "string" ? req.query.entityType : undefined,
@@ -88,7 +90,9 @@ router.post(
       typeof req.body?.expectedChecksum === "string"
         ? req.body.expectedChecksum
         : undefined;
-    res.json(await createIntegrityCheck(expectedChecksum));
+    res.json(
+      await createIntegrityCheck(req.enterpriseContext!.tenantId, expectedChecksum),
+    );
   } catch (error) {
     next(error);
   }
@@ -107,6 +111,7 @@ router.post(
     }
     res.status(201).json(
       await createRecoveryPoint({
+        tenantId: req.enterpriseContext!.tenantId,
         kind,
         label: typeof req.body.label === "string" ? req.body.label : undefined,
         source: typeof req.body.source === "string" ? req.body.source : undefined,

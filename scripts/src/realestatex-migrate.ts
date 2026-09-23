@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { db, hashAuditEvent, pool, sql } from "@workspace/db";
 import {
+  DEFAULT_TENANT_ID,
   auditEventsTable,
   chatMessagesTable,
   chatSessionsTable,
@@ -115,7 +116,8 @@ async function appendLegacyAuditEvent(
       sequenceId: auditEventsTable.sequenceId,
       eventHash: auditEventsTable.eventHash,
     })
-    .from(auditEventsTable);
+    .from(auditEventsTable)
+    .where(sql`${auditEventsTable.tenantId} = ${DEFAULT_TENANT_ID}`);
   const previous = existing.reduce<typeof existing[number] | undefined>(
     (current, candidate) =>
       !current || candidate.sequenceId > current.sequenceId ? candidate : current,
@@ -125,6 +127,7 @@ async function appendLegacyAuditEvent(
   const previousHash = previous?.eventHash ?? null;
   await database.insert(auditEventsTable).values({
     eventId: input.eventId,
+    tenantId: DEFAULT_TENANT_ID,
     sequenceId,
     previousHash,
     eventHash: hashAuditEvent({

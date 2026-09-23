@@ -6,13 +6,16 @@ import {
   getOidcConfig,
   getSession,
   getSessionId,
+  getUserTenantId,
   updateSession,
   type SessionData,
 } from "../lib/auth";
 
 declare global {
   namespace Express {
-    interface User extends AuthUser {}
+    interface User extends AuthUser {
+      tenantId: string;
+    }
     interface Request {
       isAuthenticated(): this is AuthedRequest;
       user?: User | undefined;
@@ -77,6 +80,13 @@ export async function authMiddleware(
     return;
   }
 
-  req.user = refreshed.user;
+  const tenantId = await getUserTenantId(refreshed.user.id);
+  if (!tenantId) {
+    await clearSession(res, sid);
+    next();
+    return;
+  }
+
+  req.user = { ...refreshed.user, tenantId };
   next();
 }

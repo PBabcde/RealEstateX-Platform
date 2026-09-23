@@ -19,6 +19,7 @@ export const TRUST_SOURCE_CLASSES = [
 export type TrustSourceClass = (typeof TRUST_SOURCE_CLASSES)[number];
 
 export type TrustMetadataInput = {
+  tenantId: string;
   entityType: string;
   entityId: string;
   sourceClass: TrustSourceClass;
@@ -29,6 +30,7 @@ export type TrustMetadataInput = {
 };
 
 export type AuditEventInput = {
+  tenantId: string;
   action: string;
   entityType: string;
   entityId?: string;
@@ -39,6 +41,7 @@ export type AuditEventInput = {
 type AuditDatabase = Pick<NonNullable<typeof db>, "execute" | "insert" | "select">;
 
 export type AuditEventFilter = {
+  tenantId: string;
   actorId?: string;
   entityType?: string;
   entityId?: string;
@@ -103,6 +106,7 @@ export async function appendAuditEvent(
       eventHash: auditEventsTable.eventHash,
     })
     .from(auditEventsTable)
+    .where(eq(auditEventsTable.tenantId, input.tenantId))
     .orderBy(desc(auditEventsTable.sequenceId))
     .limit(1);
 
@@ -121,6 +125,7 @@ export async function appendAuditEvent(
   }
   const event = {
     eventId: input.eventId ?? randomUUID(),
+    tenantId: input.tenantId,
     sequenceId,
     previousHash,
     action: input.action,
@@ -177,6 +182,7 @@ export async function registerTrustMetadata(
   await database
     .insert(trustMetadataTable)
     .values({
+      tenantId: input.tenantId,
       entityType: input.entityType,
       entityId: input.entityId,
       sourceClass: input.sourceClass,
@@ -188,7 +194,11 @@ export async function registerTrustMetadata(
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: [trustMetadataTable.entityType, trustMetadataTable.entityId],
+      target: [
+        trustMetadataTable.tenantId,
+        trustMetadataTable.entityType,
+        trustMetadataTable.entityId,
+      ],
       set: {
         sourceClass: input.sourceClass,
         sourceBoundary: input.sourceBoundary,
@@ -202,6 +212,7 @@ export async function registerTrustMetadata(
 }
 
 export async function getTrustMetadata(
+  tenantId: string,
   entityType: string,
   entityId: string,
 ) {
@@ -210,6 +221,7 @@ export async function getTrustMetadata(
     .from(trustMetadataTable)
     .where(
       and(
+        eq(trustMetadataTable.tenantId, tenantId),
         eq(trustMetadataTable.entityType, entityType),
         eq(trustMetadataTable.entityId, entityId),
       ),
@@ -224,8 +236,8 @@ export async function recordAuditEvent(input: AuditEventInput) {
   );
 }
 
-export async function queryAuditEvents(filter: AuditEventFilter = {}) {
-  const conditions = [];
+export async function queryAuditEvents(filter: AuditEventFilter) {
+  const conditions = [eq(auditEventsTable.tenantId, filter.tenantId)];
   if (filter.actorId) {
     conditions.push(eq(auditEventsTable.actorId, filter.actorId));
   }
@@ -276,10 +288,13 @@ export type AuditChainValidation = {
   errors: string[];
 };
 
-export async function validateAuditHashChain(): Promise<AuditChainValidation> {
+export async function validateAuditHashChain(
+  tenantId: string,
+): Promise<AuditChainValidation> {
   const events = await requireDatabase()
     .select()
     .from(auditEventsTable)
+    .where(eq(auditEventsTable.tenantId, tenantId))
     .orderBy(asc(auditEventsTable.sequenceId));
   const errors: string[] = [];
   let expectedSequenceId = 1;
@@ -326,23 +341,36 @@ export async function validateAuditHashChain(): Promise<AuditChainValidation> {
   return { valid: errors.length === 0, eventCount: events.length, errors };
 }
 
-async function calculateDatabaseChecksum(): Promise<string> {
+async function calculateDatabaseChecksum(tenantId: string): Promise<string> {
   const database = requireDatabase();
   const [audit, trust, integrity, recovery, runtime] = await Promise.all([
-    database.select().from(auditEventsTable),
-    database.select().from(trustMetadataTable),
-    database.select().from(integrityChecksTable),
-    database.select().from(recoveryPointsTable),
+    database
+      .select()
+      .from(auditEventsTable)
+      .where(eq(auditEventsTable.tenantId, tenantId)),
+    database
+      .select()
+      .from(trustMetadataTable)
+      .where(eq(trustMetadataTable.tenantId, tenantId)),
+    database
+      .select()
+      .from(integrityChecksTable)
+      .where(eq(integrityChecksTable.tenantId, tenantId)),
+    database
+      .select()
+      .from(recoveryPointsTable)
+      .where(eq(recoveryPointsTable.tenantId, tenantId)),
     database.select().from(coreRuntimeStateTable),
   ]);
   return hashIntegrityValue({ audit, trust, integrity, recovery, runtime });
 }
 
 export async function createIntegrityCheck(
+  tenantId: string,
   expectedChecksum?: string,
 ): Promise<IntegrityResult> {
-  const actualChecksum = await calculateDatabaseChecksum();
-  const auditChain = await validateAuditHashChain();
+  const actualChecksum = await calculateDatabaseChecksum(tenantId);
+  const auditChain = await validateAuditHashChain(tenantId);
   const status =
     !auditChain.valid || (expectedChecksum && expectedChecksum !== actualChecksum)
       ? "FAILED"
@@ -351,6 +379,7 @@ export async function createIntegrityCheck(
   const checkId = randomUUID();
   await requireDatabase().insert(integrityChecksTable).values({
     checkId,
+    tenantId,
     scope: "enterprise-core",
     status,
     expectedChecksum,
@@ -383,6 +412,7 @@ export async function createIntegrityCheck(
 }
 
 export async function createRecoveryPoint(input: {
+  tenantId: string;
   kind: "BACKUP" | "ROLLBACK";
   label?: string;
   source?: string;
@@ -391,6 +421,7 @@ export async function createRecoveryPoint(input: {
 }) {
   const recoveryPoint = {
     recoveryPointId: randomUUID(),
+    tenantId: input.tenantId,
     kind: input.kind,
     status: "CREATED" as const,
     label: input.label,

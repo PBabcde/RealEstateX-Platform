@@ -166,8 +166,12 @@ async function loadIndex(ownerId: string): Promise<RagIndex> {
   });
 }
 
-async function saveIndex(ownerId: string, index: RagIndex): Promise<void> {
-  await writeModuleData(tenantKey(ownerId), index);
+async function saveIndex(
+  ownerId: string,
+  index: RagIndex,
+  tenantId: string,
+): Promise<void> {
+  await writeModuleData(tenantKey(ownerId), index, tenantId);
 }
 
 function summary(document: RagDocument): RagDocumentSummary {
@@ -184,6 +188,7 @@ function summary(document: RagDocument): RagDocumentSummary {
 
 export async function ingestDocument(input: {
   ownerId: string;
+  tenantId: string;
   filename: string;
   content: string;
   contentType?: string;
@@ -227,14 +232,15 @@ export async function ingestDocument(input: {
   };
   const index = await loadIndex(input.ownerId);
   index.documents[documentId] = document;
-  await saveIndex(input.ownerId, index);
+  await saveIndex(input.ownerId, index, input.tenantId);
   return summary(document);
 }
 
 export async function listDocuments(
   ownerId: string,
+  tenantId: string,
 ): Promise<RagDocumentSummary[]> {
-  await purgeExpiredDocuments(ownerId);
+  await purgeExpiredDocuments(ownerId, tenantId);
   const index = await loadIndex(ownerId);
   const now = Date.now();
   return Object.values(index.documents)
@@ -245,16 +251,20 @@ export async function listDocuments(
 export async function deleteDocument(
   ownerId: string,
   documentId: string,
+  tenantId: string,
 ): Promise<boolean> {
   const index = await loadIndex(ownerId);
   const document = index.documents[documentId];
   if (!document) return false;
   delete index.documents[documentId];
-  await saveIndex(ownerId, index);
+  await saveIndex(ownerId, index, tenantId);
   return true;
 }
 
-export async function purgeExpiredDocuments(ownerId?: string): Promise<number> {
+export async function purgeExpiredDocuments(
+  ownerId: string | undefined,
+  tenantId: string,
+): Promise<number> {
   if (!ownerId) return 0;
   const index = await loadIndex(ownerId);
   const expired = Object.keys(index.documents).filter(
@@ -262,17 +272,18 @@ export async function purgeExpiredDocuments(ownerId?: string): Promise<number> {
       Date.parse(index.documents[documentId].expiresAt) <= Date.now(),
   );
   for (const documentId of expired) delete index.documents[documentId];
-  if (expired.length) await saveIndex(ownerId, index);
+  if (expired.length) await saveIndex(ownerId, index, tenantId);
   return expired.length;
 }
 
 export async function retrieveDocuments(
   ownerId: string,
   query: string,
+  tenantId: string,
   topK = 5,
 ): Promise<RagPassage[]> {
   if (!query.trim()) return [];
-  await purgeExpiredDocuments(ownerId);
+  await purgeExpiredDocuments(ownerId, tenantId);
   const boundedTopK = Math.max(1, Math.min(Math.floor(topK), 20));
   const queryTokens = new Set(tokens(query));
   const queryEmbedding = embedding(query);

@@ -72,7 +72,11 @@ router.post("/properties", async (req, res): Promise<void> => {
 
   const propertyId = `property-${randomUUID()}`;
   const property: PropertyRecord = { propertyId, ownerId: req.user!.id, ...parsed.data };
-  const created = await createProperty(property, req.user!.id);
+  const created = await createProperty(
+    property,
+    req.user!.id,
+    req.user!.tenantId,
+  );
   res.status(201).json(CreatePropertyResponse.parse(created));
 });
 
@@ -121,6 +125,7 @@ router.patch("/properties/:propertyId", async (req, res): Promise<void> => {
     body.data,
     req.user!.id,
     isAdministrator(req) ? undefined : req.user!.id,
+    req.user!.tenantId,
   );
   if (!updated) {
     res.status(404).json({ error: "Property not found" });
@@ -149,6 +154,7 @@ router.delete("/properties/:propertyId", async (req, res): Promise<void> => {
       params.data.propertyId,
       req.user!.id,
       isAdministrator(req) ? undefined : req.user!.id,
+      req.user!.tenantId,
     ))
   ) {
     res.status(404).json({ error: "Property not found" });
@@ -164,7 +170,11 @@ router.post("/valuations/calculate", async (req, res): Promise<void> => {
     return;
   }
   const result = calculateValuation(body.data);
-  await writeModuleData("valuations.json", { last: { input: body.data, result } });
+  await writeModuleData(
+    "valuations.json",
+    { last: { input: body.data, result } },
+    req.user!.tenantId,
+  );
   res.json(CalculateValuationResponse.parse(result));
 });
 
@@ -175,7 +185,11 @@ router.post("/rentals/overview", async (req, res): Promise<void> => {
     return;
   }
   const result = calculateRental(body.data);
-  await writeModuleData("rentals.json", { last: { input: body.data, result } });
+  await writeModuleData(
+    "rentals.json",
+    { last: { input: body.data, result } },
+    req.user!.tenantId,
+  );
   res.json(CalculateRentalOverviewResponse.parse(result));
 });
 
@@ -186,7 +200,11 @@ router.post("/mortgages/calculate", async (req, res): Promise<void> => {
     return;
   }
   const result = calculateMortgage(body.data);
-  await writeModuleData("mortgages.json", { last: { input: body.data, result } });
+  await writeModuleData(
+    "mortgages.json",
+    { last: { input: body.data, result } },
+    req.user!.tenantId,
+  );
   res.json(CalculateMortgageResponse.parse(result));
 });
 

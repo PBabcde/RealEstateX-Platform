@@ -144,14 +144,18 @@ router.post("/assistant/ask", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const passages = await retrieveDocuments(req.user!.id, body.data.question);
+  const passages = await retrieveDocuments(
+    req.user!.id,
+    body.data.question,
+    req.user!.tenantId,
+  );
   res.json(
     AskAssistantResponse.parse(assistantResponse(body.data.question, passages)),
   );
 });
 
 router.get("/assistant/documents", async (req, res): Promise<void> => {
-  const documents = await listDocuments(req.user!.id);
+  const documents = await listDocuments(req.user!.id, req.user!.tenantId);
   res.json(ListAssistantDocumentsResponse.parse({ status: "ok", documents }));
 });
 
@@ -164,6 +168,7 @@ router.post("/assistant/documents", async (req, res): Promise<void> => {
   try {
     const document = await ingestDocument({
       ownerId: req.user!.id,
+      tenantId: req.user!.tenantId,
       filename: body.data.filename,
       content: body.data.content,
       contentType: body.data.contentType,
@@ -190,7 +195,11 @@ router.delete(
       res.status(400).json({ error: params.error.message });
       return;
     }
-    const deleted = await deleteDocument(req.user!.id, params.data.documentId);
+    const deleted = await deleteDocument(
+      req.user!.id,
+      params.data.documentId,
+      req.user!.tenantId,
+    );
     if (!deleted) {
       res.status(404).json({ error: "Document not found" });
       return;
@@ -208,6 +217,7 @@ router.post("/assistant/retrieve", async (req, res): Promise<void> => {
   const passages = await retrieveDocuments(
     req.user!.id,
     body.data.query,
+    req.user!.tenantId,
     body.data.topK,
   );
   res.json(
@@ -233,7 +243,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
     createdAt: now(),
     messages: [],
   };
-  await createChatSession(session);
+  await createChatSession(session, req.user!.tenantId);
   res
     .status(201)
     .json(
@@ -256,7 +266,11 @@ router.post("/chat/send", async (req, res): Promise<void> => {
     forbidden(res);
     return;
   }
-  const passages = await retrieveDocuments(req.user!.id, body.data.message);
+  const passages = await retrieveDocuments(
+    req.user!.id,
+    body.data.message,
+    req.user!.tenantId,
+  );
   const reply = assistantResponse(body.data.message, passages);
   const updated = await appendChatMessages(
     body.data.sessionId,
@@ -265,6 +279,7 @@ router.post("/chat/send", async (req, res): Promise<void> => {
       { role: "assistant", content: reply.answer, at: now() },
     ],
     isAdministrator(req) ? undefined : req.user!.id,
+    req.user!.tenantId,
   );
   if (!updated) {
     res.status(404).json({ error: "Chat session not found" });

@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
-import { getUserTenantId } from "./auth";
 
 export type EnterpriseRequestContext = {
   actorId: string;
@@ -48,17 +47,8 @@ export async function attachEnterpriseContext(
   }
 
   try {
-    const tenantId = await getUserTenantId(req.user.id);
-    if (!tenantId) {
-      res.status(403).json({
-        error: "Forbidden",
-        message: "EnterpriseContext vereist een geldige tenant.",
-      });
-      return;
-    }
-
     req.enterpriseContext = {
-      tenantId,
+      tenantId: req.user.tenantId,
       actorId: req.user.id,
       roles: [ROLE_MAP[req.user.role] ?? "Member"],
       permissions: [],
