@@ -15,6 +15,13 @@
       "when": 1790173271381,
       "tag": "0001_smiling_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790174000000,
+      "tag": "0002_add_property_owner",
+      "breakpoints": true
     }
   ]
 }

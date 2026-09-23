@@ -74,6 +74,20 @@ to the underlying script when testing an older backup. Verify the restored
 API with the daily health and suite smoke tests before treating the backup as
 valid.
 
+Every tagged release runs the same restore check in CI. The workflow creates
+the source schema and fixture data, writes a custom-format backup, creates a
+unique disposable PostgreSQL database, and runs the release restore command:
+
+```bash
+RESTORE_ADMIN_DATABASE_URL='postgresql://...' \
+  pnpm --filter @workspace/scripts run realestatex:release-restore-test
+```
+
+The release check validates the five RealEstateX tables
+(`properties`, `module_data`, `chat_sessions`, `chat_messages`, and
+`audit_events`), requires imported property and RealEstateX module records,
+and drops the temporary database even when restore or validation fails.
+
 ## Enterprise Core recovery operations
 
 The Enterprise Core stores trust metadata, audit events, recovery points, and

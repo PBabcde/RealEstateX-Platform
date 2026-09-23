@@ -9,6 +9,7 @@
     "realestatex:backup": "tsx ./src/realestatex-ops.ts backup",
     "realestatex:prune-backups": "tsx ./src/realestatex-ops.ts prune",
     "realestatex:restore-test": "tsx ./src/realestatex-ops.ts restore-test",
+    "realestatex:release-restore-test": "tsx ./src/realestatex-ops.ts release-restore-test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

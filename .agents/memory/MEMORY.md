@@ -1,3 +1,4 @@
 - [TypeScript DOM iterable compatibility](typescript-dom-iterable.md) — generated fetch clients need `dom.iterable` enabled for Headers.entries().
 - [Drizzle migration output](drizzle-migrations.md) — preserve the configured migration directory journal when regenerating checked-in SQL.
 - [Drizzle config path quirk](drizzle-generation-path.md) — drizzle-kit can mis-handle absolute migration paths; use the workspace DB push path when generation cannot read its snapshot.
+- [Drizzle forward migrations](drizzle-forward-migrations.md) — repair schema drift with an additive migration and journal entry; do not rewrite already-applied SQL.
