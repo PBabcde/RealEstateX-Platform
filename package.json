@@ -7,7 +7,8 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "test:release-gate": "pnpm --filter @workspace/scripts run test:release-gate"
+    "test:release-gate": "pnpm --filter @workspace/scripts run test:release-gate",
+    "enterprise:master": "bash ./Vastgoed_Enterprise_Master_Build.sh"
   },
   "private": true,
   "dependencies": {

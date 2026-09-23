@@ -18,6 +18,7 @@
     "test:ownerworld-compatibility": "tsx ../tests/module_data_ownerworld_compatibility.test.js",
     "test:rag-tenant-isolation": "tsx ../tests/rag_tenant_isolation.test.js",
     "test:release-gate": "tsx ./src/verify-audit-chain-gate.ts",
+    "enterprise:master": "tsx ./src/vastgoed-enterprise-master.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

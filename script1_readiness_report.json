@@ -1,0 +1,233 @@
+{
+  "reportType": "vastgoed-enterprise-master-build",
+  "generatedAt": "2026-09-23T20:05:19.648Z",
+  "script": "Vastgoed_Enterprise_Master_Build.sh",
+  "mode": "fail-closed",
+  "readinessScore": 45,
+  "requestedThreshold": ">90%",
+  "thresholdMet": false,
+  "contaboDecision": "CONTABO NO-GO",
+  "script2Readiness": "NOT READY",
+  "checks": {
+    "total": 22,
+    "passed": 10,
+    "partial": 0,
+    "failed": 9,
+    "unverified": 3
+  },
+  "phases": [
+    {
+      "phase": "Fase 1",
+      "name": "Enterprise Core & Security",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Trust source classes",
+          "status": "PASS",
+          "detail": "Enterprise Core trust source classes are defined."
+        },
+        {
+          "name": "RBAC and tenant context",
+          "status": "PASS",
+          "detail": "Authenticated tenant and role context is available."
+        },
+        {
+          "name": "Append-only audit enforcement",
+          "status": "PASS",
+          "detail": "Database append-only audit migration is present."
+        },
+        {
+          "name": "Recovery controls",
+          "status": "PASS",
+          "detail": "Recovery mode guard is present."
+        },
+        {
+          "name": "UFW availability",
+          "status": "UNVERIFIED",
+          "detail": "ufw is not available locally; VPS configuration was not verified."
+        },
+        {
+          "name": "Fail2ban availability",
+          "status": "UNVERIFIED",
+          "detail": "fail2ban-client is not available locally; VPS configuration was not verified."
+        },
+        {
+          "name": "TLS tooling availability",
+          "status": "PASS",
+          "detail": "openssl is available in the local environment."
+        },
+        {
+          "name": "Workspace typecheck",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm run typecheck",
+          "output": "> workspace@0.0.0 typecheck /home/runner/workspace\n> pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck\n\n\n> workspace@0.0.0 typecheck:libs /home/runner/workspace\n> tsc --build\n\nScope: 4 of 10 workspace projects\nartifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/realestatex typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck: Done\nartifacts/api-server typecheck: Done\nartifacts/mockup-sandbox typecheck: Done\nartifacts/realestatex typecheck: Done"
+        },
+        {
+          "name": "API build",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/api-server run build",
+          "output": "> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server\n> node ./build.mjs\n\n\n\n  dist/index.mjs                       1.9mb ⚠️\n  dist/pino-worker.mjs               153.5kb\n  dist/pino-file.mjs                 142.1kb\n  dist/pino-pretty.mjs               115.3kb\n  dist/thread-stream-worker.mjs        7.4kb\n  dist/index.mjs.map                   3.2mb\n  dist/pino-worker.mjs.map           256.9kb\n  dist/pino-file.mjs.map             229.0kb\n  dist/pino-pretty.mjs.map           209.5kb\n  dist/thread-stream-worker.mjs.map   12.0kb\n\n⚡ Done in 249ms"
+        },
+        {
+          "name": "Release audit gate",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm run test:release-gate",
+          "output": "> workspace@0.0.0 test:release-gate /home/runner/workspace\n> pnpm --filter @workspace/scripts run test:release-gate\n\n\n> @workspace/scripts@0.0.0 test:release-gate /home/runner/workspace/scripts\n> tsx ./src/verify-audit-chain-gate.ts\n\nAudit integrity gate passed for tenant 00000000-0000-0000-0000-000000000001; validated 0 event(s)."
+        },
+        {
+          "name": "Audit immutability test",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/scripts run test:audit-immutability",
+          "output": "> @workspace/scripts@0.0.0 test:audit-immutability /home/runner/workspace/scripts\n> tsx ../tests/audit_immutability.test.js\n\n✔ audit_events is append-only and rejects UPDATE and DELETE (70.579227ms)\nAudit hash-chain validation passed: 0 event(s) across 0 tenant(s).\n✔ audit_events sequence and hash chain are valid (1.922741ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 80.859671"
+        },
+        {
+          "name": "Enterprise Core tenant test",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/scripts run test:enterprise-core-tenant-isolation",
+          "output": "> @workspace/scripts@0.0.0 test:enterprise-core-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/enterprise_core_tenant_isolation.test.js\n\n[20:05:19.366] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/f40ae3b1-8085-4f14-b206-1d54c05b1118\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 23\n[20:05:19.380] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/f40ae3b1-8085-4f14-b206-1d54c05b1118\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[20:05:19.389] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 7\n[20:05:19.394] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n[20:05:19.401] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 5,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[20:05:19.406] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 6,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[20:05:19.439] \u001b[32mINFO\u001b[39m (862): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 7,\n      \"method\": \"POST\",\n      \"url\": \"/api/core/recovery/points\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 201\n    }\n    \u001b[35mresponseTime\u001b[39m: 22\n✔ core API isolates trust, audit, recovery points, and runtime state by tenant (235.634924ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 341.619859"
+        },
+        {
+          "name": "Contabo VPS 30 recovery dry-run",
+          "status": "UNVERIFIED",
+          "detail": "Set CONTABO_VPS30_RECOVERY_DRY_RUN to an approved dry-run command; no VPS credentials or host connection were available."
+        }
+      ],
+      "blockers": [
+        "UFW, Fail2ban and TLS are not verifiable from this workspace.",
+        "A recovery dry-run on Contabo VPS 30 was not executed without an explicit host command."
+      ]
+    },
+    {
+      "phase": "Fase 2",
+      "name": "Dealing Room MVP",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Dealing Room MVP implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/routes/deals.ts"
+        },
+        {
+          "name": "Dealing Room MVP implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/deal-score.ts"
+        },
+        {
+          "name": "Dealing Room MVP implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/investor-ready-sheet.ts"
+        }
+      ],
+      "blockers": [
+        "Deal dashboard/detail, Deal Score Engine and investor-ready PDF generation are not implemented as production modules."
+      ]
+    },
+    {
+      "phase": "Fase 3",
+      "name": "Energy integratie",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Energy integratie implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/energy-analysis.ts"
+        }
+      ],
+      "blockers": [
+        "No persisted property-to-energy-to-ROI workflow is present."
+      ]
+    },
+    {
+      "phase": "Fase 4",
+      "name": "Subsidies module",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Subsidies module implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/subsidy-engine.ts"
+        }
+      ],
+      "blockers": [
+        "No persisted subsidy-trigger and net-ROI module is present."
+      ]
+    },
+    {
+      "phase": "Fase 5",
+      "name": "Investor Room",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Investor Room implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/routes/investors.ts"
+        }
+      ],
+      "blockers": [
+        "Investor profiles, interests, risk profiles and budgets are not implemented."
+      ]
+    },
+    {
+      "phase": "Fase 6",
+      "name": "Matching Engine",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "Matching Engine implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/investor-matching.ts"
+        }
+      ],
+      "blockers": [
+        "Deal-to-investor top-10 matching is not implemented."
+      ]
+    },
+    {
+      "phase": "Fase 7",
+      "name": "CRM integratie",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "CRM integratie implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/routes/crm.ts"
+        }
+      ],
+      "blockers": [
+        "CRM entities and communication history are not implemented."
+      ]
+    },
+    {
+      "phase": "Fase 8",
+      "name": "SaaS & tiering",
+      "status": "FAIL",
+      "checks": [
+        {
+          "name": "SaaS & tiering implementation",
+          "status": "FAIL",
+          "detail": "Required path is missing: artifacts/api-server/src/lib/saas-entitlements.ts"
+        }
+      ],
+      "blockers": [
+        "License tiers, billing hooks and granular entitlements are not implemented."
+      ]
+    }
+  ],
+  "limitations": [
+    "Local execution cannot prove Contabo VPS 30 firewall, Fail2ban, TLS or recovery state.",
+    "Missing Fase 2–8 production module paths are reported as blockers rather than represented by placeholders.",
+    "This report does not claim deployment readiness without an approved VPS dry-run and deployment evidence."
+  ],
+  "nextActions": [
+    "Implement tenant-safe Deal, Energy, Subsidy, Investor and CRM persistence with API tests.",
+    "Add matching, tiering, billing hooks and investor-ready document generation behind authenticated tenant routes.",
+    "Run an approved Contabo VPS 30 recovery dry-run and capture the result in release logs.",
+    "Close Trust boundary/mixed-data enforcement and expand the release gate to schema and restore validation.",
+    "Re-run this master build only after Fase 2–8 checks have concrete implementations."
+  ]
+}
