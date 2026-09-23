@@ -222,7 +222,7 @@ router.post("/assistant/retrieve", async (req, res): Promise<void> => {
   const passages = await retrieveDocuments(
     req.user!.id,
     body.data.query,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
     body.data.topK,
   );
   res.json(
@@ -262,7 +262,11 @@ router.post("/chat/send", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const session = await getChatSession(body.data.sessionId);
+  const session = await getChatSession(
+    body.data.sessionId,
+    undefined,
+    req.enterpriseContext!.tenantId,
+  );
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;
@@ -306,7 +310,11 @@ router.get("/chat/history", async (req, res): Promise<void> => {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const session = await getChatSession(query.data.sessionId);
+  const session = await getChatSession(
+    query.data.sessionId,
+    undefined,
+    req.enterpriseContext!.tenantId,
+  );
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;

@@ -58,6 +58,9 @@ function moduleNameFor(filename: string): string {
   if (["valuations", "rentals", "mortgages", "market"].includes(basename)) {
     return "RealEstateX";
   }
+  if (basename.startsWith("ragDocuments-")) {
+    return "RealEstateX";
+  }
   return basename;
 }
 
@@ -73,6 +76,19 @@ function dataKeyFor(filename: string): string {
     return "default";
   }
   return basename;
+}
+
+function moduleDataForImport(filename: string, data: unknown): unknown {
+  if (
+    moduleNameFor(filename) === "RealEstateX" &&
+    dataKeyFor(filename).startsWith("ragDocuments-")
+  ) {
+    return {
+      ...objectValue(data, filename),
+      tenantId: DEFAULT_TENANT_ID,
+    };
+  }
+  return data;
 }
 
 function asDate(value: unknown): Date {
@@ -153,7 +169,14 @@ async function migrate(): Promise<void> {
   const database = requireDatabase();
   const properties = objectValue(readJson("properties.json") ?? {}, "properties.json");
   const filenames = fs.existsSync(storagePath)
-    ? fs.readdirSync(storagePath).filter((filename) => filename.endsWith(".json")).sort()
+    ? fs
+        .readdirSync(storagePath)
+        .filter(
+          (filename) =>
+            filename.endsWith(".json") &&
+            !/\.tenant-[a-f0-9]{24}\.json$/u.test(filename),
+        )
+        .sort()
     : [];
 
   await database.transaction(async (transaction) => {
@@ -196,13 +219,14 @@ async function migrate(): Promise<void> {
       if (data === undefined) {
         continue;
       }
+      const moduleData = moduleDataForImport(filename, data);
       await transaction
         .insert(moduleDataTable)
         .values({
           tenantId: DEFAULT_TENANT_ID,
           moduleName: moduleNameFor(filename),
           dataKey: dataKeyFor(filename),
-          data,
+          data: moduleData,
           sourceFile: filename,
           updatedAt: new Date(),
         })
@@ -212,7 +236,7 @@ async function migrate(): Promise<void> {
             moduleDataTable.moduleName,
             moduleDataTable.dataKey,
           ],
-          set: { data, sourceFile: filename, updatedAt: new Date() },
+          set: { data: moduleData, sourceFile: filename, updatedAt: new Date() },
         });
     }
 

@@ -34,11 +34,13 @@ type RagChunk = {
 
 type RagDocument = RagDocumentSummary & {
   ownerId: string;
+  tenantId: string;
   chunks: RagChunk[];
 };
 
 type RagIndex = {
   version: 1;
+  tenantId: string;
   documents: Record<string, RagDocument>;
 };
 
@@ -160,10 +162,23 @@ function validateDocumentType(documentType: string | undefined): void {
 }
 
 async function loadIndex(ownerId: string, tenantId: string): Promise<RagIndex> {
-  return readModuleData<RagIndex>(tenantKey(ownerId), {
+  const stored = await readModuleData<RagIndex>(
+    tenantKey(ownerId),
+    {
+      version: 1,
+      tenantId,
+      documents: {},
+    },
+    tenantId,
+  );
+  if (stored.tenantId && stored.tenantId !== tenantId) {
+    throw new Error("RAG index tenant does not match the requested tenant");
+  }
+  return {
     version: 1,
-    documents: {},
-  }, tenantId);
+    tenantId,
+    documents: stored.documents ?? {},
+  };
 }
 
 async function saveIndex(
@@ -213,6 +228,7 @@ export async function ingestDocument(input: {
   const document: RagDocument = {
     documentId,
     ownerId: input.ownerId,
+    tenantId: input.tenantId,
     filename: input.filename,
     documentType:
       input.documentType?.trim() ||

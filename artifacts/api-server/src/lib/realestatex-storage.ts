@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { db, DEFAULT_TENANT_ID } from "@workspace/db";
 import {
   auditEventsTable,
@@ -537,10 +537,23 @@ function moduleParts(filename: string): { moduleName: string; dataKey: string } 
   return { moduleName: "RealEstateX", dataKey: basename };
 }
 
+function tenantScopedModuleFilename(filename: string, tenantId: string): string {
+  if (tenantId === DEFAULT_TENANT_ID) {
+    return filename;
+  }
+  const extension = path.extname(filename);
+  const basename = path.basename(filename, extension);
+  const tenantHash = createHash("sha256")
+    .update(tenantId)
+    .digest("hex")
+    .slice(0, 24);
+  return `${basename}.tenant-${tenantHash}${extension}`;
+}
+
 export async function readModuleData<T>(
   filename: string,
   fallback: T,
-  tenantId = DEFAULT_TENANT_ID,
+  tenantId: string,
 ): Promise<T> {
   const { moduleName, dataKey } = moduleParts(filename);
   if (postgresEnabled) {
@@ -557,13 +570,13 @@ export async function readModuleData<T>(
       .limit(1);
     return (row?.data as T | undefined) ?? fallback;
   }
-  return readJson(filename, fallback);
+  return readJson(tenantScopedModuleFilename(filename, tenantId), fallback);
 }
 
 export async function writeModuleData<T>(
   filename: string,
   data: T,
-  tenantId = DEFAULT_TENANT_ID,
+  tenantId: string,
 ): Promise<void> {
   const { moduleName, dataKey } = moduleParts(filename);
   if (postgresEnabled) {
@@ -596,7 +609,7 @@ export async function writeModuleData<T>(
     });
     return;
   }
-  writeJson(filename, data);
+  writeJson(tenantScopedModuleFilename(filename, tenantId), data);
 }
 
 export async function createChatSession(
@@ -623,6 +636,7 @@ export async function createChatSession(
   const sessions = await readModuleData<Record<string, ChatSessionRecord>>(
     "chatBoxX.json",
     {},
+    tenantId,
   );
   sessions[session.sessionId] = session;
   await writeModuleData("chatBoxX.json", sessions, tenantId);
@@ -633,7 +647,8 @@ export async function createChatSession(
 
 export async function getChatSession(
   sessionId: string,
-  ownerId?: string,
+  ownerId: string | undefined,
+  tenantId: string,
 ): Promise<ChatSessionRecord | undefined> {
   if (postgresEnabled) {
     const [session] = await requirePostgres()
@@ -670,6 +685,7 @@ export async function getChatSession(
   const sessions = await readModuleData<Record<string, ChatSessionRecord>>(
     "chatBoxX.json",
     {},
+    tenantId,
   );
   const session = sessions[sessionId];
   return ownerId && session?.userId !== ownerId ? undefined : session;
@@ -737,7 +753,7 @@ export async function appendChatMessages(
     });
   }
 
-  const session = await getChatSession(sessionId, ownerId);
+  const session = await getChatSession(sessionId, ownerId, tenantId);
   if (!session) {
     return undefined;
   }
@@ -745,6 +761,7 @@ export async function appendChatMessages(
   const sessions = await readModuleData<Record<string, ChatSessionRecord>>(
     "chatBoxX.json",
     {},
+    tenantId,
   );
   sessions[sessionId] = session;
   await writeModuleData("chatBoxX.json", sessions, tenantId);

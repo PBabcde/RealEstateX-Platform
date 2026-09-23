@@ -8,6 +8,17 @@ WHERE "tenant_id" IS NULL;
 ALTER TABLE "module_data"
   ALTER COLUMN "tenant_id" SET NOT NULL;
 --> statement-breakpoint
+UPDATE "module_data"
+SET "data" = jsonb_set(
+  "data",
+  '{tenantId}',
+  to_jsonb("tenant_id"::text),
+  true
+)
+WHERE "module_name" = 'RealEstateX'
+  AND "data_key" LIKE 'ragDocuments-%'
+  AND jsonb_typeof("data") = 'object';
+--> statement-breakpoint
 ALTER TABLE "module_data"
   DROP CONSTRAINT IF EXISTS "module_data_module_name_data_key_pk";
 --> statement-breakpoint
