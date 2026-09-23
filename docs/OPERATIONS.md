@@ -45,20 +45,42 @@ the default workspace storage directory. Take a backup before importing.
 ## Backups, restore tests, and retention
 
 `pg_dump` and `pg_restore` must be installed on the operations host. The
-following command creates a custom-format backup and removes `.dump` files
-older than 30 days:
+following command creates a custom-format backup in a local staging directory,
+copies it atomically to the configured offsite directory, and removes `.dump`
+files older than 30 days from both locations:
 
 ```bash
+REALESTATEX_OFFSITE_BACKUP_DIR=/mnt/backup-vault/realestatex \
 pnpm --filter @workspace/scripts run realestatex:backup
 ```
 
-Set `REALESTATEX_BACKUP_DIR` and `BACKUP_RETENTION_DAYS` to override the
-defaults. Run the backup command from a scheduler at least daily. Retention
-can also be run independently:
+`REALESTATEX_OFFSITE_BACKUP_DIR` is required and must point to a durable,
+encrypted and versioned storage location outside the application runtime
+(for example, a separately mounted backup volume or a storage-provider mount).
+Do not point it at the workspace, container filesystem, or a subdirectory of
+`REALESTATEX_BACKUP_DIR`. `REALESTATEX_BACKUP_DIR` only contains local staging
+copies. Set it and `BACKUP_RETENTION_DAYS` to override their defaults. The
+central retention policy is the offsite `.dump` cleanup performed by both the
+backup command and this independent job:
 
 ```bash
+REALESTATEX_OFFSITE_BACKUP_DIR=/mnt/backup-vault/realestatex \
 pnpm --filter @workspace/scripts run realestatex:prune-backups
 ```
+
+Run the backup job at least daily. The freshness alert must run after it (and
+at least hourly) using the default 26-hour threshold, which is intentionally
+longer than one daily interval:
+
+```bash
+REALESTATEX_OFFSITE_BACKUP_DIR=/mnt/backup-vault/realestatex \
+  pnpm --filter @workspace/scripts run realestatex:backup-freshness
+```
+
+Set `BACKUP_FRESHNESS_HOURS` to change the alert threshold. The check reads the
+newest `.dump` in the offsite location and exits non-zero with an alert when it
+is missing or too old. The operations/on-call owner is responsible for
+investigating a failed backup or freshness check and recording the incident.
 
 Restore tests are destructive to their target. Always use a disposable
 PostgreSQL database and provide it as `RESTORE_DATABASE_URL`; the production
@@ -69,10 +91,10 @@ RESTORE_DATABASE_URL='postgresql://...' \
   pnpm --filter @workspace/scripts run realestatex:restore-test
 ```
 
-The restore test uses the newest backup by default; pass a specific dump path
-to the underlying script when testing an older backup. Verify the restored
-API with the daily health and suite smoke tests before treating the backup as
-valid.
+The restore test uses the newest offsite backup by default; pass a specific
+dump path to the underlying script when testing an older backup. Verify the
+restored API with the daily health and suite smoke tests before treating the
+backup as valid.
 
 Every tagged release runs the same restore check in CI. The workflow creates
 the source schema and fixture data, writes a custom-format backup, creates a

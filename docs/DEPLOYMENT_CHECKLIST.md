@@ -46,7 +46,15 @@ mechanism.
 
 - [ ] Take encrypted, versioned backups of the persistent data directory or
       PostgreSQL database.
-- [ ] Store at least one copy outside the VPS.
+- [ ] Configure `REALESTATEX_OFFSITE_BACKUP_DIR` on a separate durable storage
+      location outside the application runtime; never use the workspace or
+      container filesystem.
+- [ ] Schedule `realestatex:backup` at least daily and
+      `realestatex:backup-freshness` at least hourly; alert on non-zero exit.
+- [ ] Confirm the 30-day offsite retention job is scheduled and logs removals.
+- [ ] Assign the operations/on-call owner for failed backup and freshness
+      alerts.
 - [ ] Include a restore timestamp and release identifier.
-- [ ] Test a restore on a clean host before the first public launch.
+- [ ] Test a restore from the offsite copy on a clean host before the first
+      public launch.
 - [ ] Record recovery point and recovery time objectives.

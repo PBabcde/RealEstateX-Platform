@@ -8,6 +8,7 @@
     "realestatex:migrate": "tsx ./src/realestatex-migrate.ts",
     "realestatex:backup": "tsx ./src/realestatex-ops.ts backup",
     "realestatex:prune-backups": "tsx ./src/realestatex-ops.ts prune",
+    "realestatex:backup-freshness": "tsx ./src/realestatex-ops.ts freshness-check",
     "realestatex:restore-test": "tsx ./src/realestatex-ops.ts restore-test",
     "realestatex:release-restore-test": "tsx ./src/realestatex-ops.ts release-restore-test",
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
