@@ -1,8 +1,19 @@
 import { Router, type IRouter } from "express";
 import { GetSuiteOverviewResponse } from "@workspace/api-zod";
-import { readJson } from "../lib/realestatex-storage";
+import {
+  initialiseRealEstateStorage,
+  readModuleData,
+} from "../lib/realestatex-storage";
 
 const router: IRouter = Router();
+router.use(async (_req, _res, next): Promise<void> => {
+  try {
+    await initialiseRealEstateStorage();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 const suiteModules = [
   ["CoreX", "Orchestration", "Router registry, event bus and audit logging"],
@@ -27,8 +38,8 @@ const suiteModules = [
   ["RAGSuperEngineX", "Intelligence", "Document extraction for deals and portfolio"],
 ] as const;
 
-router.get("/suite/overview", (_req, res): void => {
-  const core = readJson("coreX.json", { modules: [], services: [] });
+router.get("/suite/overview", async (_req, res): Promise<void> => {
+  const core = await readModuleData("coreX.json", { modules: [], services: [] });
   const modules = suiteModules.map(([name, category, capability]) => ({
     name,
     category,

@@ -19,7 +19,7 @@ pnpm --filter @workspace/api-server run build
 
 ## 3. Configure environment
 
-For the current file-backed runtime:
+For a production PostgreSQL-backed runtime:
 
 ```text
 PORT=8080
@@ -27,16 +27,23 @@ NODE_ENV=production
 CORS_ORIGINS=https://your-web-domain.example
 JSON_BODY_LIMIT=1mb
 LOG_LEVEL=info
+DATABASE_URL=postgresql://...
 ```
 
-The current code resolves JSON storage from
-`<working-directory>/storage/realestateX`. Before production, either run the
-API from a controlled working directory with a persistent volume or migrate
-the runtime to PostgreSQL. Never place the data directory in an ephemeral
-build directory.
+Apply the schema and import existing JSON data before starting the API:
 
-`DATABASE_URL` is only used by the currently unused Drizzle schema tooling.
-Setting it does not migrate the active JSON runtime automatically.
+```bash
+pnpm --filter @workspace/db run push
+pnpm --filter @workspace/scripts run realestatex:migrate
+```
+
+The importer reads `<working-directory>/storage/realestateX` by default. Set
+`REALESTATEX_STORAGE_PATH` when the source files are stored elsewhere. The
+import is idempotent and can be repeated after a failed run.
+
+For local development without PostgreSQL, omit `DATABASE_URL`. The API then
+uses the JSON directory as an explicit single-process fallback. Never use that
+mode for multiple API instances or an ephemeral production filesystem.
 
 ## 4. Start services
 

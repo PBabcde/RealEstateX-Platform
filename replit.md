@@ -9,7 +9,7 @@ RealEstateX is a responsive real-estate intelligence dashboard for managing prop
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Optional env for the currently unused Drizzle schema tooling: `DATABASE_URL` — Postgres connection string
+- `DATABASE_URL` — PostgreSQL connection string for the concurrent production storage backend
 
 ## Stack
 
@@ -26,15 +26,15 @@ RealEstateX is a responsive real-estate intelligence dashboard for managing prop
 - `artifacts/api-server/src/routes/realestatex.ts` — Express API routes for the dashboard.
 - `artifacts/api-server/src/routes/phase2.ts` — live registry endpoint for the 20-module Master Suite.
 - `artifacts/api-server/src/routes/assistant-chat.ts` — AssistantX and ChatBoxX API flows.
-- `artifacts/api-server/src/lib/realestatex-storage.ts` — atomic JSON persistence and seeded portfolio data.
+- `artifacts/api-server/src/lib/realestatex-storage.ts` — PostgreSQL-backed storage with an explicit atomic-JSON local fallback.
 - `lib/api-spec/openapi.yaml` — source of truth for the generated API client and Zod schemas.
 - `core`, `modules/realestateX`, `apps/realestateX_app`, `tests` — Python domain modules, service/router reference implementation, and unit tests from the project brief.
-- `storage/realestateX` — JSON persistence files shared by the reference implementation and seeded for local use.
+- `storage/realestateX` — source data for local fallback and the repeatable PostgreSQL importer.
 - `artifacts/realestatex/src/pages/pages.tsx` — the user-facing Suite registry at `/suite`.
 
 ## Architecture decisions
 
-- The application uses JSON persistence for the RealEstateX domain, matching the brief and avoiding an unnecessary database dependency for this phase.
+- PostgreSQL is the production source of truth for the RealEstateX domain; JSON remains an explicit one-process local-development fallback and import source.
 - The Express API is the runnable service for the workspace; the Python modules mirror the requested domain architecture and remain independently testable.
 - OpenAPI is the contract boundary: frontend hooks and server validation are generated from the same specification.
 - Phase 2 keeps assistant and RAG behavior provider-neutral, so a real model or document provider can be connected without changing the Suite registry or chat contract.
@@ -50,7 +50,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 ## Gotchas
 
 - Run `pnpm --filter @workspace/api-spec run codegen` after changing `lib/api-spec/openapi.yaml`.
-- JSON storage is initialized with three example properties on first API start; writes use temporary files and atomic replacement.
+- Without `DATABASE_URL`, JSON storage is initialized with three example properties on first API start; writes use temporary files and atomic replacement.
+- With `DATABASE_URL`, apply the Drizzle schema and run `pnpm --filter @workspace/scripts run realestatex:migrate` before starting the API.
 
 ## Pointers
 

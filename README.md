@@ -13,9 +13,10 @@ The workspace contains:
 - An OpenAPI contract in `lib/api-spec/openapi.yaml`.
 - A Python reference/domain layer in `modules`, `core`, and
   `apps/realestateX_app`.
-- JSON persistence in `storage/realestateX`.
-- An empty Drizzle/PostgreSQL scaffold in `lib/db`; it is not the active
-  runtime persistence layer yet.
+- PostgreSQL persistence for the active API, with JSON import/local fallback in
+  `storage/realestateX`.
+- A Drizzle/PostgreSQL schema in `lib/db`, plus repeatable import and backup
+  scripts in `scripts`.
 
 The full production audit is in
 [`docs/PRODUCTION_AUDIT.md`](docs/PRODUCTION_AUDIT.md). The most important

@@ -10,7 +10,13 @@ import {
   StartChatBody,
   StartChatResponse,
 } from "@workspace/api-zod";
-import { readJson, writeJson } from "../lib/realestatex-storage";
+import {
+  appendChatMessages,
+  createChatSession,
+  getChatSession,
+  initialiseRealEstateStorage,
+  type ChatMessageRecord,
+} from "../lib/realestatex-storage";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -26,6 +32,14 @@ type ChatSession = {
 };
 
 const router: IRouter = Router();
+router.use(async (_req, _res, next): Promise<void> => {
+  try {
+    await initialiseRealEstateStorage();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 function now(): string {
   return new Date().toISOString();
@@ -91,40 +105,43 @@ router.post("/assistant/ask", (req, res): void => {
   res.json(AskAssistantResponse.parse(assistantResponse(body.data.question, body.data.context)));
 });
 
-router.post("/chat/start", (req, res): void => {
+router.post("/chat/start", async (req, res): Promise<void> => {
   const body = StartChatBody.safeParse(req.body ?? {});
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
   const sessionId = `chat-${randomUUID()}`;
-  sessions[sessionId] = {
+  const session: ChatSession = {
     sessionId,
     userId: body.data.userId ?? "default",
     createdAt: now(),
     messages: [],
   };
-  writeJson("chatBoxX.json", sessions);
+  await createChatSession(session);
   res.status(201).json(StartChatResponse.parse({ status: "ok", module: "ChatBoxX", sessionId }));
 });
 
-router.post("/chat/send", (req, res): void => {
+router.post("/chat/send", async (req, res): Promise<void> => {
   const body = SendChatMessageBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
-  const session = sessions[body.data.sessionId];
+  const session = await getChatSession(body.data.sessionId);
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
   const reply = assistantResponse(body.data.message);
-  session.messages.push({ role: "user", content: body.data.message, at: now() });
-  session.messages.push({ role: "assistant", content: reply.answer, at: now() });
-  writeJson("chatBoxX.json", sessions);
+  const updated = await appendChatMessages(body.data.sessionId, [
+    { role: "user", content: body.data.message, at: now() },
+    { role: "assistant", content: reply.answer, at: now() },
+  ]);
+  if (!updated) {
+    res.status(404).json({ error: "Chat session not found" });
+    return;
+  }
   res.json(SendChatMessageResponse.parse({
     status: "ok",
     module: "ChatBoxX",
@@ -133,14 +150,13 @@ router.post("/chat/send", (req, res): void => {
   }));
 });
 
-router.get("/chat/history", (req, res): void => {
+router.get("/chat/history", async (req, res): Promise<void> => {
   const query = GetChatHistoryQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
   }
-  const sessions = readJson<Record<string, ChatSession>>("chatBoxX.json", {});
-  const session = sessions[query.data.sessionId];
+  const session = await getChatSession(query.data.sessionId);
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
     return;

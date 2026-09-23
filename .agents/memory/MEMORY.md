@@ -1,1 +1,2 @@
 - [TypeScript DOM iterable compatibility](typescript-dom-iterable.md) — generated fetch clients need `dom.iterable` enabled for Headers.entries().
+- [Drizzle migration output](drizzle-migrations.md) — preserve the configured migration directory journal when regenerating checked-in SQL.
