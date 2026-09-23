@@ -199,6 +199,7 @@ async function migrate(): Promise<void> {
       await transaction
         .insert(moduleDataTable)
         .values({
+          tenantId: DEFAULT_TENANT_ID,
           moduleName: moduleNameFor(filename),
           dataKey: dataKeyFor(filename),
           data,
@@ -206,7 +207,11 @@ async function migrate(): Promise<void> {
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
-          target: [moduleDataTable.moduleName, moduleDataTable.dataKey],
+          target: [
+            moduleDataTable.tenantId,
+            moduleDataTable.moduleName,
+            moduleDataTable.dataKey,
+          ],
           set: { data, sourceFile: filename, updatedAt: new Date() },
         });
     }

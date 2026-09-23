@@ -36,6 +36,7 @@ import {
   isAdministrator,
   requireAuthentication,
 } from "../middlewares/authorization";
+import { attachEnterpriseContext } from "../lib/enterprise-core-access";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -52,6 +53,7 @@ type ChatSession = {
 
 const router: IRouter = Router();
 router.use(requireAuthentication);
+router.use(attachEnterpriseContext);
 router.use(async (_req, _res, next): Promise<void> => {
   try {
     await initialiseRealEstateStorage();
@@ -147,7 +149,7 @@ router.post("/assistant/ask", async (req, res): Promise<void> => {
   const passages = await retrieveDocuments(
     req.user!.id,
     body.data.question,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   res.json(
     AskAssistantResponse.parse(assistantResponse(body.data.question, passages)),
@@ -155,7 +157,10 @@ router.post("/assistant/ask", async (req, res): Promise<void> => {
 });
 
 router.get("/assistant/documents", async (req, res): Promise<void> => {
-  const documents = await listDocuments(req.user!.id, req.user!.tenantId);
+  const documents = await listDocuments(
+    req.user!.id,
+    req.enterpriseContext!.tenantId,
+  );
   res.json(ListAssistantDocumentsResponse.parse({ status: "ok", documents }));
 });
 
@@ -168,7 +173,7 @@ router.post("/assistant/documents", async (req, res): Promise<void> => {
   try {
     const document = await ingestDocument({
       ownerId: req.user!.id,
-      tenantId: req.user!.tenantId,
+      tenantId: req.enterpriseContext!.tenantId,
       filename: body.data.filename,
       content: body.data.content,
       contentType: body.data.contentType,
@@ -198,7 +203,7 @@ router.delete(
     const deleted = await deleteDocument(
       req.user!.id,
       params.data.documentId,
-      req.user!.tenantId,
+      req.enterpriseContext!.tenantId,
     );
     if (!deleted) {
       res.status(404).json({ error: "Document not found" });
@@ -243,7 +248,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
     createdAt: now(),
     messages: [],
   };
-  await createChatSession(session, req.user!.tenantId);
+  await createChatSession(session, req.enterpriseContext!.tenantId);
   res
     .status(201)
     .json(
@@ -269,7 +274,7 @@ router.post("/chat/send", async (req, res): Promise<void> => {
   const passages = await retrieveDocuments(
     req.user!.id,
     body.data.message,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   const reply = assistantResponse(body.data.message, passages);
   const updated = await appendChatMessages(
@@ -279,7 +284,7 @@ router.post("/chat/send", async (req, res): Promise<void> => {
       { role: "assistant", content: reply.answer, at: now() },
     ],
     isAdministrator(req) ? undefined : req.user!.id,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   if (!updated) {
     res.status(404).json({ error: "Chat session not found" });

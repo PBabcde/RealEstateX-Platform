@@ -43,9 +43,11 @@ import {
   isAdministrator,
   requireAuthentication,
 } from "../middlewares/authorization";
+import { attachEnterpriseContext } from "../lib/enterprise-core-access";
 
 const router: IRouter = Router();
 router.use(requireAuthentication);
+router.use(attachEnterpriseContext);
 router.use(async (_req, _res, next): Promise<void> => {
   try {
     await initialiseRealEstateStorage();
@@ -75,7 +77,7 @@ router.post("/properties", async (req, res): Promise<void> => {
   const created = await createProperty(
     property,
     req.user!.id,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   res.status(201).json(CreatePropertyResponse.parse(created));
 });
@@ -125,7 +127,7 @@ router.patch("/properties/:propertyId", async (req, res): Promise<void> => {
     body.data,
     req.user!.id,
     isAdministrator(req) ? undefined : req.user!.id,
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   if (!updated) {
     res.status(404).json({ error: "Property not found" });
@@ -154,7 +156,7 @@ router.delete("/properties/:propertyId", async (req, res): Promise<void> => {
       params.data.propertyId,
       req.user!.id,
       isAdministrator(req) ? undefined : req.user!.id,
-      req.user!.tenantId,
+      req.enterpriseContext!.tenantId,
     ))
   ) {
     res.status(404).json({ error: "Property not found" });
@@ -173,7 +175,7 @@ router.post("/valuations/calculate", async (req, res): Promise<void> => {
   await writeModuleData(
     "valuations.json",
     { last: { input: body.data, result } },
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   res.json(CalculateValuationResponse.parse(result));
 });
@@ -188,7 +190,7 @@ router.post("/rentals/overview", async (req, res): Promise<void> => {
   await writeModuleData(
     "rentals.json",
     { last: { input: body.data, result } },
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   res.json(CalculateRentalOverviewResponse.parse(result));
 });
@@ -203,18 +205,22 @@ router.post("/mortgages/calculate", async (req, res): Promise<void> => {
   await writeModuleData(
     "mortgages.json",
     { last: { input: body.data, result } },
-    req.user!.tenantId,
+    req.enterpriseContext!.tenantId,
   );
   res.json(CalculateMortgageResponse.parse(result));
 });
 
-router.get("/market/trends", async (_req, res): Promise<void> => {
-  const trend = await readModuleData("market.json", {
-    status: "ok",
-    trend: "Stijgende markt in stedelijke gebieden",
-    change: 3.7,
-    period: "Q3 2026",
-  });
+router.get("/market/trends", async (req, res): Promise<void> => {
+  const trend = await readModuleData(
+    "market.json",
+    {
+      status: "ok",
+      trend: "Stijgende markt in stedelijke gebieden",
+      change: 3.7,
+      period: "Q3 2026",
+    },
+    req.enterpriseContext!.tenantId,
+  );
   res.json(GetMarketTrendsResponse.parse(trend));
 });
 

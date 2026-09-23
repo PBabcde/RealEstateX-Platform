@@ -14,6 +14,9 @@
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
     "test:tenant-isolation": "tsx ../tests/enterprise_tenant_isolation.test.js",
     "test:enterprise-core-tenant-isolation": "tsx ../tests/enterprise_core_tenant_isolation.test.js",
+    "test:ownerworld-compatibility": "tsx ../tests/module_data_ownerworld_compatibility.test.js",
+    "test:rag-tenant-isolation": "tsx ../tests/rag_tenant_isolation.test.js",
+    "test:release-gate": "tsx ./src/verify-audit-chain-gate.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

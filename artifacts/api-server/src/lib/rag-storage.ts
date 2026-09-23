@@ -159,11 +159,11 @@ function validateDocumentType(documentType: string | undefined): void {
   }
 }
 
-async function loadIndex(ownerId: string): Promise<RagIndex> {
+async function loadIndex(ownerId: string, tenantId: string): Promise<RagIndex> {
   return readModuleData<RagIndex>(tenantKey(ownerId), {
     version: 1,
     documents: {},
-  });
+  }, tenantId);
 }
 
 async function saveIndex(
@@ -230,7 +230,7 @@ export async function ingestDocument(input: {
       index,
     })),
   };
-  const index = await loadIndex(input.ownerId);
+  const index = await loadIndex(input.ownerId, input.tenantId);
   index.documents[documentId] = document;
   await saveIndex(input.ownerId, index, input.tenantId);
   return summary(document);
@@ -241,7 +241,7 @@ export async function listDocuments(
   tenantId: string,
 ): Promise<RagDocumentSummary[]> {
   await purgeExpiredDocuments(ownerId, tenantId);
-  const index = await loadIndex(ownerId);
+  const index = await loadIndex(ownerId, tenantId);
   const now = Date.now();
   return Object.values(index.documents)
     .filter((document) => Date.parse(document.expiresAt) > now)
@@ -253,7 +253,7 @@ export async function deleteDocument(
   documentId: string,
   tenantId: string,
 ): Promise<boolean> {
-  const index = await loadIndex(ownerId);
+  const index = await loadIndex(ownerId, tenantId);
   const document = index.documents[documentId];
   if (!document) return false;
   delete index.documents[documentId];
@@ -266,7 +266,7 @@ export async function purgeExpiredDocuments(
   tenantId: string,
 ): Promise<number> {
   if (!ownerId) return 0;
-  const index = await loadIndex(ownerId);
+  const index = await loadIndex(ownerId, tenantId);
   const expired = Object.keys(index.documents).filter(
     (documentId) =>
       Date.parse(index.documents[documentId].expiresAt) <= Date.now(),
@@ -287,7 +287,7 @@ export async function retrieveDocuments(
   const boundedTopK = Math.max(1, Math.min(Math.floor(topK), 20));
   const queryTokens = new Set(tokens(query));
   const queryEmbedding = embedding(query);
-  const index = await loadIndex(ownerId);
+  const index = await loadIndex(ownerId, tenantId);
   const ranked: Array<{ score: number; passage: RagPassage }> = [];
   for (const document of Object.values(index.documents)) {
     if (Date.parse(document.expiresAt) <= Date.now()) continue;

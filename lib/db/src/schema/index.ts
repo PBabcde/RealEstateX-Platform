@@ -9,6 +9,7 @@ import {
   timestamp,
   index,
   check,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { DEFAULT_TENANT_ID, tenantsTable } from "./auth";
@@ -46,6 +47,10 @@ export const propertiesTable = pgTable(
 export const moduleDataTable = pgTable(
   "module_data",
   {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
     moduleName: text("module_name").notNull(),
     dataKey: text("data_key").notNull(),
     data: jsonb("data").notNull(),
@@ -56,8 +61,12 @@ export const moduleDataTable = pgTable(
   },
   (table) => ({
     moduleDataPrimaryKey: primaryKey({
-      columns: [table.moduleName, table.dataKey],
+      columns: [table.tenantId, table.moduleName, table.dataKey],
     }),
+    moduleDataTenantUpdatedIndex: index("module_data_tenant_updated_idx").on(
+      table.tenantId,
+      table.updatedAt,
+    ),
   }),
 );
 
@@ -96,7 +105,7 @@ export const auditEventsTable = pgTable(
       .notNull()
       .default(DEFAULT_TENANT_ID)
       .references(() => tenantsTable.id),
-    sequenceId: bigint("sequence_id", { mode: "number" }).notNull().unique(),
+    sequenceId: bigint("sequence_id", { mode: "number" }).notNull(),
     previousHash: text("previous_hash"),
     eventHash: text("event_hash").notNull(),
     action: text("action").notNull(),
@@ -110,6 +119,10 @@ export const auditEventsTable = pgTable(
   },
   (table) => ({
     auditTenantSequenceIndex: index("audit_events_tenant_sequence_idx").on(
+      table.tenantId,
+      table.sequenceId,
+    ),
+    auditTenantSequenceUnique: unique("audit_events_tenant_sequence_unique").on(
       table.tenantId,
       table.sequenceId,
     ),

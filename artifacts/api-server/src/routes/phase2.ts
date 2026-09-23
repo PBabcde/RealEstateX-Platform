@@ -4,8 +4,12 @@ import {
   initialiseRealEstateStorage,
   readModuleData,
 } from "../lib/realestatex-storage";
+import { requireAuthentication } from "../middlewares/authorization";
+import { attachEnterpriseContext } from "../lib/enterprise-core-access";
 
 const router: IRouter = Router();
+router.use(requireAuthentication);
+router.use(attachEnterpriseContext);
 router.use(async (_req, _res, next): Promise<void> => {
   try {
     await initialiseRealEstateStorage();
@@ -38,8 +42,12 @@ const suiteModules = [
   ["RAGSuperEngineX", "Intelligence", "Document extraction for deals and portfolio"],
 ] as const;
 
-router.get("/suite/overview", async (_req, res): Promise<void> => {
-  const core = await readModuleData("coreX.json", { modules: [], services: [] });
+  router.get("/suite/overview", async (req, res): Promise<void> => {
+  const core = await readModuleData(
+    "coreX.json",
+    { modules: [], services: [] },
+    req.enterpriseContext!.tenantId,
+  );
   const modules = suiteModules.map(([name, category, capability]) => ({
     name,
     category,

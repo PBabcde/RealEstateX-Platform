@@ -540,6 +540,7 @@ function moduleParts(filename: string): { moduleName: string; dataKey: string } 
 export async function readModuleData<T>(
   filename: string,
   fallback: T,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<T> {
   const { moduleName, dataKey } = moduleParts(filename);
   if (postgresEnabled) {
@@ -547,7 +548,11 @@ export async function readModuleData<T>(
       .select({ data: moduleDataTable.data })
       .from(moduleDataTable)
       .where(
-        sql`${moduleDataTable.moduleName} = ${moduleName} and ${moduleDataTable.dataKey} = ${dataKey}`,
+        and(
+          eq(moduleDataTable.tenantId, tenantId),
+          eq(moduleDataTable.moduleName, moduleName),
+          eq(moduleDataTable.dataKey, dataKey),
+        ),
       )
       .limit(1);
     return (row?.data as T | undefined) ?? fallback;
@@ -565,6 +570,7 @@ export async function writeModuleData<T>(
     await requirePostgres()
       .insert(moduleDataTable)
       .values({
+        tenantId,
         moduleName,
         dataKey,
         data,
@@ -572,7 +578,11 @@ export async function writeModuleData<T>(
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [moduleDataTable.moduleName, moduleDataTable.dataKey],
+        target: [
+          moduleDataTable.tenantId,
+          moduleDataTable.moduleName,
+          moduleDataTable.dataKey,
+        ],
         set: { data, sourceFile: filename, updatedAt: new Date() },
       });
     await registerTrustMetadata({
