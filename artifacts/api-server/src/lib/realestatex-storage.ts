@@ -10,6 +10,7 @@ import {
   moduleDataTable,
   propertiesTable,
 } from "@workspace/db/schema";
+import { registerTrustMetadata } from "./enterprise-core";
 
 export type PropertyRecord = {
   propertyId: string;
@@ -259,7 +260,7 @@ export async function createProperty(
 ): Promise<PropertyRecord> {
   if (postgresEnabled) {
     const database = requirePostgres();
-    return database.transaction(async (transaction) => {
+    const created = await database.transaction(async (transaction) => {
       const [row] = await transaction
         .insert(propertiesTable)
         .values({
@@ -279,6 +280,14 @@ export async function createProperty(
       );
       return propertyFromRow(row);
     });
+    await registerTrustMetadata({
+      entityType: "property",
+      entityId: created.propertyId,
+      sourceClass: "CANONICAL",
+      sourceBoundary: "property",
+      content: created,
+    });
+    return created;
   }
 
   const properties = await loadProperties();
@@ -295,7 +304,7 @@ export async function updateProperty(
 ): Promise<PropertyRecord | undefined> {
   if (postgresEnabled) {
     const database = requirePostgres();
-    return database.transaction(async (transaction) => {
+    const updated = await database.transaction(async (transaction) => {
       const [existing] = await transaction
         .select()
         .from(propertiesTable)
@@ -318,6 +327,16 @@ export async function updateProperty(
       );
       return propertyFromRow(row);
     });
+    if (updated) {
+      await registerTrustMetadata({
+        entityType: "property",
+        entityId: updated.propertyId,
+        sourceClass: "CANONICAL",
+        sourceBoundary: "property",
+        content: updated,
+      });
+    }
+    return updated;
   }
 
   const properties = await loadProperties();
@@ -448,6 +467,14 @@ export async function writeModuleData<T>(
         target: [moduleDataTable.moduleName, moduleDataTable.dataKey],
         set: { data, sourceFile: filename, updatedAt: new Date() },
       });
+    await registerTrustMetadata({
+      entityType: "module_data",
+      entityId: `${moduleName}:${dataKey}`,
+      sourceClass: "CANONICAL",
+      sourceBoundary: `module:${moduleName}`,
+      sourceReference: filename,
+      content: data,
+    });
     return;
   }
   writeJson(filename, data);

@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 
 export type PropertyFeatures = Record<string, string>;
@@ -94,6 +95,121 @@ export const auditEventsTable = pgTable("audit_events", {
     .defaultNow(),
 });
 
+export const trustMetadataTable = pgTable(
+  "trust_metadata",
+  {
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    sourceClass: text("source_class").notNull(),
+    sourceBoundary: text("source_boundary").notNull(),
+    sourceReference: text("source_reference"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    contentHash: text("content_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    trustMetadataPrimaryKey: primaryKey({
+      columns: [table.entityType, table.entityId],
+    }),
+    trustSourceClassCheck: check(
+      "trust_metadata_source_class_check",
+      sql`${table.sourceClass} in ('CANONICAL', 'SHADOW', 'PAPER', 'LIVE')`,
+    ),
+    trustBoundaryIndex: index("trust_metadata_boundary_idx").on(
+      table.sourceBoundary,
+    ),
+  }),
+);
+
+export const recoveryPointsTable = pgTable(
+  "recovery_points",
+  {
+    recoveryPointId: text("recovery_point_id").primaryKey(),
+    kind: text("kind").notNull(),
+    status: text("status").notNull(),
+    label: text("label"),
+    checksum: text("checksum"),
+    source: text("source"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  },
+  (table) => ({
+    recoveryPointStatusIndex: index("recovery_points_status_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+    recoveryPointKindCheck: check(
+      "recovery_points_kind_check",
+      sql`${table.kind} in ('BACKUP', 'ROLLBACK')`,
+    ),
+    recoveryPointStatusCheck: check(
+      "recovery_points_status_check",
+      sql`${table.status} in ('CREATED', 'VERIFIED', 'FAILED', 'RESTORED')`,
+    ),
+  }),
+);
+
+export const integrityChecksTable = pgTable(
+  "integrity_checks",
+  {
+    checkId: text("check_id").primaryKey(),
+    scope: text("scope").notNull(),
+    status: text("status").notNull(),
+    expectedChecksum: text("expected_checksum"),
+    actualChecksum: text("actual_checksum").notNull(),
+    details: jsonb("details")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    checkedAt: timestamp("checked_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    integrityChecksScopeIndex: index("integrity_checks_scope_idx").on(
+      table.scope,
+      table.checkedAt,
+    ),
+    integrityChecksStatusCheck: check(
+      "integrity_checks_status_check",
+      sql`${table.status} in ('PASSED', 'FAILED')`,
+    ),
+  }),
+);
+
+export const coreRuntimeStateTable = pgTable(
+  "core_runtime_state",
+  {
+    stateId: text("state_id").primaryKey(),
+    mode: text("mode").notNull(),
+    reason: text("reason"),
+    lastIntegrityCheckId: text("last_integrity_check_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    coreRuntimeModeCheck: check(
+      "core_runtime_state_mode_check",
+      sql`${table.mode} in ('NORMAL', 'READ_ONLY', 'RECOVERY')`,
+    ),
+  }),
+);
+
 export const chatSessionsRelations = relations(chatSessionsTable, ({ many }) => ({
   messages: many(chatMessagesTable),
 }));
@@ -111,3 +227,7 @@ export type ModuleData = typeof moduleDataTable.$inferSelect;
 export type ChatSession = typeof chatSessionsTable.$inferSelect;
 export type ChatMessage = typeof chatMessagesTable.$inferSelect;
 export type AuditEvent = typeof auditEventsTable.$inferSelect;
+export type TrustMetadata = typeof trustMetadataTable.$inferSelect;
+export type RecoveryPoint = typeof recoveryPointsTable.$inferSelect;
+export type IntegrityCheck = typeof integrityChecksTable.$inferSelect;
+export type CoreRuntimeState = typeof coreRuntimeStateTable.$inferSelect;

@@ -8,6 +8,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { enterpriseRecoveryGuard } from "./lib/enterprise-core-middleware";
 
 const app: Express = express();
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
@@ -59,6 +60,7 @@ app.use(
 );
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
+app.use(enterpriseRecoveryGuard);
 
 app.use("/api", router);
 

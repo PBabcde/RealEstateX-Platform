@@ -74,6 +74,23 @@ to the underlying script when testing an older backup. Verify the restored
 API with the daily health and suite smoke tests before treating the backup as
 valid.
 
+## Enterprise Core recovery operations
+
+The Enterprise Core stores trust metadata, audit events, recovery points, and
+integrity-check results in PostgreSQL. A successful integrity check returns a
+checksum; a mismatch automatically changes the runtime to `READ_ONLY`, which
+keeps reads available and blocks mutating API requests.
+
+Operational endpoints are mounted under `/api/core`. Audit, trust, integrity,
+recovery-point, and mode operations require the authenticated `Admin` or
+`Operator` context supplied by the account/permission layer. They must not be
+exposed through an unauthenticated reverse-proxy path.
+
+Before enabling the public API, verify that the authentication middleware
+populates `req.enterpriseContext` with the actor ID, tenant ID, and roles. The
+core deliberately does not accept identity from request headers or request
+bodies.
+
 ## Security operations
 
 - Rotate credentials through the secret manager, never through tracked files.
