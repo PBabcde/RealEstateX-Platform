@@ -9,7 +9,6 @@ import {
   timestamp,
   index,
   check,
-  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { DEFAULT_TENANT_ID, tenantsTable } from "./auth";
@@ -97,7 +96,7 @@ export const auditEventsTable = pgTable(
       .notNull()
       .default(DEFAULT_TENANT_ID)
       .references(() => tenantsTable.id),
-    sequenceId: bigint("sequence_id", { mode: "number" }).notNull(),
+    sequenceId: bigint("sequence_id", { mode: "number" }).notNull().unique(),
     previousHash: text("previous_hash"),
     eventHash: text("event_hash").notNull(),
     action: text("action").notNull(),
@@ -110,7 +109,7 @@ export const auditEventsTable = pgTable(
       .defaultNow(),
   },
   (table) => ({
-    auditTenantSequenceUnique: unique("audit_events_tenant_sequence_unique").on(
+    auditTenantSequenceIndex: index("audit_events_tenant_sequence_idx").on(
       table.tenantId,
       table.sequenceId,
     ),
@@ -150,6 +149,7 @@ export const trustMetadataTable = pgTable(
       sql`${table.sourceClass} in ('CANONICAL', 'SHADOW', 'PAPER', 'LIVE')`,
     ),
     trustBoundaryIndex: index("trust_metadata_boundary_idx").on(
+      table.tenantId,
       table.sourceBoundary,
     ),
   }),
@@ -179,6 +179,7 @@ export const recoveryPointsTable = pgTable(
   },
   (table) => ({
     recoveryPointStatusIndex: index("recovery_points_status_idx").on(
+      table.tenantId,
       table.status,
       table.createdAt,
     ),
@@ -215,6 +216,7 @@ export const integrityChecksTable = pgTable(
   },
   (table) => ({
     integrityChecksScopeIndex: index("integrity_checks_scope_idx").on(
+      table.tenantId,
       table.scope,
       table.checkedAt,
     ),
@@ -228,7 +230,11 @@ export const integrityChecksTable = pgTable(
 export const coreRuntimeStateTable = pgTable(
   "core_runtime_state",
   {
-    stateId: text("state_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .default(DEFAULT_TENANT_ID)
+      .references(() => tenantsTable.id),
+    stateId: text("state_id").notNull(),
     mode: text("mode").notNull(),
     reason: text("reason"),
     lastIntegrityCheckId: text("last_integrity_check_id"),
@@ -237,6 +243,9 @@ export const coreRuntimeStateTable = pgTable(
       .defaultNow(),
   },
   (table) => ({
+    coreRuntimeStatePrimaryKey: primaryKey({
+      columns: [table.tenantId, table.stateId],
+    }),
     coreRuntimeModeCheck: check(
       "core_runtime_state_mode_check",
       sql`${table.mode} in ('NORMAL', 'READ_ONLY', 'RECOVERY')`,

@@ -7,9 +7,9 @@ export async function enterpriseRecoveryGuard(
   next: NextFunction,
 ): Promise<void> {
   if (
-    req.path === "/api/core/recovery/mode" ||
-    req.path === "/api/core/recovery/integrity-check" ||
-    req.path === "/api/core/recovery/points"
+    req.path === "/recovery/mode" ||
+    req.path === "/recovery/integrity-check" ||
+    req.path === "/recovery/points"
   ) {
     next();
     return;
@@ -21,7 +21,14 @@ export async function enterpriseRecoveryGuard(
   }
 
   try {
-    await assertWritableRuntime();
+    const tenantId = req.enterpriseContext?.tenantId;
+    if (!tenantId) {
+      res.status(503).json({
+        error: "Enterprise Core authorization is not connected",
+      });
+      return;
+    }
+    await assertWritableRuntime(tenantId);
     next();
   } catch (error) {
     res.status(503).json({

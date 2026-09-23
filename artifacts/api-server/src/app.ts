@@ -11,6 +11,7 @@ import { logger } from "./lib/logger";
 import { enterpriseRecoveryGuard } from "./lib/enterprise-core-middleware";
 import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
+import { attachEnterpriseContext } from "./lib/enterprise-core-access";
 
 const app: Express = express();
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
@@ -64,7 +65,7 @@ app.use(cookieParser());
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(authMiddleware);
-app.use(enterpriseRecoveryGuard);
+app.use("/api/core", attachEnterpriseContext, enterpriseRecoveryGuard);
 
 app.use("/api", router);
 

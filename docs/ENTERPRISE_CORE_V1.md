@@ -22,6 +22,7 @@ creating a second runtime or duplicating authorization.
 
 `trust_metadata` stores immutable entity identity together with:
 
+- authenticated tenant ID
 - source class: `CANONICAL`, `SHADOW`, `PAPER`, or `LIVE`
 - source boundary
 - optional source reference
@@ -37,6 +38,7 @@ writes register canonical trust metadata after the domain write.
 `audit_events` is append-only at both the PostgreSQL and application
 boundaries. The Enterprise Core service provides:
 
+- authenticated tenant scoping for every read and append;
 - database-enforced rejection of `UPDATE` and `DELETE`;
 - sequential `sequence_id` values;
 - a `previous_hash`/`event_hash` SHA-256 chain;
@@ -57,12 +59,13 @@ database-backed immutability test.
 
 The following PostgreSQL tables provide the recovery foundation:
 
-- `recovery_points` — backup and rollback metadata
-- `integrity_checks` — checksum results and failure details
-- `core_runtime_state` — `NORMAL`, `READ_ONLY`, or `RECOVERY`
+- `recovery_points` — tenant-scoped backup and rollback metadata
+- `integrity_checks` — tenant-scoped checksum results and failure details
+- `core_runtime_state` — tenant-scoped `NORMAL`, `READ_ONLY`, or `RECOVERY`
 
-The recovery middleware blocks mutating requests when the runtime is not
-`NORMAL`. An integrity mismatch automatically moves the runtime to
+The recovery middleware loads the authenticated tenant context before checking
+runtime state and blocks mutating core requests when that tenant is not
+`NORMAL`. An integrity mismatch automatically moves only that tenant to
 `READ_ONLY`. Read requests remain available so operators can inspect state.
 
 ### Authorization boundary
@@ -82,12 +85,14 @@ Migration:
 ```text
 lib/db/drizzle/0001_smiling_true_believers.sql
 lib/db/drizzle/0003_audit_append_only_chain.sql
+lib/db/drizzle/0004_enterprise_core_tenant_scope.sql
 ```
 
-The Drizzle journal and snapshot are checked in. The migration adds the three
-recovery/trust tables and the runtime-state table without modifying the
-existing Task #3 domain tables. The audit-chain migration adds the sequence
-and hash columns and installs the repeatable PostgreSQL append-only trigger.
+The Drizzle journal and migration are checked in. The tenant migration adds
+`tenant_id` to all Enterprise Core tables, backfills existing rows to the
+personal `ownerworld` tenant, and changes trust/runtime uniqueness to include
+the tenant. The audit sequence remains globally unique while each tenant has
+its own hash-chain predecessor.
 
 Apply in development with:
 
@@ -144,12 +149,13 @@ Completed for this phase:
 - Express route and startup integration
 - Development PostgreSQL schema application
 - Database-enforced append-only audit history and its integration test
+- Tenant-scoped Enterprise Core queries and mutations
+- Ownerworld backfill for existing Enterprise Core rows
+- Cross-tenant API isolation coverage
 
 Still required before Enterprise Core V1 can be called production-ready:
 
-- Add tenant scoping to trust, audit, and recovery queries
 - Add scheduled integrity checks and backup freshness monitoring
-- Add automated API tests for role, tenant, and recovery boundaries
 - Run a clean-host migration and restore test
 
 **Enterprise Core foundation status:** implementation complete, with database

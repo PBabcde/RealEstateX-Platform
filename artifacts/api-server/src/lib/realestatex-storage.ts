@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { db } from "@workspace/db";
+import { db, DEFAULT_TENANT_ID } from "@workspace/db";
 import {
   auditEventsTable,
   chatMessagesTable,
   chatSessionsTable,
-  DEFAULT_TENANT_ID,
   moduleDataTable,
   propertiesTable,
 } from "@workspace/db/schema";
@@ -179,11 +178,11 @@ function auditEvent(
   entityId: string | undefined,
   metadata: Record<string, unknown>,
   actorId?: string,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): AuditEventRecord {
   return {
     eventId: randomUUID(),
-    tenantId: tenantId ?? DEFAULT_TENANT_ID,
+    tenantId,
     action,
     entityType,
     ...(entityId ? { entityId } : {}),
@@ -288,7 +287,7 @@ export async function getProperty(
 export async function createProperty(
   property: PropertyRecord,
   actorId?: string,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<PropertyRecord> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -321,9 +320,9 @@ export async function createProperty(
       return propertyFromRow(row);
     });
     await registerTrustMetadata({
+      tenantId,
       entityType: "property",
       entityId: created.propertyId,
-      tenantId: tenantId ?? DEFAULT_TENANT_ID,
       sourceClass: "CANONICAL",
       sourceBoundary: "property",
       content: created,
@@ -352,7 +351,7 @@ export async function updateProperty(
   changes: Partial<Omit<PropertyRecord, "propertyId">>,
   actorId?: string,
   ownerId?: string,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<PropertyRecord | undefined> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -402,9 +401,9 @@ export async function updateProperty(
     });
     if (updated) {
       await registerTrustMetadata({
+        tenantId,
         entityType: "property",
         entityId: updated.propertyId,
-        tenantId: tenantId ?? DEFAULT_TENANT_ID,
         sourceClass: "CANONICAL",
         sourceBoundary: "property",
         content: updated,
@@ -438,7 +437,7 @@ export async function deleteProperty(
   propertyId: string,
   actorId?: string,
   ownerId?: string,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<boolean> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -559,7 +558,7 @@ export async function readModuleData<T>(
 export async function writeModuleData<T>(
   filename: string,
   data: T,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<void> {
   const { moduleName, dataKey } = moduleParts(filename);
   if (postgresEnabled) {
@@ -577,7 +576,7 @@ export async function writeModuleData<T>(
         set: { data, sourceFile: filename, updatedAt: new Date() },
       });
     await registerTrustMetadata({
-      tenantId: tenantId ?? DEFAULT_TENANT_ID,
+      tenantId,
       entityType: "module_data",
       entityId: `${moduleName}:${dataKey}`,
       sourceClass: "CANONICAL",
@@ -592,7 +591,7 @@ export async function writeModuleData<T>(
 
 export async function createChatSession(
   session: ChatSessionRecord,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<void> {
   if (postgresEnabled) {
     await requirePostgres()
@@ -605,14 +604,9 @@ export async function createChatSession(
       })
       .onConflictDoNothing();
     await recordAudit(
-      auditEvent(
-        "chat.created",
-        "chat_session",
-        session.sessionId,
-        { userId: session.userId },
-        undefined,
-        tenantId,
-      ),
+      auditEvent("chat.created", "chat_session", session.sessionId, {
+        userId: session.userId,
+      }, undefined, tenantId),
     );
     return;
   }
@@ -621,17 +615,10 @@ export async function createChatSession(
     {},
   );
   sessions[session.sessionId] = session;
-  await writeModuleData("chatBoxX.json", sessions);
-  await recordAudit(
-    auditEvent(
-      "chat.created",
-      "chat_session",
-      session.sessionId,
-      { userId: session.userId },
-      undefined,
-      tenantId,
-    ),
-  );
+  await writeModuleData("chatBoxX.json", sessions, tenantId);
+  await recordAudit(auditEvent("chat.created", "chat_session", session.sessionId, {
+    userId: session.userId,
+  }, undefined, tenantId));
 }
 
 export async function getChatSession(
@@ -682,7 +669,7 @@ export async function appendChatMessages(
   sessionId: string,
   messages: ChatMessageRecord[],
   ownerId?: string,
-  tenantId?: string,
+  tenantId = DEFAULT_TENANT_ID,
 ): Promise<ChatSessionRecord | undefined> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -717,14 +704,9 @@ export async function appendChatMessages(
         .set({ updatedAt: createdAt })
         .where(eq(chatSessionsTable.sessionId, sessionId));
       await recordAudit(
-        auditEvent(
-          "chat.message_added",
-          "chat_session",
-          sessionId,
-          { messageCount: messages.length },
-          undefined,
-          tenantId,
-        ),
+        auditEvent("chat.message_added", "chat_session", sessionId, {
+          messageCount: messages.length,
+        }, undefined, tenantId),
         transaction,
       );
       const currentMessages = await transaction
@@ -755,16 +737,9 @@ export async function appendChatMessages(
     {},
   );
   sessions[sessionId] = session;
-  await writeModuleData("chatBoxX.json", sessions);
-  await recordAudit(
-    auditEvent(
-      "chat.message_added",
-      "chat_session",
-      sessionId,
-      { messageCount: messages.length },
-      undefined,
-      tenantId,
-    ),
-  );
+  await writeModuleData("chatBoxX.json", sessions, tenantId);
+  await recordAudit(auditEvent("chat.message_added", "chat_session", sessionId, {
+    messageCount: messages.length,
+  }, undefined, tenantId));
   return session;
 }

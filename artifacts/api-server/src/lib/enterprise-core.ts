@@ -100,6 +100,16 @@ export async function appendAuditEvent(
   await database.execute(
     sql`select pg_advisory_xact_lock(hashtext('realestatex.audit_events'))`,
   );
+  const sequenceResult = await database.execute(
+    sql`select nextval('audit_events_sequence_id_seq') as sequence_id`,
+  );
+  const [sequenceRow] = sequenceResult.rows as unknown as Array<{
+    sequence_id: string | number;
+  }>;
+  const sequenceId = Number(sequenceRow?.sequence_id);
+  if (!Number.isSafeInteger(sequenceId) || sequenceId < 1) {
+    throw new Error("Could not allocate an audit event sequence.");
+  }
   const [previous] = await database
     .select({
       sequenceId: auditEventsTable.sequenceId,
@@ -110,7 +120,6 @@ export async function appendAuditEvent(
     .orderBy(desc(auditEventsTable.sequenceId))
     .limit(1);
 
-  const sequenceId = (previous?.sequenceId ?? 0) + 1;
   const previousHash = previous?.eventHash ?? null;
   const createdAt = input.createdAt ?? new Date();
   const metadata = input.metadata ?? {};
@@ -263,6 +272,7 @@ export async function queryAuditEvents(filter: AuditEventFilter) {
 
 export function formatAuditEvent(event: {
   eventId: string;
+  tenantId: string;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -272,6 +282,7 @@ export function formatAuditEvent(event: {
 }) {
   return {
     eventId: event.eventId,
+    tenantId: event.tenantId,
     timestamp: event.createdAt.toISOString(),
     actor: event.actorId ?? "system",
     action: event.action,
@@ -297,17 +308,12 @@ export async function validateAuditHashChain(
     .where(eq(auditEventsTable.tenantId, tenantId))
     .orderBy(asc(auditEventsTable.sequenceId));
   const errors: string[] = [];
-  let expectedSequenceId = 1;
   let previousHash: string | null = null;
+  let previousSequenceId = 0;
 
   for (const event of events) {
-    if (event.sequenceId !== expectedSequenceId) {
-      errors.push(
-        `Expected sequence_id ${expectedSequenceId}, found ${event.sequenceId}.`,
-      );
-      expectedSequenceId = event.sequenceId + 1;
-    } else {
-      expectedSequenceId += 1;
+    if (event.sequenceId <= previousSequenceId) {
+      errors.push(`Invalid sequence_id at sequence_id ${event.sequenceId}.`);
     }
 
     if (event.previousHash !== previousHash) {
@@ -336,6 +342,7 @@ export async function validateAuditHashChain(
       errors.push(`Invalid event_hash at sequence_id ${event.sequenceId}.`);
     }
     previousHash = event.eventHash;
+    previousSequenceId = event.sequenceId;
   }
 
   return { valid: errors.length === 0, eventCount: events.length, errors };
@@ -360,7 +367,10 @@ async function calculateDatabaseChecksum(tenantId: string): Promise<string> {
       .select()
       .from(recoveryPointsTable)
       .where(eq(recoveryPointsTable.tenantId, tenantId)),
-    database.select().from(coreRuntimeStateTable),
+    database
+      .select()
+      .from(coreRuntimeStateTable)
+      .where(eq(coreRuntimeStateTable.tenantId, tenantId)),
   ]);
   return hashIntegrityValue({ audit, trust, integrity, recovery, runtime });
 }
@@ -398,7 +408,11 @@ export async function createIntegrityCheck(
   });
 
   if (status === "FAILED") {
-    await setRecoveryMode("READ_ONLY", "Integrity checksum mismatch detected.");
+    await setRecoveryMode(
+      tenantId,
+      "READ_ONLY",
+      "Integrity checksum mismatch detected.",
+    );
   }
 
   return {
@@ -434,23 +448,35 @@ export async function createRecoveryPoint(input: {
   return recoveryPoint;
 }
 
-export async function getRecoveryState() {
+export async function getRecoveryState(tenantId: string) {
   if (!db) {
-    return { stateId: DEFAULT_STATE_ID, mode: runtimeMode, reason: runtimeReason };
+    return {
+      stateId: DEFAULT_STATE_ID,
+      tenantId,
+      mode: runtimeMode,
+      reason: runtimeReason,
+    };
   }
   const [state] = await db
     .select()
     .from(coreRuntimeStateTable)
-    .where(eq(coreRuntimeStateTable.stateId, DEFAULT_STATE_ID))
+    .where(
+      and(
+        eq(coreRuntimeStateTable.tenantId, tenantId),
+        eq(coreRuntimeStateTable.stateId, DEFAULT_STATE_ID),
+      ),
+    )
     .limit(1);
   return state ?? {
     stateId: DEFAULT_STATE_ID,
+    tenantId,
     mode: runtimeMode,
     reason: runtimeReason,
   };
 }
 
 export async function setRecoveryMode(
+  tenantId: string,
   mode: RecoveryMode,
   reason?: string,
 ): Promise<void> {
@@ -463,12 +489,13 @@ export async function setRecoveryMode(
     .insert(coreRuntimeStateTable)
     .values({
       stateId: DEFAULT_STATE_ID,
+      tenantId,
       mode,
       reason,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
-      target: coreRuntimeStateTable.stateId,
+      target: [coreRuntimeStateTable.tenantId, coreRuntimeStateTable.stateId],
       set: { mode, reason, updatedAt: new Date() },
     });
 }
@@ -477,13 +504,10 @@ export async function initialiseEnterpriseCore(): Promise<void> {
   if (!db) {
     return;
   }
-  const state = await getRecoveryState();
-  runtimeMode = state.mode as RecoveryMode;
-  runtimeReason = state.reason ?? undefined;
 }
 
-export async function assertWritableRuntime(): Promise<void> {
-  const state = await getRecoveryState();
+export async function assertWritableRuntime(tenantId: string): Promise<void> {
+  const state = await getRecoveryState(tenantId);
   if (state.mode !== "NORMAL") {
     throw new Error(`Enterprise Core is ${state.mode.toLowerCase()}: ${state.reason ?? "no reason provided"}`);
   }

@@ -30,7 +30,7 @@ test("Enterprise Core records remain isolated by tenant_id", async () => {
        VALUES
         ('tenant-isolation-audit-a', $1, 1, NULL, 'hash-a',
          'integration.tenant_a', $3, $4, 'test', '{}'::jsonb),
-        ('tenant-isolation-audit-b', $2, 1, NULL, 'hash-b',
+        ('tenant-isolation-audit-b', $2, 2, NULL, 'hash-b',
          'integration.tenant_b', $3, $4, 'test', '{}'::jsonb)`,
       [tenantA, tenantB, entityType, entityId],
     );
