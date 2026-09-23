@@ -36,8 +36,16 @@ import {
   writeModuleData,
   type PropertyRecord,
 } from "../lib/realestatex-storage";
+import {
+  canAccessOwner,
+  canManageOwner,
+  forbidden,
+  isAdministrator,
+  requireAuthentication,
+} from "../middlewares/authorization";
 
 const router: IRouter = Router();
+router.use(requireAuthentication);
 router.use(async (_req, _res, next): Promise<void> => {
   try {
     await initialiseRealEstateStorage();
@@ -47,9 +55,11 @@ router.use(async (_req, _res, next): Promise<void> => {
   }
 });
 
-router.get("/properties", async (_req, res): Promise<void> => {
+router.get("/properties", async (req, res): Promise<void> => {
   res.json(
-    ListPropertiesResponse.parse(Object.values(await loadProperties())),
+    ListPropertiesResponse.parse(
+      Object.values(await loadProperties(isAdministrator(req) ? undefined : req.user!.id)),
+    ),
   );
 });
 
@@ -61,8 +71,8 @@ router.post("/properties", async (req, res): Promise<void> => {
   }
 
   const propertyId = `property-${randomUUID()}`;
-  const property: PropertyRecord = { propertyId, ...parsed.data };
-  const created = await createProperty(property);
+  const property: PropertyRecord = { propertyId, ownerId: req.user!.id, ...parsed.data };
+  const created = await createProperty(property, req.user!.id);
   res.status(201).json(CreatePropertyResponse.parse(created));
 });
 
@@ -76,6 +86,10 @@ router.get("/properties/:propertyId", async (req, res): Promise<void> => {
   const property = await getProperty(params.data.propertyId);
   if (!property) {
     res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  if (!canAccessOwner(req, property.ownerId)) {
+    forbidden(res);
     return;
   }
   res.json(GetPropertyResponse.parse(property));
@@ -93,7 +107,21 @@ router.patch("/properties/:propertyId", async (req, res): Promise<void> => {
     return;
   }
 
-  const updated = await updateProperty(params.data.propertyId, body.data);
+  const property = await getProperty(params.data.propertyId);
+  if (!property) {
+    res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  if (!canManageOwner(req, property.ownerId)) {
+    forbidden(res);
+    return;
+  }
+  const updated = await updateProperty(
+    params.data.propertyId,
+    body.data,
+    req.user!.id,
+    isAdministrator(req) ? undefined : req.user!.id,
+  );
   if (!updated) {
     res.status(404).json({ error: "Property not found" });
     return;
@@ -107,7 +135,22 @@ router.delete("/properties/:propertyId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await deleteProperty(params.data.propertyId))) {
+  const property = await getProperty(params.data.propertyId);
+  if (!property) {
+    res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  if (!canManageOwner(req, property.ownerId)) {
+    forbidden(res);
+    return;
+  }
+  if (
+    !(await deleteProperty(
+      params.data.propertyId,
+      req.user!.id,
+      isAdministrator(req) ? undefined : req.user!.id,
+    ))
+  ) {
     res.status(404).json({ error: "Property not found" });
     return;
   }
@@ -157,8 +200,10 @@ router.get("/market/trends", async (_req, res): Promise<void> => {
   res.json(GetMarketTrendsResponse.parse(trend));
 });
 
-router.get("/dashboard/summary", async (_req, res): Promise<void> => {
-  const summary = buildDashboardSummary(Object.values(await loadProperties()));
+router.get("/dashboard/summary", async (req, res): Promise<void> => {
+  const summary = buildDashboardSummary(
+    Object.values(await loadProperties(isAdministrator(req) ? undefined : req.user!.id)),
+  );
   res.json(GetDashboardSummaryResponse.parse(summary));
 });
 

@@ -22,16 +22,24 @@ import type {
 import type {
   AssistantInput,
   AssistantResponse,
+  AuthUserEnvelope,
   BadRequestResponse,
+  BeginBrowserLoginParams,
   ChatHistoryResponse,
   ChatMessageInput,
   ChatReplyResponse,
   ChatSessionResponse,
   ChatStartInput,
   DashboardSummary,
+  ForbiddenResponse,
   GetChatHistoryParams,
+  HandleBrowserLoginCallbackParams,
   HealthStatus,
+  LogoutBrowserSessionParams,
+  LogoutSuccess,
   MarketTrend,
+  MobileTokenExchangeRequest,
+  MobileTokenExchangeSuccess,
   MortgageInput,
   MortgageResult,
   NotFoundResponse,
@@ -41,6 +49,7 @@ import type {
   RentalInput,
   RentalResult,
   SuiteOverview,
+  UnauthorizedResponse,
   ValuationInput,
   ValuationResult
 } from './api.schemas';
@@ -183,7 +192,7 @@ export const getListPropertiesQueryKey = () => {
     }
 
 
-export const getListPropertiesQueryOptions = <TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListPropertiesQueryOptions = <TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -202,14 +211,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListPropertiesQueryResult = NonNullable<Awaited<ReturnType<typeof listProperties>>>
-export type ListPropertiesQueryError = ErrorType<unknown>
+export type ListPropertiesQueryError = ErrorType<UnauthorizedResponse>
 
 
 /**
  * @summary List saved properties
  */
 
-export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<unknown>>(
+export function useListProperties<TData = Awaited<ReturnType<typeof listProperties>>, TError = ErrorType<UnauthorizedResponse>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProperties>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -269,7 +278,7 @@ return customFetch<Property>(getCreatePropertyUrl(),
 
 export const getCreatePropertyMutationKey = () => ['createProperty'] as const;
 
-export const getCreatePropertyMutationOptions = <TError = ErrorType<BadRequestResponse>,
+export const getCreatePropertyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext> => {
 
@@ -298,13 +307,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreatePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof createProperty>>>
     export type CreatePropertyMutationBody = BodyType<PropertyInput>
-    export type CreatePropertyMutationError = ErrorType<BadRequestResponse>
+    export type CreatePropertyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
     export type CreatePropertyMutationVariables = {data: BodyType<PropertyInput>}
 
     /**
  * @summary Add a property to the portfolio
  */
-export const useCreateProperty = <TError = ErrorType<BadRequestResponse>,
+export const useCreateProperty = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProperty>>, TError,CreatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createProperty>>,
@@ -348,7 +357,7 @@ export const getGetPropertyQueryKey = (propertyId: string,) => {
     }
 
 
-export const getGetPropertyQueryOptions = <TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<NotFoundResponse>>(propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetPropertyQueryOptions = <TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -367,14 +376,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPropertyQueryResult = NonNullable<Awaited<ReturnType<typeof getProperty>>>
-export type GetPropertyQueryError = ErrorType<NotFoundResponse>
+export type GetPropertyQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
 
 
 /**
  * @summary Get a saved property
  */
 
-export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<NotFoundResponse>>(
+export function useGetProperty<TData = Awaited<ReturnType<typeof getProperty>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
  propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProperty>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -435,7 +444,7 @@ return customFetch<Property>(getUpdatePropertyUrl(propertyId),
 
 export const getUpdatePropertyMutationKey = () => ['updateProperty'] as const;
 
-export const getUpdatePropertyMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+export const getUpdatePropertyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext> => {
 
@@ -464,13 +473,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdatePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof updateProperty>>>
     export type UpdatePropertyMutationBody = BodyType<PropertyUpdate>
-    export type UpdatePropertyMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type UpdatePropertyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
     export type UpdatePropertyMutationVariables = {propertyId: string;data: BodyType<PropertyUpdate>}
 
     /**
  * @summary Update a saved property
  */
-export const useUpdateProperty = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+export const useUpdateProperty = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProperty>>, TError,UpdatePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateProperty>>,
@@ -509,7 +518,7 @@ export const deleteProperty = async (propertyId: string, options?: Parameters<ty
 
 export const getDeletePropertyMutationKey = () => ['deleteProperty'] as const;
 
-export const getDeletePropertyMutationOptions = <TError = ErrorType<NotFoundResponse>,
+export const getDeletePropertyMutationOptions = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProperty>>, TError,DeletePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteProperty>>, TError,DeletePropertyMutationVariables, TContext> => {
 
@@ -538,13 +547,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProperty>>>
 
-    export type DeletePropertyMutationError = ErrorType<NotFoundResponse>
+    export type DeletePropertyMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
     export type DeletePropertyMutationVariables = {propertyId: string}
 
     /**
  * @summary Remove a property from the portfolio
  */
-export const useDeleteProperty = <TError = ErrorType<NotFoundResponse>,
+export const useDeleteProperty = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProperty>>, TError,DeletePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteProperty>>,
@@ -597,7 +606,7 @@ return customFetch<ValuationResult>(getCalculateValuationUrl(),
 
 export const getCalculateValuationMutationKey = () => ['calculateValuation'] as const;
 
-export const getCalculateValuationMutationOptions = <TError = ErrorType<BadRequestResponse>,
+export const getCalculateValuationMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateValuation>>, TError,CalculateValuationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof calculateValuation>>, TError,CalculateValuationMutationVariables, TContext> => {
 
@@ -626,13 +635,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CalculateValuationMutationResult = NonNullable<Awaited<ReturnType<typeof calculateValuation>>>
     export type CalculateValuationMutationBody = BodyType<ValuationInput>
-    export type CalculateValuationMutationError = ErrorType<BadRequestResponse>
+    export type CalculateValuationMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
     export type CalculateValuationMutationVariables = {data: BodyType<ValuationInput>}
 
     /**
  * @summary Estimate property value
  */
-export const useCalculateValuation = <TError = ErrorType<BadRequestResponse>,
+export const useCalculateValuation = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateValuation>>, TError,CalculateValuationMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof calculateValuation>>,
@@ -685,7 +694,7 @@ return customFetch<RentalResult>(getCalculateRentalOverviewUrl(),
 
 export const getCalculateRentalOverviewMutationKey = () => ['calculateRentalOverview'] as const;
 
-export const getCalculateRentalOverviewMutationOptions = <TError = ErrorType<BadRequestResponse>,
+export const getCalculateRentalOverviewMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateRentalOverview>>, TError,CalculateRentalOverviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof calculateRentalOverview>>, TError,CalculateRentalOverviewMutationVariables, TContext> => {
 
@@ -714,13 +723,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CalculateRentalOverviewMutationResult = NonNullable<Awaited<ReturnType<typeof calculateRentalOverview>>>
     export type CalculateRentalOverviewMutationBody = BodyType<RentalInput>
-    export type CalculateRentalOverviewMutationError = ErrorType<BadRequestResponse>
+    export type CalculateRentalOverviewMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
     export type CalculateRentalOverviewMutationVariables = {data: BodyType<RentalInput>}
 
     /**
  * @summary Calculate annual rental return
  */
-export const useCalculateRentalOverview = <TError = ErrorType<BadRequestResponse>,
+export const useCalculateRentalOverview = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateRentalOverview>>, TError,CalculateRentalOverviewMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof calculateRentalOverview>>,
@@ -773,7 +782,7 @@ return customFetch<MortgageResult>(getCalculateMortgageUrl(),
 
 export const getCalculateMortgageMutationKey = () => ['calculateMortgage'] as const;
 
-export const getCalculateMortgageMutationOptions = <TError = ErrorType<BadRequestResponse>,
+export const getCalculateMortgageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateMortgage>>, TError,CalculateMortgageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof calculateMortgage>>, TError,CalculateMortgageMutationVariables, TContext> => {
 
@@ -802,13 +811,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CalculateMortgageMutationResult = NonNullable<Awaited<ReturnType<typeof calculateMortgage>>>
     export type CalculateMortgageMutationBody = BodyType<MortgageInput>
-    export type CalculateMortgageMutationError = ErrorType<BadRequestResponse>
+    export type CalculateMortgageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
     export type CalculateMortgageMutationVariables = {data: BodyType<MortgageInput>}
 
     /**
  * @summary Calculate monthly mortgage payment
  */
-export const useCalculateMortgage = <TError = ErrorType<BadRequestResponse>,
+export const useCalculateMortgage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof calculateMortgage>>, TError,CalculateMortgageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof calculateMortgage>>,
@@ -852,7 +861,7 @@ export const getGetMarketTrendsQueryKey = () => {
     }
 
 
-export const getGetMarketTrendsQueryOptions = <TData = Awaited<ReturnType<typeof getMarketTrends>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketTrends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMarketTrendsQueryOptions = <TData = Awaited<ReturnType<typeof getMarketTrends>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketTrends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -871,14 +880,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetMarketTrendsQueryResult = NonNullable<Awaited<ReturnType<typeof getMarketTrends>>>
-export type GetMarketTrendsQueryError = ErrorType<unknown>
+export type GetMarketTrendsQueryError = ErrorType<UnauthorizedResponse>
 
 
 /**
  * @summary Get current market trend
  */
 
-export function useGetMarketTrends<TData = Awaited<ReturnType<typeof getMarketTrends>>, TError = ErrorType<unknown>>(
+export function useGetMarketTrends<TData = Awaited<ReturnType<typeof getMarketTrends>>, TError = ErrorType<UnauthorizedResponse>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMarketTrends>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -929,7 +938,7 @@ export const getGetDashboardSummaryQueryKey = () => {
     }
 
 
-export const getGetDashboardSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDashboardSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -948,14 +957,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetDashboardSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardSummary>>>
-export type GetDashboardSummaryQueryError = ErrorType<unknown>
+export type GetDashboardSummaryQueryError = ErrorType<UnauthorizedResponse>
 
 
 /**
  * @summary Get portfolio dashboard summary
  */
 
-export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<unknown>>(
+export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDashboardSummary>>, TError = ErrorType<UnauthorizedResponse>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1092,7 +1101,7 @@ return customFetch<AssistantResponse>(getAskAssistantUrl(),
 
 export const getAskAssistantMutationKey = () => ['askAssistant'] as const;
 
-export const getAskAssistantMutationOptions = <TError = ErrorType<BadRequestResponse>,
+export const getAskAssistantMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext> => {
 
@@ -1121,13 +1130,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AskAssistantMutationResult = NonNullable<Awaited<ReturnType<typeof askAssistant>>>
     export type AskAssistantMutationBody = BodyType<AssistantInput>
-    export type AskAssistantMutationError = ErrorType<BadRequestResponse>
+    export type AskAssistantMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
     export type AskAssistantMutationVariables = {data: BodyType<AssistantInput>}
 
     /**
  * @summary Ask the real-estate assistant
  */
-export const useAskAssistant = <TError = ErrorType<BadRequestResponse>,
+export const useAskAssistant = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,AskAssistantMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof askAssistant>>,
@@ -1180,7 +1189,7 @@ return customFetch<ChatSessionResponse>(getStartChatUrl(),
 
 export const getStartChatMutationKey = () => ['startChat'] as const;
 
-export const getStartChatMutationOptions = <TError = ErrorType<unknown>,
+export const getStartChatMutationOptions = <TError = ErrorType<UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext> => {
 
@@ -1209,13 +1218,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type StartChatMutationResult = NonNullable<Awaited<ReturnType<typeof startChat>>>
     export type StartChatMutationBody = BodyType<ChatStartInput> | undefined
-    export type StartChatMutationError = ErrorType<unknown>
+    export type StartChatMutationError = ErrorType<UnauthorizedResponse>
     export type StartChatMutationVariables = {data?: BodyType<ChatStartInput>}
 
     /**
  * @summary Start a ChatBoxX session
  */
-export const useStartChat = <TError = ErrorType<unknown>,
+export const useStartChat = <TError = ErrorType<UnauthorizedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startChat>>, TError,StartChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof startChat>>,
@@ -1268,7 +1277,7 @@ return customFetch<ChatReplyResponse>(getSendChatMessageUrl(),
 
 export const getSendChatMessageMutationKey = () => ['sendChatMessage'] as const;
 
-export const getSendChatMessageMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+export const getSendChatMessageMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext> => {
 
@@ -1297,13 +1306,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SendChatMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendChatMessage>>>
     export type SendChatMessageMutationBody = BodyType<ChatMessageInput>
-    export type SendChatMessageMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type SendChatMessageMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
     export type SendChatMessageMutationVariables = {data: BodyType<ChatMessageInput>}
 
     /**
  * @summary Send a message to ChatBoxX
  */
-export const useSendChatMessage = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+export const useSendChatMessage = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChatMessage>>, TError,SendChatMessageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof sendChatMessage>>,
@@ -1354,7 +1363,7 @@ export const getGetChatHistoryQueryKey = (params?: GetChatHistoryParams,) => {
     }
 
 
-export const getGetChatHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<NotFoundResponse>>(params: GetChatHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetChatHistoryQueryOptions = <TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(params: GetChatHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1373,14 +1382,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetChatHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof getChatHistory>>>
-export type GetChatHistoryQueryError = ErrorType<NotFoundResponse>
+export type GetChatHistoryQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
 
 
 /**
  * @summary Read ChatBoxX session history
  */
 
-export function useGetChatHistory<TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<NotFoundResponse>>(
+export function useGetChatHistory<TData = Awaited<ReturnType<typeof getChatHistory>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
  params: GetChatHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChatHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1397,4 +1406,495 @@ export function useGetChatHistory<TData = Awaited<ReturnType<typeof getChatHisto
 
 
 
+
+export const getGetCurrentAuthUserUrl = () => {
+
+
+
+
+  return `/api/auth/user`
+}
+
+/**
+ * @summary Get the currently authenticated user
+ */
+export const getCurrentAuthUser = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthUserEnvelope> => {
+
+  return customFetch<AuthUserEnvelope>(getGetCurrentAuthUserUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentAuthUserQueryKey = () => {
+    return [
+    `/api/auth/user`
+    ] as const;
+    }
+
+
+export const getGetCurrentAuthUserQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentAuthUser>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentAuthUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentAuthUserQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentAuthUser>>> = ({ signal }) => getCurrentAuthUser({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentAuthUser>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentAuthUserQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentAuthUser>>>
+export type GetCurrentAuthUserQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the currently authenticated user
+ */
+
+export function useGetCurrentAuthUser<TData = Awaited<ReturnType<typeof getCurrentAuthUser>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentAuthUser>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentAuthUserQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBeginBrowserLoginUrl = (params?: BeginBrowserLoginParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/login?${stringifiedParams}` : `/api/login`
+}
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+export const beginBrowserLogin = async (params?: BeginBrowserLoginParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getBeginBrowserLoginUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getBeginBrowserLoginQueryKey = (params?: BeginBrowserLoginParams,) => {
+    return [
+    `/api/login`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getBeginBrowserLoginQueryOptions = <TData = Awaited<ReturnType<typeof beginBrowserLogin>>, TError = ErrorType<void>>(params?: BeginBrowserLoginParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof beginBrowserLogin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getBeginBrowserLoginQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof beginBrowserLogin>>> = ({ signal }) => beginBrowserLogin(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof beginBrowserLogin>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type BeginBrowserLoginQueryResult = NonNullable<Awaited<ReturnType<typeof beginBrowserLogin>>>
+export type BeginBrowserLoginQueryError = ErrorType<void>
+
+
+/**
+ * @summary Start the browser OIDC login flow
+ */
+
+export function useBeginBrowserLogin<TData = Awaited<ReturnType<typeof beginBrowserLogin>>, TError = ErrorType<void>>(
+ params?: BeginBrowserLoginParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof beginBrowserLogin>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getBeginBrowserLoginQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getHandleBrowserLoginCallbackUrl = (params?: HandleBrowserLoginCallbackParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/callback?${stringifiedParams}` : `/api/callback`
+}
+
+/**
+ * @summary Complete the browser OIDC login flow
+ */
+export const handleBrowserLoginCallback = async (params?: HandleBrowserLoginCallbackParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getHandleBrowserLoginCallbackUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getHandleBrowserLoginCallbackQueryKey = (params?: HandleBrowserLoginCallbackParams,) => {
+    return [
+    `/api/callback`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getHandleBrowserLoginCallbackQueryOptions = <TData = Awaited<ReturnType<typeof handleBrowserLoginCallback>>, TError = ErrorType<void>>(params?: HandleBrowserLoginCallbackParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof handleBrowserLoginCallback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getHandleBrowserLoginCallbackQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof handleBrowserLoginCallback>>> = ({ signal }) => handleBrowserLoginCallback(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof handleBrowserLoginCallback>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type HandleBrowserLoginCallbackQueryResult = NonNullable<Awaited<ReturnType<typeof handleBrowserLoginCallback>>>
+export type HandleBrowserLoginCallbackQueryError = ErrorType<void>
+
+
+/**
+ * @summary Complete the browser OIDC login flow
+ */
+
+export function useHandleBrowserLoginCallback<TData = Awaited<ReturnType<typeof handleBrowserLoginCallback>>, TError = ErrorType<void>>(
+ params?: HandleBrowserLoginCallbackParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof handleBrowserLoginCallback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getHandleBrowserLoginCallbackQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLogoutBrowserSessionUrl = (params?: LogoutBrowserSessionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/logout?${stringifiedParams}` : `/api/logout`
+}
+
+/**
+ * @summary Clear the browser session and begin OIDC logout
+ */
+export const logoutBrowserSession = async (params?: LogoutBrowserSessionParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getLogoutBrowserSessionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutBrowserSessionQueryKey = (params?: LogoutBrowserSessionParams,) => {
+    return [
+    `/api/logout`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getLogoutBrowserSessionQueryOptions = <TData = Awaited<ReturnType<typeof logoutBrowserSession>>, TError = ErrorType<void>>(params?: LogoutBrowserSessionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof logoutBrowserSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getLogoutBrowserSessionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof logoutBrowserSession>>> = ({ signal }) => logoutBrowserSession(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof logoutBrowserSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type LogoutBrowserSessionQueryResult = NonNullable<Awaited<ReturnType<typeof logoutBrowserSession>>>
+export type LogoutBrowserSessionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Clear the browser session and begin OIDC logout
+ */
+
+export function useLogoutBrowserSession<TData = Awaited<ReturnType<typeof logoutBrowserSession>>, TError = ErrorType<void>>(
+ params?: LogoutBrowserSessionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof logoutBrowserSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getLogoutBrowserSessionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExchangeMobileAuthorizationCodeUrl = () => {
+
+
+
+
+  return `/api/mobile-auth/token-exchange`
+}
+
+/**
+ * @summary Exchange a mobile OIDC code for a session token
+ */
+export const exchangeMobileAuthorizationCode = async (mobileTokenExchangeRequest: MobileTokenExchangeRequest, options?: Parameters<typeof customFetch>[1]): Promise<MobileTokenExchangeSuccess> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<MobileTokenExchangeSuccess>(getExchangeMobileAuthorizationCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(mobileTokenExchangeRequest)
+  }
+);}
+
+
+
+
+
+export const getExchangeMobileAuthorizationCodeMutationKey = () => ['exchangeMobileAuthorizationCode'] as const;
+
+export const getExchangeMobileAuthorizationCodeMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>, TError,ExchangeMobileAuthorizationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>, TError,ExchangeMobileAuthorizationCodeMutationVariables, TContext> => {
+
+const mutationKey = getExchangeMobileAuthorizationCodeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>, ExchangeMobileAuthorizationCodeMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  exchangeMobileAuthorizationCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ExchangeMobileAuthorizationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>>
+    export type ExchangeMobileAuthorizationCodeMutationBody = BodyType<MobileTokenExchangeRequest>
+    export type ExchangeMobileAuthorizationCodeMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+    export type ExchangeMobileAuthorizationCodeMutationVariables = {data: BodyType<MobileTokenExchangeRequest>}
+
+    /**
+ * @summary Exchange a mobile OIDC code for a session token
+ */
+export const useExchangeMobileAuthorizationCode = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>, TError,ExchangeMobileAuthorizationCodeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof exchangeMobileAuthorizationCode>>,
+        TError,
+        ExchangeMobileAuthorizationCodeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getExchangeMobileAuthorizationCodeMutationOptions(options));
+    }
+
+export const getLogoutMobileSessionUrl = () => {
+
+
+
+
+  return `/api/mobile-auth/logout`
+}
+
+/**
+ * @summary Delete a mobile session token
+ */
+export const logoutMobileSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<LogoutSuccess> => {
+
+  return customFetch<LogoutSuccess>(getLogoutMobileSessionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutMobileSessionMutationKey = () => ['logoutMobileSession'] as const;
+
+export const getLogoutMobileSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutMobileSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logoutMobileSession>>, TError,void, TContext> => {
+
+const mutationKey = getLogoutMobileSessionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logoutMobileSession>>, void> = () => {
+
+
+          return  logoutMobileSession(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMobileSessionMutationResult = NonNullable<Awaited<ReturnType<typeof logoutMobileSession>>>
+
+    export type LogoutMobileSessionMutationError = ErrorType<unknown>
+
+
+    /**
+ * @summary Delete a mobile session token
+ */
+export const useLogoutMobileSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutMobileSession>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logoutMobileSession>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMobileSessionMutationOptions(options));
+    }
 

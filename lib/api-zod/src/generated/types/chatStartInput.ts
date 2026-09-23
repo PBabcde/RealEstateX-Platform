@@ -6,6 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ChatStartInput {
-  userId?: string;
-}
+export interface ChatStartInput { [key: string]: unknown }

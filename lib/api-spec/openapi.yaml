@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
   - name: properties
     description: Property portfolio operations
   - name: valuation
@@ -56,6 +58,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Property"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
       operationId: createProperty
       tags: [properties]
@@ -75,6 +79,8 @@ paths:
                 $ref: "#/components/schemas/Property"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /properties/{propertyId}:
     get:
       operationId: getProperty
@@ -91,6 +97,10 @@ paths:
                 $ref: "#/components/schemas/Property"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     patch:
       operationId: updateProperty
       tags: [properties]
@@ -114,6 +124,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
     delete:
       operationId: deleteProperty
       tags: [properties]
@@ -125,6 +139,10 @@ paths:
           description: Property removed
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /valuations/calculate:
     post:
       operationId: calculateValuation
@@ -145,6 +163,8 @@ paths:
                 $ref: "#/components/schemas/ValuationResult"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /rentals/overview:
     post:
       operationId: calculateRentalOverview
@@ -165,6 +185,8 @@ paths:
                 $ref: "#/components/schemas/RentalResult"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /mortgages/calculate:
     post:
       operationId: calculateMortgage
@@ -185,6 +207,8 @@ paths:
                 $ref: "#/components/schemas/MortgageResult"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /market/trends:
     get:
       operationId: getMarketTrends
@@ -197,6 +221,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MarketTrend"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /dashboard/summary:
     get:
       operationId: getDashboardSummary
@@ -209,6 +235,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /suite/overview:
     get:
       operationId: getSuiteOverview
@@ -241,6 +269,8 @@ paths:
                 $ref: "#/components/schemas/AssistantResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /chat/start:
     post:
       operationId: startChat
@@ -259,6 +289,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatSessionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /chat/send:
     post:
       operationId: sendChatMessage
@@ -281,6 +313,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /chat/history:
     get:
       operationId: getChatHistory
@@ -301,6 +337,116 @@ paths:
                 $ref: "#/components/schemas/ChatHistoryResponse"
         "404":
           $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC authorization endpoint
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        "302":
+          description: Redirect to the application after login
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the browser session and begin OIDC logout
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OIDC provider logout URL
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenExchangeRequest"
+      responses:
+        "200":
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenExchangeSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+      responses:
+        "200":
+          description: Logout processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutSuccess"
 components:
   parameters:
     PropertyId:
@@ -311,6 +457,20 @@ components:
       schema:
         type: string
         minLength: 1
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token in the form Bearer sid
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie
+      schema:
+        type: string
   responses:
     BadRequest:
       description: Invalid request
@@ -320,6 +480,18 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Authenticated user lacks access
       content:
         application/json:
           schema:
@@ -571,9 +743,6 @@ components:
       required: [status, module, intent, answer, nextSteps, contextUsed, ragReady]
     ChatStartInput:
       type: object
-      properties:
-        userId:
-          type: string
     ChatMessageInput:
       type: object
       properties:
@@ -629,4 +798,63 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessage"
       required: [status, module, sessionId, messages]
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, "null"]
+          format: email
+        firstName:
+          type: [string, "null"]
+        lastName:
+          type: [string, "null"]
+        profileImageUrl:
+          type: [string, "null"]
+        role:
+          type: string
+          enum: [owner, admin, member]
+      required: [id, email, firstName, lastName, profileImageUrl, role]
+    AuthUserEnvelope:
+      type: object
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+      required: [user]
+    MobileTokenExchangeRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          format: uri
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+      required: [code, code_verifier, redirect_uri, state]
+    MobileTokenExchangeSuccess:
+      type: object
+      properties:
+        token:
+          type: string
+      required: [token]
+    LogoutSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+      required: [success]
 

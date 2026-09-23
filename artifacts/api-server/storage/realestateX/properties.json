@@ -1,6 +1,7 @@
 {
   "ams-001": {
     "propertyId": "ams-001",
+    "ownerId": "legacy",
     "adres": "Keizersgracht 148, Amsterdam",
     "type": "Appartement",
     "bouwjaar": 1904,
@@ -16,6 +17,7 @@
   },
   "utr-002": {
     "propertyId": "utr-002",
+    "ownerId": "legacy",
     "adres": "Maliebaan 42, Utrecht",
     "type": "Herenhuis",
     "bouwjaar": 1932,
@@ -31,6 +33,7 @@
   },
   "rtd-003": {
     "propertyId": "rtd-003",
+    "ownerId": "legacy",
     "adres": "Witte de Withstraat 61, Rotterdam",
     "type": "Bovenwoning",
     "bouwjaar": 1911,

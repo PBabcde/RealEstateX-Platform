@@ -17,6 +17,7 @@ import {
   initialiseRealEstateStorage,
   type ChatMessageRecord,
 } from "../lib/realestatex-storage";
+import { forbidden, isAdministrator, requireAuthentication } from "../middlewares/authorization";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -32,6 +33,7 @@ type ChatSession = {
 };
 
 const router: IRouter = Router();
+router.use(requireAuthentication);
 router.use(async (_req, _res, next): Promise<void> => {
   try {
     await initialiseRealEstateStorage();
@@ -114,7 +116,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
   const sessionId = `chat-${randomUUID()}`;
   const session: ChatSession = {
     sessionId,
-    userId: body.data.userId ?? "default",
+    userId: req.user!.id,
     createdAt: now(),
     messages: [],
   };
@@ -133,11 +135,15 @@ router.post("/chat/send", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
+  if (!isAdministrator(req) && session.userId !== req.user!.id) {
+    forbidden(res);
+    return;
+  }
   const reply = assistantResponse(body.data.message);
   const updated = await appendChatMessages(body.data.sessionId, [
     { role: "user", content: body.data.message, at: now() },
     { role: "assistant", content: reply.answer, at: now() },
-  ]);
+  ], isAdministrator(req) ? undefined : req.user!.id);
   if (!updated) {
     res.status(404).json({ error: "Chat session not found" });
     return;
@@ -159,6 +165,10 @@ router.get("/chat/history", async (req, res): Promise<void> => {
   const session = await getChatSession(query.data.sessionId);
   if (!session) {
     res.status(404).json({ error: "Chat session not found" });
+    return;
+  }
+  if (!isAdministrator(req) && session.userId !== req.user!.id) {
+    forbidden(res);
     return;
   }
   res.json(GetChatHistoryResponse.parse({

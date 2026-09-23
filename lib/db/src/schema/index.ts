@@ -9,6 +9,7 @@ import {
   index,
   check,
 } from "drizzle-orm/pg-core";
+export * from "./auth";
 
 export type PropertyFeatures = Record<string, string>;
 
@@ -16,6 +17,7 @@ export const propertiesTable = pgTable(
   "properties",
   {
     propertyId: text("property_id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
     adres: text("adres").notNull(),
     type: text("type").notNull(),
     bouwjaar: integer("bouwjaar").notNull(),

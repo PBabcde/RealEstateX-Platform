@@ -156,9 +156,7 @@ export interface AssistantResponse {
   ragReady: boolean;
 }
 
-export interface ChatStartInput {
-  userId?: string;
-}
+export interface ChatStartInput { [key: string]: unknown }
 
 export interface ChatMessageInput {
   sessionId: string;
@@ -192,6 +190,54 @@ export interface ChatHistoryResponse {
   messages: ChatMessage[];
 }
 
+export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
+
+
+export const AuthUserRole = {
+  owner: 'owner',
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface AuthUser {
+  id: string;
+  /** @nullable */
+  email: string | null;
+  /** @nullable */
+  firstName: string | null;
+  /** @nullable */
+  lastName: string | null;
+  /** @nullable */
+  profileImageUrl: string | null;
+  role: AuthUserRole;
+}
+
+export interface AuthUserEnvelope {
+  user: AuthUser | null;
+}
+
+export interface MobileTokenExchangeRequest {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  code_verifier: string;
+  /** @minLength 1 */
+  redirect_uri: string;
+  /** @minLength 1 */
+  state: string;
+  /** @minLength 1 */
+  nonce?: string;
+}
+
+export interface MobileTokenExchangeSuccess {
+  token: string;
+}
+
+export const LogoutSuccessValue = {
+  success: true,
+} as const;
+export type LogoutSuccess = typeof LogoutSuccessValue;
+
 /**
  * Invalid request
  */
@@ -202,7 +248,36 @@ export type BadRequestResponse = ErrorResponse;
  */
 export type NotFoundResponse = ErrorResponse;
 
+/**
+ * Authentication required
+ */
+export type UnauthorizedResponse = ErrorResponse;
+
+/**
+ * Authenticated user lacks access
+ */
+export type ForbiddenResponse = ErrorResponse;
+
+/**
+ * Opaque session token in the form Bearer sid
+ */
+export type AuthorizationSessionHeaderParameter = string;
+
 export type GetChatHistoryParams = {
 sessionId: string;
+};
+
+export type BeginBrowserLoginParams = {
+returnTo?: string;
+};
+
+export type HandleBrowserLoginCallbackParams = {
+code?: string;
+state?: string;
+iss?: string;
+};
+
+export type LogoutBrowserSessionParams = {
+returnTo?: string;
 };
 

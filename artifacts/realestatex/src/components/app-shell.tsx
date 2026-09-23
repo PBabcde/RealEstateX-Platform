@@ -1,6 +1,7 @@
-import { BarChart3, Boxes, Calculator, ChevronRight, LayoutDashboard, Menu, Plus, Search, X } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, LayoutDashboard, LogOut, Menu, Plus, Search, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
+import { useAuth } from '@workspace/replit-auth-web';
 
 const navItems = [
   { href: '/', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
@@ -11,6 +12,7 @@ const navItems = [
 ];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {
+  const { user, logout } = useAuth();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const current = navItems.find((item) => item.href === location) ?? navItems[0];
@@ -60,11 +62,26 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
           <p className="mt-1 text-xs leading-5 text-sidebar-foreground/55">Je dashboard gebruikt de laatste markt- en objectdata.</p>
         </div>
         <div className="mt-5 flex items-center gap-3 px-2">
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-[#37506b] text-xs font-bold text-white">AV</div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-white">A. van Dijk</p>
-            <p className="truncate text-[10px] text-sidebar-foreground/45">Eigenaar · Utrecht</p>
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-[#37506b] text-xs font-bold text-white">
+            {(user?.firstName?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase()}
+            {(user?.lastName?.[0] ?? '').toUpperCase()}
           </div>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-white">
+              {user?.firstName || user?.email || 'Gebruiker'}
+            </p>
+            <p className="truncate text-[10px] text-sidebar-foreground/45">
+              {user?.role === 'admin' ? 'Beheerder' : user?.role === 'member' ? 'Lid' : 'Eigenaar'}
+            </p>
+          </div>
+          <button
+            onClick={logout}
+            className="rounded-lg p-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-white"
+            aria-label="Afmelden"
+            data-testid="button-logout"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </aside>
       {mobileOpen && <button className="fixed inset-0 z-30 bg-[#101a2b]/50 lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Sluit menu" data-testid="button-overlay-menu" />}
@@ -85,7 +102,10 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
               <span className="mono rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground/60">⌘K</span>
             </div>
             {onAddProperty && <button onClick={onAddProperty} className="flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0" data-testid="button-header-add-property"><Plus size={16} /> <span className="hidden sm:inline">Object toevoegen</span></button>}
-            <div className="grid h-9 w-9 place-items-center rounded-full border-2 border-card bg-[#37506b] text-[10px] font-bold text-white shadow-sm" title="A. van Dijk">AV</div>
+            <div className="grid h-9 w-9 place-items-center rounded-full border-2 border-card bg-[#37506b] text-[10px] font-bold text-white shadow-sm" title={user?.email ?? 'Gebruiker'}>
+              {(user?.firstName?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase()}
+              {(user?.lastName?.[0] ?? '').toUpperCase()}
+            </div>
           </div>
         </header>
         <div className="mx-auto max-w-[1480px] px-5 py-7 sm:px-8 lg:px-12 lg:py-9">{children}</div>

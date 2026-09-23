@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { asc, eq, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   auditEventsTable,
@@ -11,9 +10,11 @@ import {
   propertiesTable,
 } from "@workspace/db/schema";
 import { registerTrustMetadata } from "./enterprise-core";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 export type PropertyRecord = {
   propertyId: string;
+  ownerId: string;
   adres: string;
   type: string;
   bouwjaar: number;
@@ -55,6 +56,7 @@ export const storageMode: "postgres" | "json" = postgresEnabled
 const initialProperties: Record<string, PropertyRecord> = {
   "ams-001": {
     propertyId: "ams-001",
+    ownerId: "legacy",
     adres: "Keizersgracht 148, Amsterdam",
     type: "Appartement",
     bouwjaar: 1904,
@@ -70,6 +72,7 @@ const initialProperties: Record<string, PropertyRecord> = {
   },
   "utr-002": {
     propertyId: "utr-002",
+    ownerId: "legacy",
     adres: "Maliebaan 42, Utrecht",
     type: "Herenhuis",
     bouwjaar: 1932,
@@ -85,6 +88,7 @@ const initialProperties: Record<string, PropertyRecord> = {
   },
   "rtd-003": {
     propertyId: "rtd-003",
+    ownerId: "legacy",
     adres: "Witte de Withstraat 61, Rotterdam",
     type: "Bovenwoning",
     bouwjaar: 1911,
@@ -156,6 +160,7 @@ function requirePostgres() {
 function propertyFromRow(row: typeof propertiesTable.$inferSelect): PropertyRecord {
   return {
     propertyId: row.propertyId,
+    ownerId: row.ownerId,
     adres: row.adres,
     type: row.type,
     bouwjaar: row.bouwjaar,
@@ -232,26 +237,44 @@ export function initialiseRealEstateStorage(): Promise<void> {
   return initialisationPromise;
 }
 
-export async function loadProperties(): Promise<Record<string, PropertyRecord>> {
+export async function loadProperties(
+  ownerId?: string,
+): Promise<Record<string, PropertyRecord>> {
   if (postgresEnabled) {
-    const rows = await requirePostgres().select().from(propertiesTable);
+    const rows = await requirePostgres()
+      .select()
+      .from(propertiesTable)
+      .where(ownerId ? eq(propertiesTable.ownerId, ownerId) : undefined);
     return Object.fromEntries(rows.map((row) => [row.propertyId, propertyFromRow(row)]));
   }
-  return readJson("properties.json", initialProperties);
+  const properties = readJson("properties.json", initialProperties);
+  return ownerId
+    ? Object.fromEntries(
+        Object.entries(properties).filter(([, property]) => property.ownerId === ownerId),
+      )
+    : properties;
 }
 
 export async function getProperty(
   propertyId: string,
+  ownerId?: string,
 ): Promise<PropertyRecord | undefined> {
   if (postgresEnabled) {
     const [row] = await requirePostgres()
       .select()
       .from(propertiesTable)
-      .where(eq(propertiesTable.propertyId, propertyId))
+      .where(
+        ownerId
+          ? and(
+              eq(propertiesTable.propertyId, propertyId),
+              eq(propertiesTable.ownerId, ownerId),
+            )
+          : eq(propertiesTable.propertyId, propertyId),
+      )
       .limit(1);
     return row ? propertyFromRow(row) : undefined;
   }
-  return (await loadProperties())[propertyId];
+  return (await loadProperties(ownerId))[propertyId];
 }
 
 export async function createProperty(
@@ -265,6 +288,7 @@ export async function createProperty(
         .insert(propertiesTable)
         .values({
           propertyId: property.propertyId,
+          ownerId: property.ownerId,
           adres: property.adres,
           type: property.type,
           bouwjaar: property.bouwjaar,
@@ -301,6 +325,7 @@ export async function updateProperty(
   propertyId: string,
   changes: Partial<Omit<PropertyRecord, "propertyId">>,
   actorId?: string,
+  ownerId?: string,
 ): Promise<PropertyRecord | undefined> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -308,7 +333,14 @@ export async function updateProperty(
       const [existing] = await transaction
         .select()
         .from(propertiesTable)
-        .where(eq(propertiesTable.propertyId, propertyId))
+        .where(
+          ownerId
+            ? and(
+                eq(propertiesTable.propertyId, propertyId),
+                eq(propertiesTable.ownerId, ownerId),
+              )
+            : eq(propertiesTable.propertyId, propertyId),
+        )
         .limit(1);
       if (!existing) {
         return undefined;
@@ -319,7 +351,14 @@ export async function updateProperty(
           ...changes,
           updatedAt: new Date(),
         })
-        .where(eq(propertiesTable.propertyId, propertyId))
+        .where(
+          ownerId
+            ? and(
+                eq(propertiesTable.propertyId, propertyId),
+                eq(propertiesTable.ownerId, ownerId),
+              )
+            : eq(propertiesTable.propertyId, propertyId),
+        )
         .returning();
       await recordAudit(
         auditEvent("property.updated", "property", propertyId, { changes }, actorId),
@@ -339,7 +378,7 @@ export async function updateProperty(
     return updated;
   }
 
-  const properties = await loadProperties();
+  const properties = await loadProperties(ownerId);
   const existing = properties[propertyId];
   if (!existing) {
     return undefined;
@@ -354,13 +393,21 @@ export async function updateProperty(
 export async function deleteProperty(
   propertyId: string,
   actorId?: string,
+  ownerId?: string,
 ): Promise<boolean> {
   if (postgresEnabled) {
     const database = requirePostgres();
     return database.transaction(async (transaction) => {
       const deleted = await transaction
         .delete(propertiesTable)
-        .where(eq(propertiesTable.propertyId, propertyId))
+        .where(
+          ownerId
+            ? and(
+                eq(propertiesTable.propertyId, propertyId),
+                eq(propertiesTable.ownerId, ownerId),
+              )
+            : eq(propertiesTable.propertyId, propertyId),
+        )
         .returning({ propertyId: propertiesTable.propertyId });
       if (!deleted.length) {
         return false;
@@ -373,7 +420,7 @@ export async function deleteProperty(
     });
   }
 
-  const properties = await loadProperties();
+  const properties = await loadProperties(ownerId);
   if (!properties[propertyId]) {
     return false;
   }
@@ -513,12 +560,20 @@ export async function createChatSession(
 
 export async function getChatSession(
   sessionId: string,
+  ownerId?: string,
 ): Promise<ChatSessionRecord | undefined> {
   if (postgresEnabled) {
     const [session] = await requirePostgres()
       .select()
       .from(chatSessionsTable)
-      .where(eq(chatSessionsTable.sessionId, sessionId))
+      .where(
+        ownerId
+          ? and(
+              eq(chatSessionsTable.sessionId, sessionId),
+              eq(chatSessionsTable.userId, ownerId),
+            )
+          : eq(chatSessionsTable.sessionId, sessionId),
+      )
       .limit(1);
     if (!session) {
       return undefined;
@@ -543,12 +598,14 @@ export async function getChatSession(
     "chatBoxX.json",
     {},
   );
-  return sessions[sessionId];
+  const session = sessions[sessionId];
+  return ownerId && session?.userId !== ownerId ? undefined : session;
 }
 
 export async function appendChatMessages(
   sessionId: string,
   messages: ChatMessageRecord[],
+  ownerId?: string,
 ): Promise<ChatSessionRecord | undefined> {
   if (postgresEnabled) {
     const database = requirePostgres();
@@ -556,7 +613,14 @@ export async function appendChatMessages(
       const [session] = await transaction
         .select()
         .from(chatSessionsTable)
-        .where(eq(chatSessionsTable.sessionId, sessionId))
+        .where(
+          ownerId
+            ? and(
+                eq(chatSessionsTable.sessionId, sessionId),
+                eq(chatSessionsTable.userId, ownerId),
+              )
+            : eq(chatSessionsTable.sessionId, sessionId),
+        )
         .limit(1);
       if (!session) {
         return undefined;
@@ -599,7 +663,7 @@ export async function appendChatMessages(
     });
   }
 
-  const session = await getChatSession(sessionId);
+  const session = await getChatSession(sessionId, ownerId);
   if (!session) {
     return undefined;
   }

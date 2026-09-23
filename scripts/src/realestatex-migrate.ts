@@ -98,6 +98,7 @@ async function migrate(): Promise<void> {
         .insert(propertiesTable)
         .values({
           propertyId,
+          ownerId: String(property.ownerId ?? "legacy"),
           adres: String(property.adres ?? ""),
           type: String(property.type ?? ""),
           bouwjaar: Number(property.bouwjaar ?? 0),
@@ -109,6 +110,7 @@ async function migrate(): Promise<void> {
         .onConflictDoUpdate({
           target: propertiesTable.propertyId,
           set: {
+            ownerId: String(property.ownerId ?? "legacy"),
             adres: String(property.adres ?? ""),
             type: String(property.type ?? ""),
             bouwjaar: Number(property.bouwjaar ?? 0),
