@@ -81,11 +81,13 @@ Migration:
 
 ```text
 lib/db/drizzle/0001_smiling_true_believers.sql
+lib/db/drizzle/0003_audit_append_only_chain.sql
 ```
 
 The Drizzle journal and snapshot are checked in. The migration adds the three
 recovery/trust tables and the runtime-state table without modifying the
-existing Task #3 domain tables.
+existing Task #3 domain tables. The audit-chain migration adds the sequence
+and hash columns and installs the repeatable PostgreSQL append-only trigger.
 
 Apply in development with:
 
@@ -141,11 +143,11 @@ Completed for this phase:
 - Read-only/recovery write guard
 - Express route and startup integration
 - Development PostgreSQL schema application
+- Database-enforced append-only audit history and its integration test
 
 Still required before Enterprise Core V1 can be called production-ready:
 
 - Add tenant scoping to trust, audit, and recovery queries
-- Add database-level immutability trigger for audit rows
 - Add scheduled integrity checks and backup freshness monitoring
 - Add automated API tests for role, tenant, and recovery boundaries
 - Run a clean-host migration and restore test

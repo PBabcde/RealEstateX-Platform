@@ -19,6 +19,16 @@ audit events in PostgreSQL. Property changes and their audit events are written
 in one transaction, and chat messages are stored as rows, so multiple API
 processes can safely share the same database.
 
+Audit events are append-only at the database boundary as well as in the
+application. PostgreSQL rejects every `UPDATE` and `DELETE` on `audit_events`
+with a `RESTRICT_VIOLATION`; direct database access cannot silently rewrite or
+remove audit history. Inserts remain allowed for the application and import
+paths. Verify this protection after applying migrations with:
+
+```bash
+pnpm --filter @workspace/scripts run test:audit-immutability
+```
+
 Without `DATABASE_URL`, the API deliberately uses the JSON files under
 `storage/realestateX` as a local-development fallback. This mode uses atomic
 temporary-file replacement but has no transactions, row locks, or

@@ -8,6 +8,10 @@ ALTER TABLE "audit_events" ADD COLUMN IF NOT EXISTS "previous_hash" text;
 --> statement-breakpoint
 ALTER TABLE "audit_events" ADD COLUMN IF NOT EXISTS "event_hash" text;
 --> statement-breakpoint
+-- The backfill below is intentionally repeatable. A rerun must temporarily
+-- remove the existing trigger before recalculating the chain.
+DROP TRIGGER IF EXISTS trg_enforce_audit_events_immutability ON "audit_events";
+--> statement-breakpoint
 WITH RECURSIVE ordered AS (
   SELECT
     "event_id",
@@ -96,8 +100,19 @@ SELECT setval(
   false
 );
 --> statement-breakpoint
-ALTER TABLE "audit_events"
-  ADD CONSTRAINT "audit_events_sequence_id_unique" UNIQUE ("sequence_id");
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'audit_events_sequence_id_unique'
+      AND conrelid = 'audit_events'::regclass
+  ) THEN
+    ALTER TABLE "audit_events"
+      ADD CONSTRAINT "audit_events_sequence_id_unique" UNIQUE ("sequence_id");
+  END IF;
+END;
+$$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION prevent_audit_events_mutation()
 RETURNS trigger
