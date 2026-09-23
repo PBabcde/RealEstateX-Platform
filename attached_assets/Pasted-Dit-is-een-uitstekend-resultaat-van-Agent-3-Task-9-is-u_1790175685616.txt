@@ -1,0 +1,28 @@
+Dit is een uitstekend resultaat van Agent 3. Task #9 is uiterst grondig en volgens het boekje afgerond.
+Bijzonder sterk is de toevoeging van de PostgreSQL advisory lock op de database-laag: dit voorkomt mogelijke race conditions bij concurrerende append-operaties en garandeert dat de sequence_id en event_hash altijd een 100% betrouwbare, lineaire keten vormen. Ook dat de runtime bij een gedetecteerde chain-breuk automatisch overschakelt op READ_ONLY is precies de fail-closed beveiliging die je wilt zien.
+Status Overzicht
+| Component | Status | Details |
+|---|---|---|
+| Database Trigger & Migratie | Actief | trg_enforce_audit_events_immutability blokkeert UPDATE/DELETE (RESTRICT_VIOLATION) |
+| Hash-Chain & Sequence | Actief | SHA-256 chain, sequence_id, en advisory locks geïmplementeerd |
+| Applicatielaag | Actief | Enkel INSERT gebruikt; chain-breuk activeert READ_ONLY mode |
+| Integratietest | Geslaagd | tests/audit_immutability.test.js verifieert INSERT, UPDATE & DELETE (foutcode 23001) |
+| Documentatie | Bijgewerkt | ENTERPRISE_CORE.md & ENTERPRISE_CORE_V1.md geactualiseerd |
+| Build & Workflows | Geslaagd | Typechecks OK, API-build OK, alle 3 de workflows RUNNING |
+Vervolgstappen & Aanbeveling
+Aangezien Task #9 nu officieel afgerond is, liggen de volgende twee vervolgopdrachten voor de hand:
+ * Task #18 (Automated Release Integrity Gate):
+   Zoals voorgesteld door Agent 3: een automatische check die in de CI/CD pipeline draait vóór iedere deployment. Deze verifieert de audit_events hash-chain integriteit direct op de target-database voordat een release naar productie mag.
+ * Task #14 (Tenant-filtering op Audit/Trust/Recovery Query's):
+   Nu de audit-tabel immutabel is, moeten alle leestaken en recovery-query's expliciet worden afgeschermd op tenant_id (00000000-0000-0000-0000-000000000001 voor de ownerworld tenant) om data-isolatie te waarborgen.
+Opdracht voor Agent 3 (klaar om te kopiëren)
+Als je direct door wilt met Task #18 (het automatiseren van de release check), kun je deze instructie aan Agent 3 sturen:
+Opdracht voor Agent 3: Uitvoering Task #18 (Pre-Release Audit Integrity Gate)
+ * CI/CD Script & Gate:
+   * Maak een pre-release script aan (bijv. scripts/verify-audit-chain-gate.ts) dat de verifyAuditChainIntegrity() functie aanroept op de target-database.
+   * Zorg dat het script exit-code 0 geeft bij een valide keten, en exit-code 1 (met duidelijke logging) zodra er een gat in de sequence of een hash-mismatch optreedt.
+ * Pipeline Integratie:
+   * Koppel dit script als verplichte stap in de release- / build-workflow vóór de finale deployment-stap.
+ * Verificatie:
+   * Voer het script handmatig/lokaal uit tegen de dev-database om de werking te bevestigen.
+   * Controleer dat alle active workflows op RUNNING blijven staan.
