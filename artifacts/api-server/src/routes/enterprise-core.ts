@@ -8,11 +8,16 @@ import {
   queryAuditEvents,
   setRecoveryMode,
 } from "../lib/enterprise-core";
-import { requireEnterpriseCoreOperator } from "../lib/enterprise-core-access";
+import {
+  attachEnterpriseContext,
+  requireEnterpriseCoreOperator,
+} from "../lib/enterprise-core-access";
 
 const router: IRouter = Router();
 const routeParam = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? value[0] ?? "" : value ?? "";
+
+router.use(attachEnterpriseContext);
 
 router.get(
   "/core/trust/:entityType/:entityId",

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { AuthUser } from "@workspace/api-zod";
-import { requireDb, sessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { requireDb, sessionsTable, usersTable } from "@workspace/db";
 import type { Request, Response } from "express";
 import * as oidc from "openid-client";
 
@@ -51,6 +51,14 @@ export async function getSession(sid: string): Promise<SessionData | null> {
   }
 
   return row.sess as unknown as SessionData;
+}
+
+export async function getUserTenantId(userId: string): Promise<string | null> {
+  const [row] = await requireDb().db
+    .select({ tenantId: usersTable.tenantId })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  return row?.tenantId ?? null;
 }
 
 export async function updateSession(sid: string, data: SessionData): Promise<void> {

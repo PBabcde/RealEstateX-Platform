@@ -88,18 +88,23 @@ pnpm --filter @workspace/db run push
 
 ## Integration points for Task #2
 
-Task #2 must attach this shape to authenticated requests:
+The API now attaches this shape to authenticated Enterprise Core requests:
 
 ```ts
 {
   actorId: string;
-  tenantId?: string;
+  tenantId: string;
   roles: readonly string[];
+  permissions: readonly string[];
+  correlationId: string;
 }
 ```
 
-The core intentionally does not read identity from arbitrary headers or
-client-provided IDs.
+`tenantId` is loaded from the authenticated user's server-side database record.
+The `x-tenant-id` header is never used for identity or tenant selection.
+The temporary default tenant is the personal `ownerworld` tenant. The current
+`admin` role maps to the core `Admin` role; `owner` and `member` do not receive
+operator access.
 
 ## API surface
 
@@ -112,9 +117,10 @@ The following read and operational endpoints are mounted under `/api/core`:
 - `POST /recovery/points`
 - `POST /recovery/mode`
 
-All except recovery status require the Task #2 operator context. The recovery
-mode endpoint is allowed through the write guard so an authorized operator can
-exit `READ_ONLY` or `RECOVERY`.
+All Enterprise Core endpoints require the authenticated request context. Trust,
+audit, and recovery mutation endpoints additionally require the `Admin` or
+`Operator` core role. The recovery mode endpoint is allowed through the write
+guard so an authorized operator can exit `READ_ONLY` or `RECOVERY`.
 
 ## Gap analysis and readiness
 
@@ -131,7 +137,6 @@ Completed for this phase:
 
 Still required before Enterprise Core V1 can be called production-ready:
 
-- Wire Task #2 authentication middleware to `enterpriseContext`
 - Add tenant scoping to trust, audit, and recovery queries
 - Add database-level immutability trigger for audit rows
 - Add scheduled integrity checks and backup freshness monitoring
