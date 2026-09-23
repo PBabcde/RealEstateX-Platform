@@ -19,3 +19,5 @@ export function requireDb() {
 }
 
 export * from "./schema";
+export * from "./audit";
+export { sql } from "drizzle-orm";

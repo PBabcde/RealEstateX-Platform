@@ -34,9 +34,13 @@ writes register canonical trust metadata after the domain write.
 
 ### Audit
 
-`audit_events` remains append-only at the application service boundary. The
-Enterprise Core service provides:
+`audit_events` is append-only at both the PostgreSQL and application
+boundaries. The Enterprise Core service provides:
 
+- database-enforced rejection of `UPDATE` and `DELETE`;
+- sequential `sequence_id` values;
+- a `previous_hash`/`event_hash` SHA-256 chain;
+- integrity validation for sequence and hash continuity;
 - UUID event creation
 - actor, action, entity, timestamp, and metadata fields
 - filtering by actor, entity, and date range
@@ -45,6 +49,9 @@ Enterprise Core service provides:
 Existing PostgreSQL property and chat operations continue to write audit events
 inside their domain transactions. New modules should call
 `recordAuditEvent()` rather than creating a parallel audit table.
+
+See `docs/ENTERPRISE_CORE.md` for the trigger message, chain algorithm, and
+database-backed immutability test.
 
 ### Recovery and integrity
 
@@ -143,8 +150,8 @@ Still required before Enterprise Core V1 can be called production-ready:
 - Add automated API tests for role, tenant, and recovery boundaries
 - Run a clean-host migration and restore test
 
-**Enterprise Core foundation status:** implementation complete, integration
-verification pending Task #2 context wiring.
+**Enterprise Core foundation status:** implementation complete, with database
+immutability and audit-chain verification included.
 
 **Overall RealEstateX production readiness:** remains **54%** until the
 authentication boundary, tenant isolation, real document-aware RAG, rate

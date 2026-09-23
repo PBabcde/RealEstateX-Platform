@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   integer,
   jsonb,
   pgTable,
@@ -87,6 +88,9 @@ export const chatMessagesTable = pgTable(
 
 export const auditEventsTable = pgTable("audit_events", {
   eventId: text("event_id").primaryKey(),
+  sequenceId: bigint("sequence_id", { mode: "number" }).notNull().unique(),
+  previousHash: text("previous_hash"),
+  eventHash: text("event_hash").notNull(),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id"),

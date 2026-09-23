@@ -10,6 +10,7 @@
     "realestatex:prune-backups": "tsx ./src/realestatex-ops.ts prune",
     "realestatex:restore-test": "tsx ./src/realestatex-ops.ts restore-test",
     "realestatex:release-restore-test": "tsx ./src/realestatex-ops.ts release-restore-test",
+    "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { db, pool } from "@workspace/db";
+import { db, hashAuditEvent, pool, sql } from "@workspace/db";
 import {
   auditEventsTable,
   chatMessagesTable,
@@ -82,6 +82,68 @@ function asDate(value: unknown): Date {
     }
   }
   return new Date(0);
+}
+
+type AuditDatabase = Pick<
+  NonNullable<typeof db>,
+  "execute" | "insert" | "select"
+>;
+
+async function appendLegacyAuditEvent(
+  database: AuditDatabase,
+  input: {
+    eventId: string;
+    action: string;
+    entityType: string;
+    entityId?: string;
+    actorId?: string;
+    metadata: JsonObject;
+    createdAt: Date;
+  },
+): Promise<void> {
+  const metadataResult = await database.execute(
+    sql`select ${JSON.stringify(input.metadata)}::jsonb::text as metadata_text`,
+  );
+  const [metadataRow] = metadataResult.rows as unknown as Array<{
+    metadata_text: string;
+  }>;
+  if (!metadataRow?.metadata_text) {
+    throw new Error("Could not canonicalize legacy audit metadata.");
+  }
+  const existing = await database
+    .select({
+      sequenceId: auditEventsTable.sequenceId,
+      eventHash: auditEventsTable.eventHash,
+    })
+    .from(auditEventsTable);
+  const previous = existing.reduce<typeof existing[number] | undefined>(
+    (current, candidate) =>
+      !current || candidate.sequenceId > current.sequenceId ? candidate : current,
+    undefined,
+  );
+  const sequenceId = (previous?.sequenceId ?? 0) + 1;
+  const previousHash = previous?.eventHash ?? null;
+  await database.insert(auditEventsTable).values({
+    eventId: input.eventId,
+    sequenceId,
+    previousHash,
+    eventHash: hashAuditEvent({
+      sequenceId,
+      previousHash,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId ?? null,
+      actorId: input.actorId ?? null,
+      metadataText: metadataRow.metadata_text,
+      createdAt: input.createdAt,
+    }),
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    actorId: input.actorId,
+    metadata: input.metadata,
+    createdAt: input.createdAt,
+  });
 }
 
 async function migrate(): Promise<void> {
@@ -181,18 +243,15 @@ async function migrate(): Promise<void> {
     const audit = Array.isArray(core.audit) ? core.audit : [];
     for (const [index, value] of audit.entries()) {
       const event = objectValue(value, `coreX.audit[${index}]`);
-      await transaction
-        .insert(auditEventsTable)
-        .values({
+      await appendLegacyAuditEvent(transaction, {
           eventId: stableId(`coreX.audit:${index}:${JSON.stringify(event)}`),
           action: String(event.action ?? "legacy.audit"),
           entityType: String(event.entityType ?? "legacy"),
-          entityId: event.entityId == null ? null : String(event.entityId),
-          actorId: event.actorId == null ? null : String(event.actorId),
+          ...(event.entityId == null ? {} : { entityId: String(event.entityId) }),
+          ...(event.actorId == null ? {} : { actorId: String(event.actorId) }),
           metadata: event,
           createdAt: asDate(event.at ?? event.createdAt),
-        })
-        .onConflictDoNothing();
+      });
     }
   });
 

@@ -9,7 +9,7 @@ import {
   moduleDataTable,
   propertiesTable,
 } from "@workspace/db/schema";
-import { registerTrustMetadata } from "./enterprise-core";
+import { appendAuditEvent, registerTrustMetadata } from "./enterprise-core";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 export type PropertyRecord = {
@@ -189,7 +189,10 @@ function auditEvent(
   };
 }
 
-type AuditExecutor = Pick<NonNullable<typeof db>, "insert">;
+type AuditExecutor = Pick<
+  NonNullable<typeof db>,
+  "execute" | "insert" | "select"
+>;
 
 async function recordAudit(
   event: AuditEventRecord,
@@ -197,7 +200,7 @@ async function recordAudit(
 ): Promise<void> {
   if (postgresEnabled) {
     const database = transaction ?? requirePostgres();
-    await database.insert(auditEventsTable).values({
+    await appendAuditEvent(database, {
       eventId: event.eventId,
       action: event.action,
       entityType: event.entityType,

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { asc, desc, eq, gte, lte, and } from "drizzle-orm";
-import { db } from "@workspace/db";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { db, hashAuditEvent } from "@workspace/db";
 import {
   auditEventsTable,
   coreRuntimeStateTable,
@@ -35,6 +35,8 @@ export type AuditEventInput = {
   actorId?: string;
   metadata?: Record<string, unknown>;
 };
+
+type AuditDatabase = Pick<NonNullable<typeof db>, "execute" | "insert" | "select">;
 
 export type AuditEventFilter = {
   actorId?: string;
@@ -86,6 +88,61 @@ export function hashIntegrityValue(value: unknown): string {
   return createHash("sha256")
     .update(JSON.stringify(stableValue(value)))
     .digest("hex");
+}
+
+export async function appendAuditEvent(
+  database: AuditDatabase,
+  input: AuditEventInput & { eventId?: string; createdAt?: Date },
+) {
+  await database.execute(
+    sql`select pg_advisory_xact_lock(hashtext('realestatex.audit_events'))`,
+  );
+  const [previous] = await database
+    .select({
+      sequenceId: auditEventsTable.sequenceId,
+      eventHash: auditEventsTable.eventHash,
+    })
+    .from(auditEventsTable)
+    .orderBy(desc(auditEventsTable.sequenceId))
+    .limit(1);
+
+  const sequenceId = (previous?.sequenceId ?? 0) + 1;
+  const previousHash = previous?.eventHash ?? null;
+  const createdAt = input.createdAt ?? new Date();
+  const metadata = input.metadata ?? {};
+  const metadataResult = await database.execute(
+    sql`select ${JSON.stringify(metadata)}::jsonb::text as metadata_text`,
+  );
+  const [metadataRow] = metadataResult.rows as unknown as Array<{
+    metadata_text: string;
+  }>;
+  if (!metadataRow?.metadata_text) {
+    throw new Error("Could not canonicalize audit event metadata.");
+  }
+  const event = {
+    eventId: input.eventId ?? randomUUID(),
+    sequenceId,
+    previousHash,
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    actorId: input.actorId,
+    metadata,
+    createdAt,
+    eventHash: hashAuditEvent({
+      sequenceId,
+      previousHash,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId ?? null,
+      actorId: input.actorId ?? null,
+      metadataText: metadataRow.metadata_text,
+      createdAt,
+    }),
+  };
+
+  await database.insert(auditEventsTable).values(event);
+  return event;
 }
 
 export function assertTrustSourceClass(value: string): asserts value is TrustSourceClass {
@@ -162,17 +219,9 @@ export async function getTrustMetadata(
 }
 
 export async function recordAuditEvent(input: AuditEventInput) {
-  const event = {
-    eventId: randomUUID(),
-    action: input.action,
-    entityType: input.entityType,
-    entityId: input.entityId,
-    actorId: input.actorId,
-    metadata: input.metadata ?? {},
-    createdAt: new Date(),
-  };
-  await requireDatabase().insert(auditEventsTable).values(event);
-  return event;
+  return requireDatabase().transaction((transaction) =>
+    appendAuditEvent(transaction, input),
+  );
 }
 
 export async function queryAuditEvents(filter: AuditEventFilter = {}) {
@@ -221,6 +270,62 @@ export function formatAuditEvent(event: {
   };
 }
 
+export type AuditChainValidation = {
+  valid: boolean;
+  eventCount: number;
+  errors: string[];
+};
+
+export async function validateAuditHashChain(): Promise<AuditChainValidation> {
+  const events = await requireDatabase()
+    .select()
+    .from(auditEventsTable)
+    .orderBy(asc(auditEventsTable.sequenceId));
+  const errors: string[] = [];
+  let expectedSequenceId = 1;
+  let previousHash: string | null = null;
+
+  for (const event of events) {
+    if (event.sequenceId !== expectedSequenceId) {
+      errors.push(
+        `Expected sequence_id ${expectedSequenceId}, found ${event.sequenceId}.`,
+      );
+      expectedSequenceId = event.sequenceId + 1;
+    } else {
+      expectedSequenceId += 1;
+    }
+
+    if (event.previousHash !== previousHash) {
+      errors.push(`Invalid previous_hash at sequence_id ${event.sequenceId}.`);
+    }
+
+    const metadataResult = await requireDatabase().execute(
+      sql`select ${JSON.stringify(event.metadata)}::jsonb::text as metadata_text`,
+    );
+    const [metadataRow] = metadataResult.rows as unknown as Array<{
+      metadata_text: string;
+    }>;
+    const expectedHash: string = metadataRow?.metadata_text
+      ? hashAuditEvent({
+          sequenceId: event.sequenceId,
+          previousHash: event.previousHash,
+          action: event.action,
+          entityType: event.entityType,
+          entityId: event.entityId,
+          actorId: event.actorId,
+          metadataText: metadataRow.metadata_text,
+          createdAt: event.createdAt,
+        })
+      : "";
+    if (event.eventHash !== expectedHash) {
+      errors.push(`Invalid event_hash at sequence_id ${event.sequenceId}.`);
+    }
+    previousHash = event.eventHash;
+  }
+
+  return { valid: errors.length === 0, eventCount: events.length, errors };
+}
+
 async function calculateDatabaseChecksum(): Promise<string> {
   const database = requireDatabase();
   const [audit, trust, integrity, recovery, runtime] = await Promise.all([
@@ -237,9 +342,11 @@ export async function createIntegrityCheck(
   expectedChecksum?: string,
 ): Promise<IntegrityResult> {
   const actualChecksum = await calculateDatabaseChecksum();
-  const status = expectedChecksum && expectedChecksum !== actualChecksum
-    ? "FAILED"
-    : "PASSED";
+  const auditChain = await validateAuditHashChain();
+  const status =
+    !auditChain.valid || (expectedChecksum && expectedChecksum !== actualChecksum)
+      ? "FAILED"
+      : "PASSED";
   const checkedAt = new Date();
   const checkId = randomUUID();
   await requireDatabase().insert(integrityChecksTable).values({
@@ -248,7 +355,16 @@ export async function createIntegrityCheck(
     status,
     expectedChecksum,
     actualChecksum,
-    details: { tables: ["audit_events", "trust_metadata", "integrity_checks", "recovery_points", "core_runtime_state"] },
+    details: {
+      tables: [
+        "audit_events",
+        "trust_metadata",
+        "integrity_checks",
+        "recovery_points",
+        "core_runtime_state",
+      ],
+      auditChain,
+    },
     checkedAt,
   });
 
