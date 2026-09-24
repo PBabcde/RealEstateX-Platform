@@ -1,0 +1,39 @@
+Beste Agent 3,
+
+Gelieve het onderstaande allesomvattende Python-master-script (`vastgoed_enterprise_master_v2.py`) op te stellen, te compileren en uit te voeren. 
+
+Dit script bundelt de gehele Enterprise Pijplijn inclusief de ontbrekende tools, de Training Room en de Sales/Intelligence engines in één geconsolideerde uitrol.
+
+---
+
+### MEE TE NEMEN MODULES & FUNCTIONALITEITEN:
+
+1. TRAINING ROOM (SANDBOX & SIMULATOR)
+   - Afgeschermde testomgeving voor vastgoedplannen, scenario's en verbouwingsberekeningen.
+   - Automatische 'Quality Gate' op basis van de Deal Score Engine (drempelwaarde score >= 80%).
+   - Promotie-knop: "Publiceer naar Dealing Room" inclusief generatie van de Investor Ready Sheet (PDF).
+
+2. SMART SALES ENGINE & EMOTIONAL EXPERIENCE ENGINE
+   - Urgency & activity triggers in de Dealing Room ("X investeerders bekijken deze deal").
+   - Integratie-hooks voor AI Before/After metamorfose-renders en dynamic video-loops.
+   - Gepersonaliseerde begroeting en deal-aanbevelingen op basis van het investeerdersprofiel.
+   - Daily Market Pulse: Curatie van exact de Top 3 hoog-rendement parels van de dag (in plaats van een overdosis van 10+).
+
+3. VISITOR INTENT & INTELLIGENCE TRACKER
+   - Bezoekersanalyse: Intent-scores, bekeken objecten, interactie met ROI/subsidie-calculators.
+   - Lead scoring dashboard voor makelaars/beheerders.
+
+4. SAAS BILLING & STRIPE/WHOP AUTOMATISERING
+   - Actieve webhook-handlers, checkout-session endpoints en tier-entitlements (Starter, Professional, Investor, Enterprise).
+   - Geautomatiseerde facturatie/BTW-administratie sync readiness.
+
+5. INFRASTRUCTUUR, SECURITY & TENANT ISOLATION
+   - Geauthenticeerde tenant-isolatietests op alle nieuwe endpoints (Dealing Room, Training Room, CRM).
+   - Strictly configured VPS 30 SSH runner hooks (UFW, Fail2ban, TLS, recovery dry-run).
+
+---
+
+VEREISTE OUTPUT:
+1. Volledig gecompileerd Python orchestration script (`vastgoed_enterprise_master_v2.py`).
+2. Bijgewerkt eindrapport `script1_readiness_report.json`.
+3. Geactualiseerde OpenAPI specs, Zod/React Query-clients en frontend-navigatie (inclusief 'Training Room (Simulator)').
