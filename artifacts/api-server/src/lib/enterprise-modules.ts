@@ -7,6 +7,8 @@ import {
   recordAuditEvent,
 } from "./enterprise-core";
 import { calculateDealScore, type DealScore } from "./deal-score";
+import type { NeighborhoodSentimentSnapshot } from "./sentiment-engine";
+import type { VisitorIntentEvent } from "./visitor-intelligence";
 import { analyseEnergy, type EnergyAnalysis } from "./energy-analysis";
 import {
   calculateNetRoi,
@@ -30,8 +32,45 @@ export type DealRecord = {
   status: "DRAFT" | "REVIEW" | "GO" | "HOLD" | "REJECT";
   ownerId: string;
   score: DealScore;
+  gutFeeling?: {
+    score: number;
+    confidence: number;
+    summary: string;
+    sourceCount: number;
+    region: string;
+    observedAt: string;
+    staleAt: string;
+  };
   createdAt: string;
   updatedAt: string;
+};
+
+export type TrainingScenarioRecord = {
+  scenarioId: string;
+  propertyId: string;
+  title: string;
+  region: string;
+  propertyType: string;
+  energyLabel: string;
+  woonoppervlak: number;
+  askingPrice: number;
+  renovationCost: number;
+  expectedValue: number;
+  monthlyRent: number;
+  municipality?: string | null;
+  status: "DRAFT" | "READY" | "PROMOTED";
+  qualityGatePassed: boolean;
+  score: DealScore;
+  gutFeeling?: NeighborhoodSentimentSnapshot;
+  promotedDealId?: string | null;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type VisitorIntentEventRecord = VisitorIntentEvent & {
+  consentAt: string;
+  actorId: string;
 };
 
 export type InvestorRecord = {
@@ -78,8 +117,18 @@ type EnterpriseEntity =
   | DealRecord
   | InvestorRecord
   | CrmContactRecord
-  | CrmActivityRecord;
-type EntityKind = "deal" | "investor" | "crm-contact" | "crm-activity";
+  | CrmActivityRecord
+  | TrainingScenarioRecord
+  | VisitorIntentEventRecord
+  | NeighborhoodSentimentSnapshot;
+type EntityKind =
+  | "deal"
+  | "investor"
+  | "crm-contact"
+  | "crm-activity"
+  | "training-scenario"
+  | "visitor-intent-event"
+  | "neighborhood-sentiment";
 const moduleName = "EnterpriseModulesX";
 
 function requireDatabase() {
@@ -99,11 +148,20 @@ function entityId(kind: EntityKind, entity: EnterpriseEntity): string {
   if (kind === "deal") return (entity as DealRecord).dealId;
   if (kind === "investor") return (entity as InvestorRecord).investorId;
   if (kind === "crm-activity") return (entity as CrmActivityRecord).activityId;
+  if (kind === "training-scenario") return (entity as TrainingScenarioRecord).scenarioId;
+  if (kind === "visitor-intent-event") return (entity as VisitorIntentEventRecord).eventId;
+  if (kind === "neighborhood-sentiment") {
+    return (entity as NeighborhoodSentimentSnapshot).snapshotId;
+  }
   return (entity as CrmContactRecord).contactId;
 }
 
 function entityType(kind: EntityKind): string {
-  return kind === "crm-contact" ? "crm_contact" : kind;
+  if (kind === "crm-contact") return "crm_contact";
+  if (kind === "training-scenario") return "training_scenario";
+  if (kind === "visitor-intent-event") return "visitor_intent_event";
+  if (kind === "neighborhood-sentiment") return "neighborhood_sentiment";
+  return kind;
 }
 
 async function listFromJson<T>(kind: EntityKind, tenantId: string): Promise<T[]> {
@@ -289,6 +347,8 @@ export function enrichDeal(deal: DealRecord): {
     monthlyRent: deal.monthlyRent,
     energyScore: energy.labelScore,
     subsidyAmount: subsidies.totalEstimatedAmount,
+    gutFeelingScore: deal.gutFeeling?.score,
+    gutFeelingConfidence: deal.gutFeeling?.confidence,
   });
   return {
     deal: { ...deal, score },

@@ -1,16 +1,23 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   ArrowDownToLine,
   Building2,
   Check,
   CircleDollarSign,
+  ChevronLeft,
+  ChevronRight,
   Contact,
   Download,
+  ExternalLink,
   Gauge,
   Handshake,
+  ImageOff,
   Leaf,
+  Newspaper,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Users,
@@ -20,9 +27,14 @@ import {
   createInvestor,
   downloadInvestorReadySheet,
   getGetDealEnergyAnalysisQueryKey,
+  getGetDealMediaBriefQueryKey,
   getGetDealMatchesQueryKey,
+  getGetDealNeighborhoodSentimentQueryKey,
   getGetDealQueryKey,
+  getGetDealSalesIntelligenceQueryKey,
   getGetEnterpriseOverviewQueryKey,
+  getGetInvestorRecommendationsQueryKey,
+  getGetVisitorIntentSummaryQueryKey,
   getGetSaasBillingStatusQueryKey,
   getGetSaasEntitlementsQueryKey,
   getListCrmActivitiesQueryKey,
@@ -30,6 +42,13 @@ import {
   getListDealsQueryKey,
   getListInvestorsQueryKey,
   getListPropertiesQueryKey,
+  useGetDealMediaBrief,
+  useGetDealNeighborhoodSentiment,
+  useGetDealSalesIntelligence,
+  useGetInvestorRecommendations,
+  useGetVisitorIntentSummary,
+  useRecordVisitorIntentEvent,
+  useRefreshDealNeighborhoodSentiment,
   useCreateCrmContact,
   useCreateCrmActivity,
   useCreateDeal,
@@ -268,6 +287,7 @@ function DealDetail({ dealId }: { dealId: string }) {
           </div>
         ))}
       </div>
+      {data.deal.score.gutFeelingScore != null && <div className="rounded-2xl border border-[#d7e6e0] bg-[#f5faf7] p-4" data-testid="panel-gut-feeling"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#287b6a]">Gut Feeling</p><p className="mt-1 text-sm font-bold">{data.deal.gutFeeling?.summary ?? "Buurt- en contextsignaal toegevoegd aan de score."}</p></div><div className="flex gap-5 text-right"><div><p className="text-[10px] text-muted-foreground">Score</p><p className="mono text-xl text-[#287b6a]">{data.deal.score.gutFeelingScore}/100</p></div><div><p className="text-[10px] text-muted-foreground">Zekerheid</p><p className="mono text-xl">{data.deal.score.gutFeelingConfidence ?? data.deal.gutFeeling?.sourceCount ?? 0}%</p></div><div><p className="text-[10px] text-muted-foreground">Bijdrage</p><p className="mono text-xl">{data.deal.score.gutFeelingContribution ?? 0}</p></div></div></div></div>}
       <div className="grid gap-5 lg:grid-cols-2">
         <div className={cardClass}>
           <div className="flex items-center gap-2"><Leaf size={16} className="text-[#287b6a]" /><h4 className="display text-xl font-bold">Energy → waarde</h4></div>
@@ -292,8 +312,61 @@ function DealDetail({ dealId }: { dealId: string }) {
         <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Handshake size={16} className="text-[#435a7b]" /><h4 className="display text-xl font-bold">Top investeerdersmatches</h4></div><span className="text-xs text-muted-foreground">max. 10</span></div>
         {matches.isLoading ? <LoadingBlock lines={3} /> : matches.isError ? <ErrorBlock onRetry={() => matches.refetch()} /> : matches.data?.length ? <div className="mt-4 grid gap-2 md:grid-cols-2">{matches.data.map((investor) => <div key={investor.investorId} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-3"><div><p className="text-sm font-bold">{investor.name}</p><p className="text-[11px] text-muted-foreground">{investor.company || "Particuliere investeerder"} · {investor.reasons.join(" · ") || "basis-match"}</p></div><span className={`mono rounded-lg px-2 py-1 text-sm font-medium ${scoreColor(investor.matchScore)}`}>{investor.matchScore}</span></div>)}</div> : <p className="mt-4 text-xs text-muted-foreground">Nog geen investeerdersprofielen beschikbaar.</p>}
       </div>
+      <DealSignals dealId={dealId} />
     </div>
   );
+}
+
+function getPseudonymousVisitorId() {
+  const key = "realestatex:visitor-id";
+  const existing = sessionStorage.getItem(key);
+  if (existing) return existing;
+  const generated = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sessionStorage.setItem(key, generated);
+  return generated;
+}
+
+function DealSignals({ dealId }: { dealId: string }) {
+  const sales = useGetDealSalesIntelligence(dealId, { query: { enabled: Boolean(dealId), queryKey: getGetDealSalesIntelligenceQueryKey(dealId) } });
+  const sentiment = useGetDealNeighborhoodSentiment(dealId, { query: { enabled: Boolean(dealId), queryKey: getGetDealNeighborhoodSentimentQueryKey(dealId) } });
+  const media = useGetDealMediaBrief(dealId, { query: { enabled: Boolean(dealId), queryKey: getGetDealMediaBriefQueryKey(dealId) } });
+  const refresh = useRefreshDealNeighborhoodSentiment();
+  const record = useRecordVisitorIntentEvent();
+  const [consent, setConsent] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [articleIndex, setArticleIndex] = useState(0);
+
+  const recordEvent = (eventType: "DEAL_VIEW" | "ROI_CALCULATOR" | "SUBSIDY_CALCULATOR" | "PDF_DOWNLOAD") => {
+    if (!consent) {
+      setNotice("Geef eerst expliciet toestemming voor pseudonieme intentmeting.");
+      return;
+    }
+    record.mutate({ data: { visitorId: getPseudonymousVisitorId(), eventType, dealId, consent: true } }, {
+      onSuccess: () => setNotice("Intentie-event veilig geregistreerd zonder persoonsgegevens."),
+      onError: () => setNotice("Event kon niet worden geregistreerd. Probeer het later opnieuw."),
+    });
+  };
+
+  return <div className="space-y-5">
+    <div className="grid gap-5 xl:grid-cols-2">
+      <div className={cardClass} data-testid="panel-deal-sales-intelligence">
+        <div className="flex items-start justify-between gap-3"><div><p className="mono text-[10px] uppercase tracking-[0.18em] text-[#c17b21]">Visitor → sales</p><h4 className="display mt-2 text-xl font-bold">Kijkgedrag met context</h4></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${sales.data?.urgencyLevel === "HIGH" ? "bg-[#fae7e3] text-[#a4443b]" : "bg-[#e3f3ee] text-[#207464]"}`}>{sales.data?.urgencyLevel ?? "—"}</span></div>
+        {sales.isLoading ? <LoadingBlock lines={3} /> : sales.isError ? <ErrorBlock onRetry={() => sales.refetch()} /> : sales.data ? <><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[["Bezoekers", sales.data.uniqueVisitors], ["Investeerders", sales.data.uniqueInvestors], ["Deal views", sales.data.dealViews], ["High intent", sales.data.highIntentCount]].map(([label, value]) => <div key={String(label)} className="rounded-xl bg-secondary p-3"><p className="text-[10px] text-muted-foreground">{label}</p><p className="mono mt-2 text-xl font-medium">{value}</p></div>)}</div><div className="mt-3 flex flex-wrap gap-2 text-[10px] text-muted-foreground"><span className="rounded-full border border-border px-2 py-1">ROI {sales.data.roiCalculatorInteractions}</span><span className="rounded-full border border-border px-2 py-1">Subsidie {sales.data.subsidyCalculatorInteractions}</span><span className="rounded-full border border-border px-2 py-1">PDF {sales.data.pdfDownloads}</span></div><p className="mt-4 text-xs leading-5 text-muted-foreground">{sales.data.investorViewText}</p></> : null}
+        <div className="mt-5 border-t border-border pt-4"><label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1 accent-[#287b6a]" data-testid="input-visitor-consent" />Ik geef expliciet toestemming om mijn bezoek aan deze deal pseudoniem te meten. Er worden geen naam, e-mail of andere persoonsgegevens gevraagd.</label><button onClick={() => recordEvent("DEAL_VIEW")} disabled={record.isPending} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground disabled:opacity-60" data-testid="button-record-deal-view">Registreer deal-interesse</button>{notice && <p className="mt-2 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-visitor-event">{notice}</p>}</div>
+      </div>
+      <div className={cardClass} data-testid="panel-neighborhood-sentiment">
+        <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2"><Newspaper size={17} className="text-[#287b6a]" /><div><p className="mono text-[10px] uppercase tracking-[0.18em] text-[#287b6a]">Buurtbeeld</p><h4 className="display mt-2 text-xl font-bold">{sentiment.data?.narrativeTitle ?? "Nieuws & sentiment"}</h4></div></div><button onClick={() => refresh.mutate({ dealId }, { onSuccess: () => sentiment.refetch() })} disabled={refresh.isPending} className="rounded-xl border border-border p-2 text-muted-foreground hover:bg-secondary disabled:opacity-50" aria-label="Ververs buurtbeeld" data-testid="button-refresh-sentiment"><RefreshCw size={15} /></button></div>
+        {sentiment.isLoading ? <LoadingBlock lines={4} /> : sentiment.isError ? <ErrorBlock onRetry={() => sentiment.refetch()} /> : sentiment.data ? <><div className="mt-5 flex items-end gap-6"><div><p className="text-[10px] text-muted-foreground">Sentiment</p><p className="mono mt-1 text-3xl font-medium text-[#287b6a]">{sentiment.data.sentimentScore > 0 ? "+" : ""}{sentiment.data.sentimentScore.toFixed(2)}</p></div><div><p className="text-[10px] text-muted-foreground">Gut Feeling</p><p className="mono mt-1 text-3xl font-medium">{sentiment.data.gutFeelingScore}/100</p></div><div><p className="text-[10px] text-muted-foreground">Zekerheid</p><p className="mono mt-1 text-3xl font-medium">{sentiment.data.confidence}%</p></div></div><p className="mt-4 text-xs leading-5 text-muted-foreground">{sentiment.data.narrativeSummary}</p><div className="mt-4 flex flex-wrap gap-2">{sentiment.data.trends.slice(0, 4).map((trend) => <span key={trend.topic} className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold">{trend.topic} · {trend.deltaPercent > 0 ? "+" : ""}{trend.deltaPercent}%</span>)}</div>{sentiment.data.articles.length > 0 && <div className="mt-4 rounded-xl border border-border bg-background p-3"><div className="flex items-start justify-between gap-3"><a href={sentiment.data.articles[articleIndex % sentiment.data.articles.length].url} target="_blank" rel="noreferrer" className="min-w-0 text-xs hover:underline" data-testid={`link-news-${sentiment.data.articles[articleIndex % sentiment.data.articles.length].articleId}`}><strong className="block truncate">{sentiment.data.articles[articleIndex % sentiment.data.articles.length].title}</strong><span className="mt-1 block text-muted-foreground">{sentiment.data.articles[articleIndex % sentiment.data.articles.length].source}</span></a><ExternalLink size={13} className="shrink-0 text-muted-foreground" /></div><p className="mt-3 line-clamp-2 text-xs leading-5 text-muted-foreground">{sentiment.data.articles[articleIndex % sentiment.data.articles.length].summary}</p><div className="mt-3 flex items-center justify-between"><span className="text-[10px] text-muted-foreground">{articleIndex + 1} / {sentiment.data.articles.length}</span><div className="flex gap-1"><button onClick={() => setArticleIndex((current) => (current - 1 + sentiment.data!.articles.length) % sentiment.data!.articles.length)} className="rounded-lg border border-border p-1.5 hover:bg-secondary" aria-label="Vorig nieuwsbericht" data-testid="button-news-prev"><ChevronLeft size={14} /></button><button onClick={() => setArticleIndex((current) => (current + 1) % sentiment.data!.articles.length)} className="rounded-lg border border-border p-1.5 hover:bg-secondary" aria-label="Volgend nieuwsbericht" data-testid="button-news-next"><ChevronRight size={14} /></button></div></div></div>}</> : <p className="mt-5 text-xs text-muted-foreground">Nog geen nieuws-snapshot beschikbaar.</p>}
+      </div>
+    </div>
+    <div className={cardClass} data-testid="panel-media-brief">
+      <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-xl bg-[#f7eddd] text-[#a4671c]"><ImageOff size={17} /></div><div><p className="mono text-[10px] uppercase tracking-[0.18em] text-[#a4671c]">Media brief</p><h4 className="display mt-1 text-xl font-bold">Provider-neutrale prompts</h4></div></div>
+      {media.isLoading ? <div className="skeleton mt-5 h-16 rounded-xl" /> : media.isError ? <p className="mt-5 text-xs text-muted-foreground">Media brief tijdelijk niet beschikbaar.</p> : media.data ? <div className="mt-5 grid gap-3 md:grid-cols-3"><div className="rounded-xl bg-secondary p-3"><p className="text-[10px] font-bold uppercase text-muted-foreground">Voor</p><p className="mt-2 text-xs leading-5">{media.data.beforePrompt}</p></div><div className="rounded-xl bg-secondary p-3"><p className="text-[10px] font-bold uppercase text-muted-foreground">Na</p><p className="mt-2 text-xs leading-5">{media.data.afterPrompt}</p></div><div className="rounded-xl bg-secondary p-3"><p className="text-[10px] font-bold uppercase text-muted-foreground">Video loop</p><p className="mt-2 text-xs leading-5">{media.data.videoLoopPrompt}</p></div></div> : null}
+      <p className="mt-4 flex items-center gap-2 text-xs font-semibold text-[#a4671c]"><span className="h-2 w-2 rounded-full bg-[#c17b21]" />{media.data?.integrationStatus ?? "NOT_CONFIGURED"} · Geen render is uitgevoerd.</p>
+    </div>
+  </div>;
 }
 
 function PeopleWorkspace() {
@@ -304,6 +377,8 @@ function PeopleWorkspace() {
   const createContactMutation = useCreateCrmContact();
   const createActivityMutation = useCreateCrmActivity();
   const [selectedContactId, setSelectedContactId] = useState("");
+  const [selectedInvestorId, setSelectedInvestorId] = useState("");
+  const recommendations = useGetInvestorRecommendations(selectedInvestorId, { query: { enabled: Boolean(selectedInvestorId), queryKey: getGetInvestorRecommendationsQueryKey(selectedInvestorId) } });
   const activities = useListCrmActivities(selectedContactId, {
     query: {
       queryKey: getListCrmActivitiesQueryKey(selectedContactId),
@@ -347,7 +422,8 @@ function PeopleWorkspace() {
         </div>
         <SubmitButton pending={createInvestorMutation.isPending}>Investeerder toevoegen</SubmitButton>
       </form>
-      <div className="mt-5 space-y-2">{investors.isLoading ? <LoadingBlock lines={3} /> : (investors.data ?? []).map((investor) => <div key={investor.investorId} className="flex items-center justify-between rounded-xl bg-secondary px-3 py-2.5 text-xs"><span><strong>{investor.name}</strong><br /><span className="text-muted-foreground">{investor.riskProfile} · {formatEuro(investor.budgetMax)}</span></span><ShieldCheck size={15} className="text-[#287b6a]" /></div>)}</div>
+       <div className="mt-5 space-y-2">{investors.isLoading ? <LoadingBlock lines={3} /> : (investors.data ?? []).map((investor) => <button key={investor.investorId} onClick={() => setSelectedInvestorId(investor.investorId)} className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs ${selectedInvestorId === investor.investorId ? "bg-primary/10 ring-1 ring-primary/20" : "bg-secondary"}`} data-testid={`button-investor-${investor.investorId}`}><span><strong>{investor.name}</strong><br /><span className="text-muted-foreground">{investor.riskProfile} · {formatEuro(investor.budgetMax)}</span></span><ShieldCheck size={15} className="text-[#287b6a]" /></button>)}</div>
+       {selectedInvestorId && <div className="mt-5 border-t border-border pt-5" data-testid="panel-investor-recommendations"><div className="flex items-center justify-between"><div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#287b6a]">Profielmatch</p><p className="mt-1 text-sm font-bold">{recommendations.data?.greeting ?? "Persoonlijke aanbevelingen"}</p></div><span className="text-[10px] text-muted-foreground">max. 3 deals</span></div>{recommendations.isLoading ? <LoadingBlock lines={2} /> : recommendations.isError ? <p className="mt-3 text-xs text-muted-foreground">Aanbevelingen tijdelijk niet beschikbaar.</p> : <div className="mt-3 space-y-2">{(recommendations.data?.recommendations ?? []).map((deal) => <div key={deal.dealId} className="rounded-xl border border-[#d7e6e0] bg-[#f5faf7] p-3"><div className="flex items-start justify-between gap-3"><span className="text-xs font-bold">{deal.title}</span><span className="mono text-xs text-[#287b6a]">{deal.matchScore}</span></div><p className="mt-1 text-[11px] text-muted-foreground">{deal.region} · {formatEuro(deal.askingPrice)} · {deal.reasons.join(" · ")}</p></div>)}</div>}</div>}
     </div>
     <div className={cardClass}>
       <div className="flex items-center gap-2"><Contact size={17} className="text-[#b56d19]" /><h3 className="display text-xl font-bold">CRM-relaties</h3></div>
@@ -372,12 +448,15 @@ function PeopleWorkspace() {
 }
 
 export function DealingRoom() {
-  const [selectedDealId, setSelectedDealId] = useState("");
+  const [location] = useLocation();
+  const initialDealId = new URLSearchParams(location.split("?")[1] ?? "").get("deal") ?? "";
+  const [selectedDealId, setSelectedDealId] = useState(initialDealId);
   const [active, setActive] = useState<"deals" | "people">("deals");
   const deals = useListDeals({ query: { queryKey: getListDealsQueryKey() } });
   const overview = useGetEnterpriseOverview({ query: { queryKey: getGetEnterpriseOverviewQueryKey(), staleTime: 30000 } });
   const tier = useGetSaasEntitlements(undefined, { query: { queryKey: getGetSaasEntitlementsQueryKey(), staleTime: 300000 } });
   const billing = useGetSaasBillingStatus({ query: { queryKey: getGetSaasBillingStatusQueryKey(), staleTime: 300000 } });
+  const visitorSummary = useGetVisitorIntentSummary({ days: 30 }, { query: { queryKey: getGetVisitorIntentSummaryQueryKey({ days: 30 }), staleTime: 30000 } });
   const selected = useMemo(() => (deals.data ?? []).find((deal) => deal.dealId === selectedDealId), [deals.data, selectedDealId]);
   return <AppShell><div className="animate-rise">
     <SectionHeading eyebrow="Enterprise Core · Fase 2–8" title="Dealing Room" description="Van object naar dealbeslissing: score, verduurzaming, subsidie, rendement en investeerder in één werkruimte." action={<div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold"><span className="h-2 w-2 rounded-full bg-[#3eaf94]" /> {tier.data?.label ?? "Tier laden"}</div>} />
@@ -387,6 +466,7 @@ export function DealingRoom() {
       <Metric label="Investeerders" value={String(overview.data?.counts.investors ?? 0)} detail="Beschikbaar voor matching" icon={Users} />
       <Metric label="CRM-relaties" value={String(overview.data?.counts.crmContacts ?? 0)} detail="Investeerders, makelaars, partners" icon={Contact} />
     </div>
+    <div className="mt-5 rounded-2xl border border-[#d7e6e0] bg-[#f5faf7] p-5" data-testid="panel-visitor-lead-summary"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><p className="mono text-[10px] uppercase tracking-[0.18em] text-[#287b6a]">Intent summary · laatste 30 dagen</p><h3 className="display mt-1 text-xl font-bold">Van interesse naar opvolging</h3></div><span className="text-xs text-muted-foreground">{visitorSummary.data ? `Bijgewerkt ${new Date(visitorSummary.data.asOf).toLocaleDateString("nl-NL")}` : "Samenvatting laden"}</span></div>{visitorSummary.isLoading ? <div className="mt-4 grid gap-3 sm:grid-cols-4"><div className="skeleton h-16 rounded-xl" /><div className="skeleton h-16 rounded-xl" /><div className="skeleton h-16 rounded-xl" /><div className="skeleton h-16 rounded-xl" /></div> : visitorSummary.isError ? <p className="mt-4 text-xs text-muted-foreground">Lead-samenvatting tijdelijk niet beschikbaar.</p> : <><div className="mt-4 grid gap-3 sm:grid-cols-4"><div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] text-muted-foreground">Events</p><p className="mono mt-2 text-2xl">{visitorSummary.data?.eventsCount ?? 0}</p></div><div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] text-muted-foreground">Unieke bezoekers</p><p className="mono mt-2 text-2xl">{visitorSummary.data?.uniqueVisitors ?? 0}</p></div><div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] text-muted-foreground">Investeerders</p><p className="mono mt-2 text-2xl">{visitorSummary.data?.uniqueInvestors ?? 0}</p></div><div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] text-muted-foreground">Hoge intent</p><p className="mono mt-2 text-2xl text-[#287b6a]">{visitorSummary.data?.leads.filter((lead) => lead.intentLevel === "HIGH").length ?? 0}</p></div></div><div className="mt-4 grid gap-2 md:grid-cols-3">{(visitorSummary.data?.leads ?? []).slice(0, 3).map((lead) => <div key={lead.visitorId} className="rounded-xl border border-[#d7e6e0] bg-white/50 p-3" data-testid={`card-visitor-lead-${lead.visitorId}`}><div className="flex items-center justify-between"><span className="mono text-[10px] text-muted-foreground">{lead.visitorId.slice(0, 8)}…</span><span className="text-[10px] font-bold text-[#287b6a]">{lead.intentLevel}</span></div><p className="mono mt-2 text-lg">{lead.score}<span className="text-[10px] text-muted-foreground"> / 100</span></p><p className="mt-1 text-[10px] text-muted-foreground">{lead.eventCount} interacties · laatst gezien {new Date(lead.lastSeen).toLocaleDateString("nl-NL")}</p></div>)}</div></>}</div>
     <div className="mt-6 flex gap-2 rounded-2xl border border-border bg-card p-2">
       <button onClick={() => setActive("deals")} className={`flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold ${active === "deals" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}><Handshake size={15} /> Deals</button>
       <button onClick={() => setActive("people")} className={`flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold ${active === "people" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}><Users size={15} /> Investor Room & CRM</button>

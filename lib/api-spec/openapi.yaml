@@ -574,6 +574,291 @@ paths:
                 format: binary
         "404":
           $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/sales-intelligence:
+    get:
+      operationId: getDealSalesIntelligence
+      tags: [enterprise]
+      summary: Get tenant-scoped deal viewing and high-intent activity
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Deal sales activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DealSalesIntelligence"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/sentiment/refresh:
+    post:
+      operationId: refreshDealNeighborhoodSentiment
+      tags: [enterprise]
+      summary: Analyze recent news for the deal neighborhood and update Gut Feeling
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Neighborhood sentiment snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NeighborhoodSentimentSnapshot"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          description: News source unavailable or returned invalid data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /deals/{dealId}/sentiment:
+    get:
+      operationId: getDealNeighborhoodSentiment
+      tags: [enterprise]
+      summary: Get the latest tenant-scoped neighborhood sentiment snapshot for a deal
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Latest neighborhood sentiment snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NeighborhoodSentimentSnapshot"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/media-brief:
+    get:
+      operationId: getDealMediaBrief
+      tags: [enterprise]
+      summary: Create provider-neutral before-and-after render and video-loop prompts
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Media generation brief; no external render is claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaRenderBrief"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /training/scenarios:
+    get:
+      operationId: trainingListScenarios
+      tags: [enterprise]
+      summary: List tenant-scoped Training Room scenarios
+      responses:
+        "200":
+          description: Training scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrainingScenario"
+    post:
+      operationId: trainingCreateScenario
+      tags: [enterprise]
+      summary: Create a Training Room renovation scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingScenarioInput"
+      responses:
+        "201":
+          description: Scenario created and scored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingScenario"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /training/scenarios/{scenarioId}:
+    get:
+      operationId: trainingGetScenario
+      tags: [enterprise]
+      summary: Get a tenant-scoped Training Room scenario
+      parameters:
+        - $ref: "#/components/parameters/TrainingScenarioId"
+      responses:
+        "200":
+          description: Scenario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingScenario"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: trainingUpdateScenario
+      tags: [enterprise]
+      summary: Update a draft Training Room scenario
+      parameters:
+        - $ref: "#/components/parameters/TrainingScenarioId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingScenarioUpdate"
+      responses:
+        "200":
+          description: Updated scenario and quality-gate score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingScenario"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /training/scenarios/{scenarioId}/promote:
+    post:
+      operationId: trainingPromoteScenario
+      tags: [enterprise]
+      summary: Promote a scenario with score 80 or higher and prepare its investor PDF
+      parameters:
+        - $ref: "#/components/parameters/TrainingScenarioId"
+      responses:
+        "200":
+          description: Existing or newly promoted deal and its PDF download route
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingPromotionResponse"
+        "403":
+          description: Quality Gate score is below 80
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /training/scenarios/{scenarioId}/investor-ready-sheet:
+    get:
+      operationId: trainingDownloadInvestorReadySheet
+      tags: [enterprise]
+      summary: Generate or download the promoted scenario's Investor Ready Sheet PDF
+      parameters:
+        - $ref: "#/components/parameters/TrainingScenarioId"
+      responses:
+        "200":
+          description: Investor Ready Sheet PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /training/scenarios/{scenarioId}/sentiment/refresh:
+    post:
+      operationId: trainingRefreshScenarioSentiment
+      tags: [enterprise]
+      summary: Refresh neighborhood news sentiment and recalculate the scenario score
+      parameters:
+        - $ref: "#/components/parameters/TrainingScenarioId"
+      responses:
+        "200":
+          description: Updated scenario and news snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingSentimentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          description: News source unavailable or returned invalid data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /visitor-intent/events:
+    post:
+      operationId: recordVisitorIntentEvent
+      tags: [enterprise]
+      summary: Record a consented, pseudonymous visitor action
+      description: Requires authentication; tenant identity is always taken from the session, never from the request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitorIntentEventInput"
+      responses:
+        "201":
+          description: Recorded event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitorIntentEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          description: Visitor event rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /visitor-intent/summary:
+    get:
+      operationId: getVisitorIntentSummary
+      tags: [enterprise]
+      summary: Get tenant-scoped lead scores and visitor intent activity
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 30
+      responses:
+        "200":
+          description: Lead scoring summary for consented pseudonymous events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitorIntentSummary"
+  /market-pulse/daily:
+    get:
+      operationId: getDailyMarketPulse
+      tags: [enterprise]
+      summary: Get up to three real tenant deals ranked by net ROI and deal score
+      responses:
+        "200":
+          description: Daily Market Pulse; fewer than three items are returned when fewer qualify
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyMarketPulse"
+  /investors/{investorId}/recommendations:
+    get:
+      operationId: getInvestorRecommendations
+      tags: [enterprise]
+      summary: Get profile-personalized deal recommendations and greeting
+      parameters:
+        - $ref: "#/components/parameters/InvestorId"
+      responses:
+        "200":
+          description: Recommended deals for the investor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvestorRecommendations"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /investors:
     get:
       operationId: listInvestors
@@ -951,6 +1236,13 @@ components:
       schema:
         type: string
         minLength: 1
+    TrainingScenarioId:
+      name: scenarioId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
     InvestorId:
       name: investorId
       in: path
@@ -1016,6 +1308,9 @@ components:
         decision: { type: string, enum: [GO, HOLD, REJECT] }
         margin: { type: number }
         grossYield: { type: number }
+        gutFeelingScore: { type: ["number", "null"], minimum: 0, maximum: 100 }
+        gutFeelingConfidence: { type: number, minimum: 0, maximum: 100 }
+        gutFeelingContribution: { type: number }
     DealRecord:
       allOf:
         - $ref: "#/components/schemas/DealInput"
@@ -1029,6 +1324,7 @@ components:
             status: { type: string, enum: [DRAFT, REVIEW, GO, HOLD, REJECT] }
             ownerId: { type: string }
             score: { $ref: "#/components/schemas/DealScore" }
+            gutFeeling: { $ref: "#/components/schemas/GutFeelingSignal" }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
     EnergyMeasure:
@@ -1203,6 +1499,236 @@ components:
         webhookReady: { type: boolean }
         supportedTiers: { type: array, items: { type: string } }
         message: { type: string }
+    GutFeelingSignal:
+      type: object
+      required: [score, confidence, summary, sourceCount, region, observedAt, staleAt]
+      properties:
+        score: { type: number, minimum: 0, maximum: 100 }
+        confidence: { type: number, minimum: 0, maximum: 100 }
+        summary: { type: string }
+        sourceCount: { type: integer, minimum: 0 }
+        region: { type: string }
+        observedAt: { type: string, format: date-time }
+        staleAt: { type: string, format: date-time }
+    TrainingScenarioInput:
+      type: object
+      required: [propertyId, title, region, askingPrice, expectedValue]
+      properties:
+        propertyId: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        region: { type: string, minLength: 1, maxLength: 120 }
+        askingPrice: { type: number, minimum: 1 }
+        renovationCost: { type: number, minimum: 0 }
+        expectedValue: { type: number, minimum: 1 }
+        monthlyRent: { type: number, minimum: 0 }
+        municipality: { type: string, maxLength: 120 }
+    TrainingScenarioUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        region: { type: string, minLength: 1, maxLength: 120 }
+        askingPrice: { type: number, minimum: 1 }
+        renovationCost: { type: number, minimum: 0 }
+        expectedValue: { type: number, minimum: 1 }
+        monthlyRent: { type: number, minimum: 0 }
+        municipality: { type: string, maxLength: 120 }
+    TrainingScenario:
+      type: object
+      required: [scenarioId, propertyId, title, region, propertyType, energyLabel, woonoppervlak, askingPrice, renovationCost, expectedValue, monthlyRent, status, qualityGatePassed, score, ownerId, createdAt, updatedAt]
+      properties:
+        scenarioId: { type: string }
+        propertyId: { type: string }
+        title: { type: string }
+        region: { type: string }
+        propertyType: { type: string }
+        energyLabel: { type: string }
+        woonoppervlak: { type: number }
+        askingPrice: { type: number }
+        renovationCost: { type: number }
+        expectedValue: { type: number }
+        monthlyRent: { type: number }
+        municipality: { type: ["string", "null"] }
+        status: { type: string, enum: [DRAFT, READY, PROMOTED] }
+        qualityGatePassed: { type: boolean }
+        score: { $ref: "#/components/schemas/DealScore" }
+        gutFeeling: { oneOf: [{ $ref: "#/components/schemas/NeighborhoodSentimentSnapshot" }, { type: "null" }] }
+        promotedDealId: { type: ["string", "null"] }
+        ownerId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TrainingPromotionResponse:
+      type: object
+      required: [scenario, deal, investorReadySheetUrl]
+      properties:
+        scenario: { $ref: "#/components/schemas/TrainingScenario" }
+        deal: { $ref: "#/components/schemas/DealRecord" }
+        investorReadySheetUrl: { type: string }
+    TrainingSentimentResponse:
+      type: object
+      required: [scenario, sentiment]
+      properties:
+        scenario: { $ref: "#/components/schemas/TrainingScenario" }
+        sentiment: { $ref: "#/components/schemas/NeighborhoodSentimentSnapshot" }
+    VisitorIntentEventInput:
+      type: object
+      required: [visitorId, eventType, dealId, consent]
+      properties:
+        visitorId: { type: string, minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9_-]{8,128}$" }
+        eventType: { type: string, enum: [DEAL_VIEW, ROI_CALCULATOR, SUBSIDY_CALCULATOR, PDF_DOWNLOAD] }
+        dealId: { type: string, minLength: 1 }
+        investorId: { type: string, minLength: 1 }
+        consent: { type: boolean, const: true }
+    VisitorIntentEvent:
+      type: object
+      required: [eventId, visitorId, eventType, occurredAt]
+      properties:
+        eventId: { type: string }
+        visitorId: { type: string }
+        eventType: { type: string, enum: [DEAL_VIEW, ROI_CALCULATOR, SUBSIDY_CALCULATOR, PDF_DOWNLOAD] }
+        dealId: { type: ["string", "null"] }
+        investorId: { type: ["string", "null"] }
+        occurredAt: { type: string, format: date-time }
+    VisitorLeadScore:
+      type: object
+      required: [visitorId, score, intentLevel, eventCount, lastSeen, viewedDealIds]
+      properties:
+        visitorId: { type: string }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        intentLevel: { type: string, enum: [LOW, MEDIUM, HIGH] }
+        eventCount: { type: integer, minimum: 0 }
+        lastSeen: { type: string, format: date-time }
+        viewedDealIds: { type: array, items: { type: string } }
+    VisitorIntentSummary:
+      type: object
+      required: [asOf, windowDays, eventsCount, uniqueVisitors, uniqueInvestors, leads, interactionCounts]
+      properties:
+        asOf: { type: string, format: date-time }
+        windowDays: { type: integer }
+        eventsCount: { type: integer }
+        uniqueVisitors: { type: integer }
+        uniqueInvestors: { type: integer }
+        leads:
+          type: array
+          items: { $ref: "#/components/schemas/VisitorLeadScore" }
+        interactionCounts:
+          type: object
+          additionalProperties: { type: integer }
+    DealSalesIntelligence:
+      type: object
+      required: [dealId, windowHours, uniqueVisitors, uniqueInvestors, dealViews, roiCalculatorInteractions, subsidyCalculatorInteractions, pdfDownloads, highIntentCount, urgencyLevel, investorViewText]
+      properties:
+        dealId: { type: string }
+        windowHours: { type: integer }
+        uniqueVisitors: { type: integer }
+        uniqueInvestors: { type: integer }
+        dealViews: { type: integer }
+        roiCalculatorInteractions: { type: integer }
+        subsidyCalculatorInteractions: { type: integer }
+        pdfDownloads: { type: integer }
+        highIntentCount: { type: integer }
+        urgencyLevel: { type: string, enum: [LOW, MEDIUM, HIGH] }
+        investorViewText: { type: string }
+    DailyMarketPulseItem:
+      type: object
+      required: [rank, dealId, title, region, netRoi, totalScore, decision, investorMatchCount, explanation]
+      properties:
+        rank: { type: integer, minimum: 1, maximum: 3 }
+        dealId: { type: string }
+        title: { type: string }
+        region: { type: string }
+        netRoi: { type: number }
+        totalScore: { type: number }
+        decision: { type: string, enum: [GO, HOLD, REJECT] }
+        investorMatchCount: { type: integer }
+        explanation: { type: string }
+    DailyMarketPulse:
+      type: object
+      required: [generatedAt, ranking, availableDealsCount, items]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        ranking: { type: string, const: netRoi-desc-score-desc }
+        availableDealsCount: { type: integer }
+        items:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/DailyMarketPulseItem" }
+    RecommendedDeal:
+      type: object
+      required: [dealId, title, region, askingPrice, expectedValue, totalScore, matchScore, reasons]
+      properties:
+        dealId: { type: string }
+        title: { type: string }
+        region: { type: string }
+        askingPrice: { type: number }
+        expectedValue: { type: number }
+        totalScore: { type: number }
+        matchScore: { type: number }
+        reasons: { type: array, items: { type: string } }
+    InvestorRecommendations:
+      type: object
+      required: [greeting, investor, recommendations]
+      properties:
+        greeting: { type: string }
+        investor: { $ref: "#/components/schemas/InvestorRecord" }
+        recommendations:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/RecommendedDeal" }
+    SentimentArticle:
+      type: object
+      required: [articleId, title, url, source, publishedAt, summary, sentimentScore, topics, imageUrl]
+      properties:
+        articleId: { type: string }
+        title: { type: string }
+        url: { type: string, format: uri }
+        source: { type: string }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        summary: { type: string }
+        sentimentScore: { type: number, minimum: -1, maximum: 1 }
+        topics: { type: array, items: { type: string } }
+        imageUrl: { type: ["string", "null"], format: uri }
+    NeighborhoodTrend:
+      type: object
+      required: [topic, articleCount, deltaPercent, direction]
+      properties:
+        topic: { type: string }
+        articleCount: { type: integer, minimum: 0 }
+        deltaPercent: { type: number }
+        direction: { type: string, enum: [RISING, STABLE, COOLING, NEW] }
+    NeighborhoodSentimentSnapshot:
+      type: object
+      required: [snapshotId, region, sentimentScore, gutFeelingScore, confidence, articleCount, sampledAt, staleAt, source, narrativeTitle, narrativeSummary, scoreExplanation, articles, trends]
+      properties:
+        snapshotId: { type: string }
+        region: { type: string }
+        sentimentScore: { type: number, minimum: -1, maximum: 1 }
+        gutFeelingScore: { type: number, minimum: 0, maximum: 100 }
+        confidence: { type: number, minimum: 0, maximum: 100 }
+        articleCount: { type: integer, minimum: 0 }
+        sampledAt: { type: string, format: date-time }
+        staleAt: { type: string, format: date-time }
+        source: { type: string }
+        narrativeTitle: { type: string }
+        narrativeSummary: { type: string }
+        scoreExplanation: { type: string }
+        articles:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/SentimentArticle" }
+        trends:
+          type: array
+          items: { $ref: "#/components/schemas/NeighborhoodTrend" }
+    MediaRenderBrief:
+      type: object
+      required: [dealId, beforePrompt, afterPrompt, videoLoopPrompt, integrationStatus, generatedAt]
+      properties:
+        dealId: { type: string }
+        beforePrompt: { type: string }
+        afterPrompt: { type: string }
+        videoLoopPrompt: { type: string }
+        integrationStatus: { type: string, const: NOT_CONFIGURED }
+        generatedAt: { type: string, format: date-time }
     HealthStatus:
       type: object
       properties:

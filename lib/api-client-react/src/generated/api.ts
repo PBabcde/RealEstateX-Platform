@@ -35,31 +35,38 @@ import type {
   CrmActivityRecord,
   CrmContactInput,
   CrmContactRecord,
+  DailyMarketPulse,
   DashboardSummary,
   DealDetailResponse,
   DealInput,
   DealRecord,
+  DealSalesIntelligence,
   DealScore,
   DocumentInput,
   DocumentListResponse,
   DocumentResponse,
   EnergyResponse,
   EnterpriseOverview,
+  ErrorResponse,
   ForbiddenResponse,
   GetChatHistoryParams,
   GetSaasEntitlementsParams,
+  GetVisitorIntentSummaryParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   InvestorInput,
   InvestorMatch,
+  InvestorRecommendations,
   InvestorRecord,
   LogoutBrowserSessionParams,
   LogoutSuccess,
   MarketTrend,
+  MediaRenderBrief,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
   MortgageInput,
   MortgageResult,
+  NeighborhoodSentimentSnapshot,
   NotFoundResponse,
   Property,
   PropertyInput,
@@ -70,9 +77,17 @@ import type {
   RetrievalResponse,
   SaasEntitlements,
   SuiteOverview,
+  TrainingPromotionResponse,
+  TrainingScenario,
+  TrainingScenarioInput,
+  TrainingScenarioUpdate,
+  TrainingSentimentResponse,
   UnauthorizedResponse,
   ValuationInput,
-  ValuationResult
+  ValuationResult,
+  VisitorIntentEvent,
+  VisitorIntentEventInput,
+  VisitorIntentSummary
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2453,6 +2468,1194 @@ export function useDownloadInvestorReadySheet<TData = Awaited<ReturnType<typeof 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getDownloadInvestorReadySheetQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDealSalesIntelligenceUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/sales-intelligence`
+}
+
+/**
+ * @summary Get tenant-scoped deal viewing and high-intent activity
+ */
+export const getDealSalesIntelligence = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<DealSalesIntelligence> => {
+
+  return customFetch<DealSalesIntelligence>(getGetDealSalesIntelligenceUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealSalesIntelligenceQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/sales-intelligence`
+    ] as const;
+    }
+
+
+export const getGetDealSalesIntelligenceQueryOptions = <TData = Awaited<ReturnType<typeof getDealSalesIntelligence>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealSalesIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealSalesIntelligenceQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealSalesIntelligence>>> = ({ signal }) => getDealSalesIntelligence(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealSalesIntelligence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealSalesIntelligenceQueryResult = NonNullable<Awaited<ReturnType<typeof getDealSalesIntelligence>>>
+export type GetDealSalesIntelligenceQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get tenant-scoped deal viewing and high-intent activity
+ */
+
+export function useGetDealSalesIntelligence<TData = Awaited<ReturnType<typeof getDealSalesIntelligence>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealSalesIntelligence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealSalesIntelligenceQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRefreshDealNeighborhoodSentimentUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/sentiment/refresh`
+}
+
+/**
+ * @summary Analyze recent news for the deal neighborhood and update Gut Feeling
+ */
+export const refreshDealNeighborhoodSentiment = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<NeighborhoodSentimentSnapshot> => {
+
+  return customFetch<NeighborhoodSentimentSnapshot>(getRefreshDealNeighborhoodSentimentUrl(dealId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRefreshDealNeighborhoodSentimentMutationKey = () => ['refreshDealNeighborhoodSentiment'] as const;
+
+export const getRefreshDealNeighborhoodSentimentMutationOptions = <TError = ErrorType<NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>, TError,RefreshDealNeighborhoodSentimentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>, TError,RefreshDealNeighborhoodSentimentMutationVariables, TContext> => {
+
+const mutationKey = getRefreshDealNeighborhoodSentimentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>, RefreshDealNeighborhoodSentimentMutationVariables> = (props) => {
+          const {dealId} = props ?? {};
+
+          return  refreshDealNeighborhoodSentiment(dealId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RefreshDealNeighborhoodSentimentMutationResult = NonNullable<Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>>
+
+    export type RefreshDealNeighborhoodSentimentMutationError = ErrorType<NotFoundResponse | ErrorResponse>
+    export type RefreshDealNeighborhoodSentimentMutationVariables = {dealId: string}
+
+    /**
+ * @summary Analyze recent news for the deal neighborhood and update Gut Feeling
+ */
+export const useRefreshDealNeighborhoodSentiment = <TError = ErrorType<NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>, TError,RefreshDealNeighborhoodSentimentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof refreshDealNeighborhoodSentiment>>,
+        TError,
+        RefreshDealNeighborhoodSentimentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRefreshDealNeighborhoodSentimentMutationOptions(options));
+    }
+
+export const getGetDealNeighborhoodSentimentUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/sentiment`
+}
+
+/**
+ * @summary Get the latest tenant-scoped neighborhood sentiment snapshot for a deal
+ */
+export const getDealNeighborhoodSentiment = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<NeighborhoodSentimentSnapshot> => {
+
+  return customFetch<NeighborhoodSentimentSnapshot>(getGetDealNeighborhoodSentimentUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealNeighborhoodSentimentQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/sentiment`
+    ] as const;
+    }
+
+
+export const getGetDealNeighborhoodSentimentQueryOptions = <TData = Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealNeighborhoodSentimentQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>> = ({ signal }) => getDealNeighborhoodSentiment(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealNeighborhoodSentimentQueryResult = NonNullable<Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>>
+export type GetDealNeighborhoodSentimentQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get the latest tenant-scoped neighborhood sentiment snapshot for a deal
+ */
+
+export function useGetDealNeighborhoodSentiment<TData = Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealNeighborhoodSentiment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealNeighborhoodSentimentQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDealMediaBriefUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/media-brief`
+}
+
+/**
+ * @summary Create provider-neutral before-and-after render and video-loop prompts
+ */
+export const getDealMediaBrief = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<MediaRenderBrief> => {
+
+  return customFetch<MediaRenderBrief>(getGetDealMediaBriefUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealMediaBriefQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/media-brief`
+    ] as const;
+    }
+
+
+export const getGetDealMediaBriefQueryOptions = <TData = Awaited<ReturnType<typeof getDealMediaBrief>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealMediaBrief>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealMediaBriefQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealMediaBrief>>> = ({ signal }) => getDealMediaBrief(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealMediaBrief>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealMediaBriefQueryResult = NonNullable<Awaited<ReturnType<typeof getDealMediaBrief>>>
+export type GetDealMediaBriefQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Create provider-neutral before-and-after render and video-loop prompts
+ */
+
+export function useGetDealMediaBrief<TData = Awaited<ReturnType<typeof getDealMediaBrief>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealMediaBrief>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealMediaBriefQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTrainingListScenariosUrl = () => {
+
+
+
+
+  return `/api/training/scenarios`
+}
+
+/**
+ * @summary List tenant-scoped Training Room scenarios
+ */
+export const trainingListScenarios = async ( options?: Parameters<typeof customFetch>[1]): Promise<TrainingScenario[]> => {
+
+  return customFetch<TrainingScenario[]>(getTrainingListScenariosUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getTrainingListScenariosQueryKey = () => {
+    return [
+    `/api/training/scenarios`
+    ] as const;
+    }
+
+
+export const getTrainingListScenariosQueryOptions = <TData = Awaited<ReturnType<typeof trainingListScenarios>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingListScenarios>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getTrainingListScenariosQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof trainingListScenarios>>> = ({ signal }) => trainingListScenarios({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof trainingListScenarios>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type TrainingListScenariosQueryResult = NonNullable<Awaited<ReturnType<typeof trainingListScenarios>>>
+export type TrainingListScenariosQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List tenant-scoped Training Room scenarios
+ */
+
+export function useTrainingListScenarios<TData = Awaited<ReturnType<typeof trainingListScenarios>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingListScenarios>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getTrainingListScenariosQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTrainingCreateScenarioUrl = () => {
+
+
+
+
+  return `/api/training/scenarios`
+}
+
+/**
+ * @summary Create a Training Room renovation scenario
+ */
+export const trainingCreateScenario = async (trainingScenarioInput: TrainingScenarioInput, options?: Parameters<typeof customFetch>[1]): Promise<TrainingScenario> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TrainingScenario>(getTrainingCreateScenarioUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(trainingScenarioInput)
+  }
+);}
+
+
+
+
+
+export const getTrainingCreateScenarioMutationKey = () => ['trainingCreateScenario'] as const;
+
+export const getTrainingCreateScenarioMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingCreateScenario>>, TError,TrainingCreateScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof trainingCreateScenario>>, TError,TrainingCreateScenarioMutationVariables, TContext> => {
+
+const mutationKey = getTrainingCreateScenarioMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trainingCreateScenario>>, TrainingCreateScenarioMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  trainingCreateScenario(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrainingCreateScenarioMutationResult = NonNullable<Awaited<ReturnType<typeof trainingCreateScenario>>>
+    export type TrainingCreateScenarioMutationBody = BodyType<TrainingScenarioInput>
+    export type TrainingCreateScenarioMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type TrainingCreateScenarioMutationVariables = {data: BodyType<TrainingScenarioInput>}
+
+    /**
+ * @summary Create a Training Room renovation scenario
+ */
+export const useTrainingCreateScenario = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingCreateScenario>>, TError,TrainingCreateScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof trainingCreateScenario>>,
+        TError,
+        TrainingCreateScenarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTrainingCreateScenarioMutationOptions(options));
+    }
+
+export const getTrainingGetScenarioUrl = (scenarioId: string,) => {
+
+
+
+
+  return `/api/training/scenarios/${scenarioId}`
+}
+
+/**
+ * @summary Get a tenant-scoped Training Room scenario
+ */
+export const trainingGetScenario = async (scenarioId: string, options?: Parameters<typeof customFetch>[1]): Promise<TrainingScenario> => {
+
+  return customFetch<TrainingScenario>(getTrainingGetScenarioUrl(scenarioId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getTrainingGetScenarioQueryKey = (scenarioId: string,) => {
+    return [
+    `/api/training/scenarios/${scenarioId}`
+    ] as const;
+    }
+
+
+export const getTrainingGetScenarioQueryOptions = <TData = Awaited<ReturnType<typeof trainingGetScenario>>, TError = ErrorType<NotFoundResponse>>(scenarioId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingGetScenario>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getTrainingGetScenarioQueryKey(scenarioId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof trainingGetScenario>>> = ({ signal }) => trainingGetScenario(scenarioId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: scenarioId !== null && scenarioId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof trainingGetScenario>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type TrainingGetScenarioQueryResult = NonNullable<Awaited<ReturnType<typeof trainingGetScenario>>>
+export type TrainingGetScenarioQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get a tenant-scoped Training Room scenario
+ */
+
+export function useTrainingGetScenario<TData = Awaited<ReturnType<typeof trainingGetScenario>>, TError = ErrorType<NotFoundResponse>>(
+ scenarioId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingGetScenario>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getTrainingGetScenarioQueryOptions(scenarioId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTrainingUpdateScenarioUrl = (scenarioId: string,) => {
+
+
+
+
+  return `/api/training/scenarios/${scenarioId}`
+}
+
+/**
+ * @summary Update a draft Training Room scenario
+ */
+export const trainingUpdateScenario = async (scenarioId: string,
+    trainingScenarioUpdate: TrainingScenarioUpdate, options?: Parameters<typeof customFetch>[1]): Promise<TrainingScenario> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<TrainingScenario>(getTrainingUpdateScenarioUrl(scenarioId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(trainingScenarioUpdate)
+  }
+);}
+
+
+
+
+
+export const getTrainingUpdateScenarioMutationKey = () => ['trainingUpdateScenario'] as const;
+
+export const getTrainingUpdateScenarioMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingUpdateScenario>>, TError,TrainingUpdateScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof trainingUpdateScenario>>, TError,TrainingUpdateScenarioMutationVariables, TContext> => {
+
+const mutationKey = getTrainingUpdateScenarioMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trainingUpdateScenario>>, TrainingUpdateScenarioMutationVariables> = (props) => {
+          const {scenarioId,data} = props ?? {};
+
+          return  trainingUpdateScenario(scenarioId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrainingUpdateScenarioMutationResult = NonNullable<Awaited<ReturnType<typeof trainingUpdateScenario>>>
+    export type TrainingUpdateScenarioMutationBody = BodyType<TrainingScenarioUpdate>
+    export type TrainingUpdateScenarioMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
+    export type TrainingUpdateScenarioMutationVariables = {scenarioId: string;data: BodyType<TrainingScenarioUpdate>}
+
+    /**
+ * @summary Update a draft Training Room scenario
+ */
+export const useTrainingUpdateScenario = <TError = ErrorType<BadRequestResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingUpdateScenario>>, TError,TrainingUpdateScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof trainingUpdateScenario>>,
+        TError,
+        TrainingUpdateScenarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTrainingUpdateScenarioMutationOptions(options));
+    }
+
+export const getTrainingPromoteScenarioUrl = (scenarioId: string,) => {
+
+
+
+
+  return `/api/training/scenarios/${scenarioId}/promote`
+}
+
+/**
+ * @summary Promote a scenario with score 80 or higher and prepare its investor PDF
+ */
+export const trainingPromoteScenario = async (scenarioId: string, options?: Parameters<typeof customFetch>[1]): Promise<TrainingPromotionResponse> => {
+
+  return customFetch<TrainingPromotionResponse>(getTrainingPromoteScenarioUrl(scenarioId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTrainingPromoteScenarioMutationKey = () => ['trainingPromoteScenario'] as const;
+
+export const getTrainingPromoteScenarioMutationOptions = <TError = ErrorType<ErrorResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingPromoteScenario>>, TError,TrainingPromoteScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof trainingPromoteScenario>>, TError,TrainingPromoteScenarioMutationVariables, TContext> => {
+
+const mutationKey = getTrainingPromoteScenarioMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trainingPromoteScenario>>, TrainingPromoteScenarioMutationVariables> = (props) => {
+          const {scenarioId} = props ?? {};
+
+          return  trainingPromoteScenario(scenarioId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrainingPromoteScenarioMutationResult = NonNullable<Awaited<ReturnType<typeof trainingPromoteScenario>>>
+
+    export type TrainingPromoteScenarioMutationError = ErrorType<ErrorResponse | NotFoundResponse>
+    export type TrainingPromoteScenarioMutationVariables = {scenarioId: string}
+
+    /**
+ * @summary Promote a scenario with score 80 or higher and prepare its investor PDF
+ */
+export const useTrainingPromoteScenario = <TError = ErrorType<ErrorResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingPromoteScenario>>, TError,TrainingPromoteScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof trainingPromoteScenario>>,
+        TError,
+        TrainingPromoteScenarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTrainingPromoteScenarioMutationOptions(options));
+    }
+
+export const getTrainingDownloadInvestorReadySheetUrl = (scenarioId: string,) => {
+
+
+
+
+  return `/api/training/scenarios/${scenarioId}/investor-ready-sheet`
+}
+
+/**
+ * @summary Generate or download the promoted scenario's Investor Ready Sheet PDF
+ */
+export const trainingDownloadInvestorReadySheet = async (scenarioId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getTrainingDownloadInvestorReadySheetUrl(scenarioId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getTrainingDownloadInvestorReadySheetQueryKey = (scenarioId: string,) => {
+    return [
+    `/api/training/scenarios/${scenarioId}/investor-ready-sheet`
+    ] as const;
+    }
+
+
+export const getTrainingDownloadInvestorReadySheetQueryOptions = <TData = Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(scenarioId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getTrainingDownloadInvestorReadySheetQueryKey(scenarioId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>> = ({ signal }) => trainingDownloadInvestorReadySheet(scenarioId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: scenarioId !== null && scenarioId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type TrainingDownloadInvestorReadySheetQueryResult = NonNullable<Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>>
+export type TrainingDownloadInvestorReadySheetQueryError = ErrorType<ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Generate or download the promoted scenario's Investor Ready Sheet PDF
+ */
+
+export function useTrainingDownloadInvestorReadySheet<TData = Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>, TError = ErrorType<ForbiddenResponse | NotFoundResponse>>(
+ scenarioId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof trainingDownloadInvestorReadySheet>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getTrainingDownloadInvestorReadySheetQueryOptions(scenarioId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTrainingRefreshScenarioSentimentUrl = (scenarioId: string,) => {
+
+
+
+
+  return `/api/training/scenarios/${scenarioId}/sentiment/refresh`
+}
+
+/**
+ * @summary Refresh neighborhood news sentiment and recalculate the scenario score
+ */
+export const trainingRefreshScenarioSentiment = async (scenarioId: string, options?: Parameters<typeof customFetch>[1]): Promise<TrainingSentimentResponse> => {
+
+  return customFetch<TrainingSentimentResponse>(getTrainingRefreshScenarioSentimentUrl(scenarioId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTrainingRefreshScenarioSentimentMutationKey = () => ['trainingRefreshScenarioSentiment'] as const;
+
+export const getTrainingRefreshScenarioSentimentMutationOptions = <TError = ErrorType<NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>, TError,TrainingRefreshScenarioSentimentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>, TError,TrainingRefreshScenarioSentimentMutationVariables, TContext> => {
+
+const mutationKey = getTrainingRefreshScenarioSentimentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>, TrainingRefreshScenarioSentimentMutationVariables> = (props) => {
+          const {scenarioId} = props ?? {};
+
+          return  trainingRefreshScenarioSentiment(scenarioId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TrainingRefreshScenarioSentimentMutationResult = NonNullable<Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>>
+
+    export type TrainingRefreshScenarioSentimentMutationError = ErrorType<NotFoundResponse | ErrorResponse>
+    export type TrainingRefreshScenarioSentimentMutationVariables = {scenarioId: string}
+
+    /**
+ * @summary Refresh neighborhood news sentiment and recalculate the scenario score
+ */
+export const useTrainingRefreshScenarioSentiment = <TError = ErrorType<NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>, TError,TrainingRefreshScenarioSentimentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof trainingRefreshScenarioSentiment>>,
+        TError,
+        TrainingRefreshScenarioSentimentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTrainingRefreshScenarioSentimentMutationOptions(options));
+    }
+
+export const getRecordVisitorIntentEventUrl = () => {
+
+
+
+
+  return `/api/visitor-intent/events`
+}
+
+/**
+ * Requires authentication; tenant identity is always taken from the session, never from the request.
+ * @summary Record a consented, pseudonymous visitor action
+ */
+export const recordVisitorIntentEvent = async (visitorIntentEventInput: VisitorIntentEventInput, options?: Parameters<typeof customFetch>[1]): Promise<VisitorIntentEvent> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<VisitorIntentEvent>(getRecordVisitorIntentEventUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(visitorIntentEventInput)
+  }
+);}
+
+
+
+
+
+export const getRecordVisitorIntentEventMutationKey = () => ['recordVisitorIntentEvent'] as const;
+
+export const getRecordVisitorIntentEventMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVisitorIntentEvent>>, TError,RecordVisitorIntentEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recordVisitorIntentEvent>>, TError,RecordVisitorIntentEventMutationVariables, TContext> => {
+
+const mutationKey = getRecordVisitorIntentEventMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordVisitorIntentEvent>>, RecordVisitorIntentEventMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  recordVisitorIntentEvent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecordVisitorIntentEventMutationResult = NonNullable<Awaited<ReturnType<typeof recordVisitorIntentEvent>>>
+    export type RecordVisitorIntentEventMutationBody = BodyType<VisitorIntentEventInput>
+    export type RecordVisitorIntentEventMutationError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>
+    export type RecordVisitorIntentEventMutationVariables = {data: BodyType<VisitorIntentEventInput>}
+
+    /**
+ * @summary Record a consented, pseudonymous visitor action
+ */
+export const useRecordVisitorIntentEvent = <TError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordVisitorIntentEvent>>, TError,RecordVisitorIntentEventMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recordVisitorIntentEvent>>,
+        TError,
+        RecordVisitorIntentEventMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecordVisitorIntentEventMutationOptions(options));
+    }
+
+export const getGetVisitorIntentSummaryUrl = (params?: GetVisitorIntentSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/visitor-intent/summary?${stringifiedParams}` : `/api/visitor-intent/summary`
+}
+
+/**
+ * @summary Get tenant-scoped lead scores and visitor intent activity
+ */
+export const getVisitorIntentSummary = async (params?: GetVisitorIntentSummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<VisitorIntentSummary> => {
+
+  return customFetch<VisitorIntentSummary>(getGetVisitorIntentSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVisitorIntentSummaryQueryKey = (params?: GetVisitorIntentSummaryParams,) => {
+    return [
+    `/api/visitor-intent/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVisitorIntentSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getVisitorIntentSummary>>, TError = ErrorType<unknown>>(params?: GetVisitorIntentSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVisitorIntentSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVisitorIntentSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVisitorIntentSummary>>> = ({ signal }) => getVisitorIntentSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVisitorIntentSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVisitorIntentSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getVisitorIntentSummary>>>
+export type GetVisitorIntentSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get tenant-scoped lead scores and visitor intent activity
+ */
+
+export function useGetVisitorIntentSummary<TData = Awaited<ReturnType<typeof getVisitorIntentSummary>>, TError = ErrorType<unknown>>(
+ params?: GetVisitorIntentSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVisitorIntentSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVisitorIntentSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDailyMarketPulseUrl = () => {
+
+
+
+
+  return `/api/market-pulse/daily`
+}
+
+/**
+ * @summary Get up to three real tenant deals ranked by net ROI and deal score
+ */
+export const getDailyMarketPulse = async ( options?: Parameters<typeof customFetch>[1]): Promise<DailyMarketPulse> => {
+
+  return customFetch<DailyMarketPulse>(getGetDailyMarketPulseUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDailyMarketPulseQueryKey = () => {
+    return [
+    `/api/market-pulse/daily`
+    ] as const;
+    }
+
+
+export const getGetDailyMarketPulseQueryOptions = <TData = Awaited<ReturnType<typeof getDailyMarketPulse>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyMarketPulse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDailyMarketPulseQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDailyMarketPulse>>> = ({ signal }) => getDailyMarketPulse({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDailyMarketPulse>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDailyMarketPulseQueryResult = NonNullable<Awaited<ReturnType<typeof getDailyMarketPulse>>>
+export type GetDailyMarketPulseQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get up to three real tenant deals ranked by net ROI and deal score
+ */
+
+export function useGetDailyMarketPulse<TData = Awaited<ReturnType<typeof getDailyMarketPulse>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDailyMarketPulse>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDailyMarketPulseQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetInvestorRecommendationsUrl = (investorId: string,) => {
+
+
+
+
+  return `/api/investors/${investorId}/recommendations`
+}
+
+/**
+ * @summary Get profile-personalized deal recommendations and greeting
+ */
+export const getInvestorRecommendations = async (investorId: string, options?: Parameters<typeof customFetch>[1]): Promise<InvestorRecommendations> => {
+
+  return customFetch<InvestorRecommendations>(getGetInvestorRecommendationsUrl(investorId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvestorRecommendationsQueryKey = (investorId: string,) => {
+    return [
+    `/api/investors/${investorId}/recommendations`
+    ] as const;
+    }
+
+
+export const getGetInvestorRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof getInvestorRecommendations>>, TError = ErrorType<NotFoundResponse>>(investorId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvestorRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvestorRecommendationsQueryKey(investorId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvestorRecommendations>>> = ({ signal }) => getInvestorRecommendations(investorId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: investorId !== null && investorId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvestorRecommendations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvestorRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof getInvestorRecommendations>>>
+export type GetInvestorRecommendationsQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get profile-personalized deal recommendations and greeting
+ */
+
+export function useGetInvestorRecommendations<TData = Awaited<ReturnType<typeof getInvestorRecommendations>>, TError = ErrorType<NotFoundResponse>>(
+ investorId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvestorRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvestorRecommendationsQueryOptions(investorId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -11,6 +11,16 @@ export function createInvestorReadySheet(input: {
   energy: EnergyAnalysis;
   subsidies: SubsidyTrigger[];
 }): Buffer {
+  const gutFeelingLines = input.deal.gutFeeling
+    ? [
+        `Gut Feeling: ${input.deal.score.gutFeelingScore ?? "—"}/100`,
+        `Gut Feeling vertrouwen: ${input.deal.score.gutFeelingConfidence}%`,
+        `Gut Feeling bijdrage aan Deal Score: ${input.deal.score.gutFeelingContribution >= 0 ? "+" : ""}${input.deal.score.gutFeelingContribution} punten`,
+        `Nieuwsbronnen: ${input.deal.gutFeeling.sourceCount}`,
+        `Sentiment gemeten: ${input.deal.gutFeeling.observedAt}`,
+        `Sentiment vervalt na: ${input.deal.gutFeeling.staleAt}`,
+      ]
+    : ["Gut Feeling: geen recent sentimentsignaal; bijdrage 0 punten"];
   const lines = [
     "RealEstateX Investor Ready Sheet",
     `Deal: ${input.deal.title}`,
@@ -18,6 +28,7 @@ export function createInvestorReadySheet(input: {
     `Vraagprijs: EUR ${input.deal.askingPrice.toLocaleString("nl-NL")}`,
     `Verwachte waarde: EUR ${input.deal.expectedValue.toLocaleString("nl-NL")}`,
     `Deal score: ${input.deal.score.totalScore}/100 (${input.deal.score.decision})`,
+    ...gutFeelingLines,
     `Energie: ${input.energy.currentLabel}, jaarlijkse besparing EUR ${input.energy.annualSavings.toLocaleString("nl-NL")}`,
     `Subsidies: EUR ${input.subsidies.reduce((sum, item) => sum + item.estimatedAmount, 0).toLocaleString("nl-NL")}`,
     `Netto marge: EUR ${input.deal.score.margin.toLocaleString("nl-NL")}`,

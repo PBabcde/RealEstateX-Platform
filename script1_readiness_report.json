@@ -1,16 +1,16 @@
 {
   "reportType": "vastgoed-enterprise-master-build",
-  "generatedAt": "2026-09-24T06:37:11.850Z",
+  "generatedAt": "2026-09-24T07:08:19.268Z",
   "script": "Vastgoed_Enterprise_Master_Build.sh",
   "mode": "fail-closed",
-  "readinessScore": 91,
+  "readinessScore": 95,
   "requestedThreshold": ">90%",
   "thresholdMet": true,
   "contaboDecision": "CONTABO NO-GO",
   "script2Readiness": "NOT READY",
   "checks": {
-    "total": 23,
-    "passed": 21,
+    "total": 40,
+    "passed": 38,
     "partial": 0,
     "failed": 0,
     "unverified": 2
@@ -51,14 +51,14 @@
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm run typecheck",
-          "output": "> workspace@0.0.0 typecheck /home/runner/workspace\n> pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck\n\n\n> workspace@0.0.0 typecheck:libs /home/runner/workspace\n> tsc --build\n\nScope: 4 of 10 workspace projects\nartifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/realestatex typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck: Done\nartifacts/api-server typecheck: Done\nartifacts/realestatex typecheck: Done\nartifacts/mockup-sandbox typecheck: Done"
+          "output": "> workspace@0.0.0 typecheck /home/runner/workspace\n> pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck\n\n\n> workspace@0.0.0 typecheck:libs /home/runner/workspace\n> tsc --build\n\nScope: 4 of 10 workspace projects\nartifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/realestatex typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck: Done\nartifacts/api-server typecheck: Done\nartifacts/realestatex typecheck: Done\nartifacts/mockup-sandbox typecheck: Done"
         },
         {
           "name": "API build",
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/api-server run build",
-          "output": "> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server\n> node ./build.mjs\n\n\n\n  dist/index.mjs                       2.0mb ⚠️\n  dist/pino-worker.mjs               153.5kb\n  dist/pino-file.mjs                 142.1kb\n  dist/pino-pretty.mjs               115.3kb\n  dist/thread-stream-worker.mjs        7.4kb\n  dist/index.mjs.map                   3.4mb\n  dist/pino-worker.mjs.map           256.9kb\n  dist/pino-file.mjs.map             229.0kb\n  dist/pino-pretty.mjs.map           209.5kb\n  dist/thread-stream-worker.mjs.map   12.0kb\n\n⚡ Done in 188ms"
+          "output": "> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server\n> node ./build.mjs\n\n\n\n  dist/index.mjs                       2.1mb ⚠️\n  dist/pino-worker.mjs               153.5kb\n  dist/pino-file.mjs                 142.1kb\n  dist/pino-pretty.mjs               115.3kb\n  dist/thread-stream-worker.mjs        7.4kb\n  dist/index.mjs.map                   3.5mb\n  dist/pino-worker.mjs.map           256.9kb\n  dist/pino-file.mjs.map             229.0kb\n  dist/pino-pretty.mjs.map           209.5kb\n  dist/thread-stream-worker.mjs.map   12.0kb\n\n⚡ Done in 193ms"
         },
         {
           "name": "Release audit gate",
@@ -72,14 +72,14 @@
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/scripts run test:audit-immutability",
-          "output": "> @workspace/scripts@0.0.0 test:audit-immutability /home/runner/workspace/scripts\n> tsx ../tests/audit_immutability.test.js\n\n✔ audit_events is append-only and rejects UPDATE and DELETE (39.990075ms)\nAudit hash-chain validation passed: 0 event(s) across 0 tenant(s).\n✔ audit_events sequence and hash chain are valid (1.859451ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 47.80173"
+          "output": "> @workspace/scripts@0.0.0 test:audit-immutability /home/runner/workspace/scripts\n> tsx ../tests/audit_immutability.test.js\n\n✔ audit_events is append-only and rejects UPDATE and DELETE (32.226119ms)\nAudit hash-chain validation passed: 0 event(s) across 0 tenant(s).\n✔ audit_events sequence and hash chain are valid (1.314034ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 39.032554"
         },
         {
           "name": "Enterprise Core tenant test",
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/scripts run test:enterprise-core-tenant-isolation",
-          "output": "> @workspace/scripts@0.0.0 test:enterprise-core-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/enterprise_core_tenant_isolation.test.js\n\n[06:37:10.769] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/72d6b960-34b1-4d7f-bd38-686e83d0fc53\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 17\n[06:37:10.786] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/72d6b960-34b1-4d7f-bd38-686e83d0fc53\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 5\n[06:37:10.795] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 7\n[06:37:10.800] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n[06:37:10.806] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 5,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[06:37:10.811] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 6,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n✔ core API isolates trust, audit, recovery points, and runtime state by tenant (166.009268ms)\n[06:37:10.841] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 7,\n      \"method\": \"POST\",\n      \"url\": \"/api/core/recovery/points\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 201\n    }\n    \u001b[35mresponseTime\u001b[39m: 24\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 218.37702"
+          "output": "> @workspace/scripts@0.0.0 test:enterprise-core-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/enterprise_core_tenant_isolation.test.js\n\n[07:08:16.524] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/18ad648a-923a-4c45-8486-29e603c11f40\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 12\n[07:08:16.541] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/18ad648a-923a-4c45-8486-29e603c11f40\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[07:08:16.547] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[07:08:16.552] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n[07:08:16.558] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 5,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[07:08:16.563] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 6,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n✔ core API isolates trust, audit, recovery points, and runtime state by tenant (294.355549ms)\n[07:08:16.584] \u001b[32mINFO\u001b[39m (6592): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 7,\n      \"method\": \"POST\",\n      \"url\": \"/api/core/recovery/points\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 201\n    }\n    \u001b[35mresponseTime\u001b[39m: 17\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 341.45381"
         },
         {
           "name": "Contabo VPS 30 UFW, Fail2ban, TLS and recovery dry-run",
@@ -116,7 +116,7 @@
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/scripts run test:dealing-room-tenant-isolation",
-          "output": "> @workspace/scripts@0.0.0 test:dealing-room-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/dealing_room_tenant_isolation.test.js\n\n✔ authenticated Dealing Room, Investor Room and CRM routes cannot cross tenants (172.720816ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 181.674745"
+          "output": "> @workspace/scripts@0.0.0 test:dealing-room-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/dealing_room_tenant_isolation.test.js\n\n✔ authenticated Dealing Room, Investor Room and CRM routes cannot cross tenants (176.306052ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 187.222675"
         }
       ],
       "blockers": []
@@ -210,16 +210,123 @@
       "blockers": [
         "SaaS tiering is implemented, but a real Stripe or Whop billing provider and webhook secret are not configured."
       ]
+    },
+    {
+      "phase": "Fase 9",
+      "name": "Training Room & marktintelligentie",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "Tenant-scoped Training Room routes",
+          "status": "PASS",
+          "detail": "Training scenarios, promotion and authorized investor PDFs use authenticated tenant context."
+        },
+        {
+          "name": "Server-side Quality Gate",
+          "status": "PASS",
+          "detail": "Scenario promotion is guarded by the server-side minimum score."
+        },
+        {
+          "name": "Visitor intent and market intelligence API",
+          "status": "PASS",
+          "detail": "Consent-gated events, tenant-scoped lead scoring, Daily Market Pulse and recommendations are implemented."
+        },
+        {
+          "name": "Generated OpenAPI clients",
+          "status": "PASS",
+          "detail": "React Query clients are generated from the current OpenAPI contract."
+        },
+        {
+          "name": "Generated request validation",
+          "status": "PASS",
+          "detail": "API request and response schemas are generated from the current OpenAPI contract."
+        },
+        {
+          "name": "Training Room Simulator UI",
+          "status": "PASS",
+          "detail": "The authenticated workspace exposes the Training Room Simulator."
+        },
+        {
+          "name": "Training Room navigation",
+          "status": "PASS",
+          "detail": "The simulator is reachable through the application router."
+        },
+        {
+          "name": "Training Room menu entry",
+          "status": "PASS",
+          "detail": "The shared workspace navigation exposes the simulator."
+        },
+        {
+          "name": "Promotion gate enforcement",
+          "status": "PASS",
+          "detail": "Promotion checks the server-computed score and gate status."
+        },
+        {
+          "name": "Enterprise intelligence regression checks",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/scripts exec tsx ../tests/enterprise_intelligence.test.js",
+          "output": "Enterprise intelligence and server-side quality-gate checks passed."
+        },
+        {
+          "name": "Training and intelligence tenant isolation",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/scripts exec tsx ../tests/training_intelligence_tenant_isolation.test.js",
+          "output": "[07:08:19.144] \u001b[32mINFO\u001b[39m (6709): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/training/scenarios\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 14\n[07:08:19.158] \u001b[32mINFO\u001b[39m (6709): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/training/scenarios\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 6\n[07:08:19.167] \u001b[32mINFO\u001b[39m (6709): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/visitor-intent/summary\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 7\n[07:08:19.171] \u001b[32mINFO\u001b[39m (6709): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/visitor-intent/summary\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n✔ training scenarios and visitor summaries remain isolated by tenant (129.204566ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 174.187855"
+        }
+      ],
+      "blockers": []
+    },
+    {
+      "phase": "Fase 10",
+      "name": "Media, Sentiment & Gevoel Engine",
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "Dutch neighborhood news and sentiment pipeline",
+          "status": "PASS",
+          "detail": "The fixed-source RSS pipeline validates news links, scores sentiment and produces freshness-aware snapshots."
+        },
+        {
+          "name": "Gut Feeling Deal Score",
+          "status": "PASS",
+          "detail": "Gut Feeling contributes only through explicit confidence-weighted scoring."
+        },
+        {
+          "name": "Provider-neutral media prompts",
+          "status": "PASS",
+          "detail": "Before/after and video prompts are available without claiming an unconfigured render."
+        },
+        {
+          "name": "Deal Room storytelling surface",
+          "status": "PASS",
+          "detail": "Deal analysis can present sentiment stories, neighborhood trends and Gut Feeling context."
+        },
+        {
+          "name": "Confidence-adjusted Gut Feeling",
+          "status": "PASS",
+          "detail": "News signals only affect the score through their explicit confidence-adjusted contribution."
+        },
+        {
+          "name": "Visitor consent and pseudonymous identity",
+          "status": "PASS",
+          "detail": "Visitor activity requires validated consent and stores only a pseudonymous visitor identifier."
+        }
+      ],
+      "blockers": []
     }
   ],
   "limitations": [
     "Local execution cannot prove Contabo VPS 30 firewall, Fail2ban, TLS or recovery state.",
     "Billing cannot be validated live until a provider integration is connected and provider-specific checkout/webhook configuration is supplied.",
-    "Tenant-isolation endpoint checks use authenticated test principals against the real routers and database, not a production identity-provider session."
+    "Tenant-isolation endpoint checks use authenticated test principals against the real routers and database, not a production identity-provider session.",
+    "Media endpoints provide provider-neutral prompts only; image and video rendering remain unavailable until a renderer is configured."
   ],
   "nextActions": [
     "Connect Stripe or Whop through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
     "Configure the pinned Contabo host, secret-backed SSH-key path, known-hosts file and approved recovery dry-run path through secure environment settings.",
-    "Run the master build again after provider and VPS configuration are supplied."
+    "Run the master build again after provider and VPS configuration are supplied.",
+    "Connect a rendering provider before claiming generated property images or video loops."
   ]
 }

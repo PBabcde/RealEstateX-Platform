@@ -42,6 +42,18 @@ export interface DealScore {
   decision: DealScoreDecision;
   margin: number;
   grossYield: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  gutFeelingScore?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  gutFeelingConfidence?: number;
+  gutFeelingContribution?: number;
 }
 
 export type DealRecordStatus = typeof DealRecordStatus[keyof typeof DealRecordStatus];
@@ -55,6 +67,25 @@ export const DealRecordStatus = {
   REJECT: 'REJECT',
 } as const;
 
+export interface GutFeelingSignal {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  confidence: number;
+  summary: string;
+  /** @minimum 0 */
+  sourceCount: number;
+  region: string;
+  observedAt: string;
+  staleAt: string;
+}
+
 export type DealRecord = DealInput & {
   dealId: string;
   propertyType: string;
@@ -63,6 +94,7 @@ export type DealRecord = DealInput & {
   status: DealRecordStatus;
   ownerId: string;
   score: DealScore;
+  gutFeeling?: GutFeelingSignal;
   createdAt: string;
   updatedAt: string;
 };
@@ -284,6 +316,330 @@ export interface BillingReadiness {
   webhookReady: boolean;
   supportedTiers: string[];
   message: string;
+}
+
+export interface TrainingScenarioInput {
+  /** @minLength 1 */
+  propertyId: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  region: string;
+  /** @minimum 1 */
+  askingPrice: number;
+  /** @minimum 0 */
+  renovationCost?: number;
+  /** @minimum 1 */
+  expectedValue: number;
+  /** @minimum 0 */
+  monthlyRent?: number;
+  /** @maxLength 120 */
+  municipality?: string;
+}
+
+export interface TrainingScenarioUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  region?: string;
+  /** @minimum 1 */
+  askingPrice?: number;
+  /** @minimum 0 */
+  renovationCost?: number;
+  /** @minimum 1 */
+  expectedValue?: number;
+  /** @minimum 0 */
+  monthlyRent?: number;
+  /** @maxLength 120 */
+  municipality?: string;
+}
+
+export type TrainingScenarioStatus = typeof TrainingScenarioStatus[keyof typeof TrainingScenarioStatus];
+
+
+export const TrainingScenarioStatus = {
+  DRAFT: 'DRAFT',
+  READY: 'READY',
+  PROMOTED: 'PROMOTED',
+} as const;
+
+export interface SentimentArticle {
+  articleId: string;
+  title: string;
+  url: string;
+  source: string;
+  /** @nullable */
+  publishedAt: string | null;
+  summary: string;
+  /**
+     * @minimum -1
+     * @maximum 1
+     */
+  sentimentScore: number;
+  topics: string[];
+  /** @nullable */
+  imageUrl: string | null;
+}
+
+export type NeighborhoodTrendDirection = typeof NeighborhoodTrendDirection[keyof typeof NeighborhoodTrendDirection];
+
+
+export const NeighborhoodTrendDirection = {
+  RISING: 'RISING',
+  STABLE: 'STABLE',
+  COOLING: 'COOLING',
+  NEW: 'NEW',
+} as const;
+
+export interface NeighborhoodTrend {
+  topic: string;
+  /** @minimum 0 */
+  articleCount: number;
+  deltaPercent: number;
+  direction: NeighborhoodTrendDirection;
+}
+
+export interface NeighborhoodSentimentSnapshot {
+  snapshotId: string;
+  region: string;
+  /**
+     * @minimum -1
+     * @maximum 1
+     */
+  sentimentScore: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  gutFeelingScore: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  confidence: number;
+  /** @minimum 0 */
+  articleCount: number;
+  sampledAt: string;
+  staleAt: string;
+  source: string;
+  narrativeTitle: string;
+  narrativeSummary: string;
+  scoreExplanation: string;
+  /** @maxItems 10 */
+  articles: SentimentArticle[];
+  trends: NeighborhoodTrend[];
+}
+
+export interface TrainingScenario {
+  scenarioId: string;
+  propertyId: string;
+  title: string;
+  region: string;
+  propertyType: string;
+  energyLabel: string;
+  woonoppervlak: number;
+  askingPrice: number;
+  renovationCost: number;
+  expectedValue: number;
+  monthlyRent: number;
+  /** @nullable */
+  municipality?: string | null;
+  status: TrainingScenarioStatus;
+  qualityGatePassed: boolean;
+  score: DealScore;
+  gutFeeling?: NeighborhoodSentimentSnapshot | null;
+  /** @nullable */
+  promotedDealId?: string | null;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingPromotionResponse {
+  scenario: TrainingScenario;
+  deal: DealRecord;
+  investorReadySheetUrl: string;
+}
+
+export interface TrainingSentimentResponse {
+  scenario: TrainingScenario;
+  sentiment: NeighborhoodSentimentSnapshot;
+}
+
+export type VisitorIntentEventInputEventType = typeof VisitorIntentEventInputEventType[keyof typeof VisitorIntentEventInputEventType];
+
+
+export const VisitorIntentEventInputEventType = {
+  DEAL_VIEW: 'DEAL_VIEW',
+  ROI_CALCULATOR: 'ROI_CALCULATOR',
+  SUBSIDY_CALCULATOR: 'SUBSIDY_CALCULATOR',
+  PDF_DOWNLOAD: 'PDF_DOWNLOAD',
+} as const;
+
+export interface VisitorIntentEventInput {
+  /**
+     * @minLength 8
+     * @maxLength 128
+     * @pattern ^[A-Za-z0-9_-]{8,128}$
+     */
+  visitorId: string;
+  eventType: VisitorIntentEventInputEventType;
+  /** @minLength 1 */
+  dealId: string;
+  /** @minLength 1 */
+  investorId?: string;
+  consent: true;
+}
+
+export type VisitorIntentEventEventType = typeof VisitorIntentEventEventType[keyof typeof VisitorIntentEventEventType];
+
+
+export const VisitorIntentEventEventType = {
+  DEAL_VIEW: 'DEAL_VIEW',
+  ROI_CALCULATOR: 'ROI_CALCULATOR',
+  SUBSIDY_CALCULATOR: 'SUBSIDY_CALCULATOR',
+  PDF_DOWNLOAD: 'PDF_DOWNLOAD',
+} as const;
+
+export interface VisitorIntentEvent {
+  eventId: string;
+  visitorId: string;
+  eventType: VisitorIntentEventEventType;
+  /** @nullable */
+  dealId?: string | null;
+  /** @nullable */
+  investorId?: string | null;
+  occurredAt: string;
+}
+
+export type VisitorLeadScoreIntentLevel = typeof VisitorLeadScoreIntentLevel[keyof typeof VisitorLeadScoreIntentLevel];
+
+
+export const VisitorLeadScoreIntentLevel = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface VisitorLeadScore {
+  visitorId: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  intentLevel: VisitorLeadScoreIntentLevel;
+  /** @minimum 0 */
+  eventCount: number;
+  lastSeen: string;
+  viewedDealIds: string[];
+}
+
+export type VisitorIntentSummaryInteractionCounts = {[key: string]: number};
+
+export interface VisitorIntentSummary {
+  asOf: string;
+  windowDays: number;
+  eventsCount: number;
+  uniqueVisitors: number;
+  uniqueInvestors: number;
+  leads: VisitorLeadScore[];
+  interactionCounts: VisitorIntentSummaryInteractionCounts;
+}
+
+export type DealSalesIntelligenceUrgencyLevel = typeof DealSalesIntelligenceUrgencyLevel[keyof typeof DealSalesIntelligenceUrgencyLevel];
+
+
+export const DealSalesIntelligenceUrgencyLevel = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+} as const;
+
+export interface DealSalesIntelligence {
+  dealId: string;
+  windowHours: number;
+  uniqueVisitors: number;
+  uniqueInvestors: number;
+  dealViews: number;
+  roiCalculatorInteractions: number;
+  subsidyCalculatorInteractions: number;
+  pdfDownloads: number;
+  highIntentCount: number;
+  urgencyLevel: DealSalesIntelligenceUrgencyLevel;
+  investorViewText: string;
+}
+
+export type DailyMarketPulseItemDecision = typeof DailyMarketPulseItemDecision[keyof typeof DailyMarketPulseItemDecision];
+
+
+export const DailyMarketPulseItemDecision = {
+  GO: 'GO',
+  HOLD: 'HOLD',
+  REJECT: 'REJECT',
+} as const;
+
+export interface DailyMarketPulseItem {
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  rank: number;
+  dealId: string;
+  title: string;
+  region: string;
+  netRoi: number;
+  totalScore: number;
+  decision: DailyMarketPulseItemDecision;
+  investorMatchCount: number;
+  explanation: string;
+}
+
+export interface DailyMarketPulse {
+  generatedAt: string;
+  ranking: 'netRoi-desc-score-desc';
+  availableDealsCount: number;
+  /** @maxItems 3 */
+  items: DailyMarketPulseItem[];
+}
+
+export interface RecommendedDeal {
+  dealId: string;
+  title: string;
+  region: string;
+  askingPrice: number;
+  expectedValue: number;
+  totalScore: number;
+  matchScore: number;
+  reasons: string[];
+}
+
+export interface InvestorRecommendations {
+  greeting: string;
+  investor: InvestorRecord;
+  /** @maxItems 3 */
+  recommendations: RecommendedDeal[];
+}
+
+export interface MediaRenderBrief {
+  dealId: string;
+  beforePrompt: string;
+  afterPrompt: string;
+  videoLoopPrompt: string;
+  integrationStatus: 'NOT_CONFIGURED';
+  generatedAt: string;
 }
 
 export interface HealthStatus {
@@ -619,6 +975,14 @@ export type AuthorizationSessionHeaderParameter = string;
 
 export type GetChatHistoryParams = {
 sessionId: string;
+};
+
+export type GetVisitorIntentSummaryParams = {
+/**
+ * @minimum 1
+ * @maximum 90
+ */
+days?: number;
 };
 
 export type GetSaasEntitlementsParams = {

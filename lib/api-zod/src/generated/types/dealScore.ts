@@ -17,4 +17,16 @@ export interface DealScore {
   decision: DealScoreDecision;
   margin: number;
   grossYield: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  gutFeelingScore?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  gutFeelingConfidence?: number;
+  gutFeelingContribution?: number;
 }

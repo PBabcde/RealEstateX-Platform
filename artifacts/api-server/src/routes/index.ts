@@ -9,6 +9,8 @@ import dealsRouter from "./deals";
 import investorsRouter from "./investors";
 import crmRouter from "./crm";
 import enterpriseRouter from "./enterprise";
+import trainingRouter from "./training";
+import intelligenceRouter from "./intelligence";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(dealsRouter);
 router.use(investorsRouter);
 router.use(crmRouter);
 router.use(enterpriseRouter);
+router.use(trainingRouter);
+router.use(intelligenceRouter);
 
 export default router;

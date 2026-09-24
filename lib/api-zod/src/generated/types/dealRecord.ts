@@ -8,6 +8,7 @@
 import type { DealInput } from './dealInput';
 import type { DealRecordStatus } from './dealRecordStatus';
 import type { DealScore } from './dealScore';
+import type { GutFeelingSignal } from './gutFeelingSignal';
 
 export type DealRecord = DealInput & {
   dealId: string;
@@ -17,6 +18,7 @@ export type DealRecord = DealInput & {
   status: DealRecordStatus;
   ownerId: string;
   score: DealScore;
+  gutFeeling?: GutFeelingSignal;
   createdAt: Date;
   updatedAt: Date;
 };

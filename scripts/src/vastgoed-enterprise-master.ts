@@ -104,6 +104,31 @@ function fileCheck(
   };
 }
 
+function sourceCheck(
+  name: string,
+  relativePath: string,
+  requiredText: string[],
+  detailWhenPresent: string,
+): Check {
+  const absolutePath = path.join(workspaceRoot, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    return {
+      name,
+      status: "FAIL",
+      detail: `Required source file is missing: ${relativePath}`,
+    };
+  }
+  const source = fs.readFileSync(absolutePath, "utf8");
+  const missing = requiredText.filter((value) => !source.includes(value));
+  return {
+    name,
+    status: missing.length ? "FAIL" : "PASS",
+    detail: missing.length
+      ? `Expected behavior marker(s) are missing from ${relativePath}: ${missing.join(", ")}`
+      : detailWhenPresent,
+  };
+}
+
 function toolCheck(name: string, tool: string): Check {
   const result = spawnSync("bash", ["-lc", `command -v ${tool}`], {
     cwd: workspaceRoot,
@@ -277,6 +302,110 @@ function phase8(): Phase {
   ]);
 }
 
+function phase9(): Phase {
+  return createPhase("Fase 9", "Training Room & marktintelligentie", [
+    fileCheck(
+      "Tenant-scoped Training Room routes",
+      "artifacts/api-server/src/routes/training.ts",
+      "Training scenarios, promotion and authorized investor PDFs use authenticated tenant context.",
+    ),
+    fileCheck(
+      "Server-side Quality Gate",
+      "artifacts/api-server/src/lib/training-quality-gate.ts",
+      "Scenario promotion is guarded by the server-side minimum score.",
+    ),
+    fileCheck(
+      "Visitor intent and market intelligence API",
+      "artifacts/api-server/src/routes/intelligence.ts",
+      "Consent-gated events, tenant-scoped lead scoring, Daily Market Pulse and recommendations are implemented.",
+    ),
+    fileCheck(
+      "Generated OpenAPI clients",
+      "lib/api-client-react/src/generated/api.ts",
+      "React Query clients are generated from the current OpenAPI contract.",
+    ),
+    fileCheck(
+      "Generated request validation",
+      "lib/api-zod/src/generated/api.ts",
+      "API request and response schemas are generated from the current OpenAPI contract.",
+    ),
+    fileCheck(
+      "Training Room Simulator UI",
+      "artifacts/realestatex/src/pages/training-room.tsx",
+      "The authenticated workspace exposes the Training Room Simulator.",
+    ),
+    sourceCheck(
+      "Training Room navigation",
+      "artifacts/realestatex/src/App.tsx",
+      ["training-room"],
+      "The simulator is reachable through the application router.",
+    ),
+    sourceCheck(
+      "Training Room menu entry",
+      "artifacts/realestatex/src/components/app-shell.tsx",
+      ["training-room"],
+      "The shared workspace navigation exposes the simulator.",
+    ),
+    sourceCheck(
+      "Promotion gate enforcement",
+      "artifacts/api-server/src/routes/training.ts",
+      ["hasTrainingQualityGatePassed", "scenario.qualityGatePassed"],
+      "Promotion checks the server-computed score and gate status.",
+    ),
+    runCommand("Enterprise intelligence regression checks", "pnpm", [
+      "--filter",
+      "@workspace/scripts",
+      "exec",
+      "tsx",
+      "../tests/enterprise_intelligence.test.js",
+    ]),
+    runCommand("Training and intelligence tenant isolation", "pnpm", [
+      "--filter",
+      "@workspace/scripts",
+      "exec",
+      "tsx",
+      "../tests/training_intelligence_tenant_isolation.test.js",
+    ]),
+  ]);
+}
+
+function phase10(): Phase {
+  return createPhase("Fase 10", "Media, Sentiment & Gevoel Engine", [
+    fileCheck(
+      "Dutch neighborhood news and sentiment pipeline",
+      "artifacts/api-server/src/lib/sentiment-engine.ts",
+      "The fixed-source RSS pipeline validates news links, scores sentiment and produces freshness-aware snapshots.",
+    ),
+    fileCheck(
+      "Gut Feeling Deal Score",
+      "artifacts/api-server/src/lib/deal-score.ts",
+      "Gut Feeling contributes only through explicit confidence-weighted scoring.",
+    ),
+    fileCheck(
+      "Provider-neutral media prompts",
+      "artifacts/api-server/src/routes/intelligence.ts",
+      "Before/after and video prompts are available without claiming an unconfigured render.",
+    ),
+    fileCheck(
+      "Deal Room storytelling surface",
+      "artifacts/realestatex/src/pages/enterprise.tsx",
+      "Deal analysis can present sentiment stories, neighborhood trends and Gut Feeling context.",
+    ),
+    sourceCheck(
+      "Confidence-adjusted Gut Feeling",
+      "artifacts/api-server/src/lib/deal-score.ts",
+      ["gutFeelingWeight", "gutFeelingContribution"],
+      "News signals only affect the score through their explicit confidence-adjusted contribution.",
+    ),
+    sourceCheck(
+      "Visitor consent and pseudonymous identity",
+      "artifacts/api-server/src/routes/intelligence.ts",
+      ["RecordVisitorIntentEventBody.safeParse", "consent: true", "visitorId"],
+      "Visitor activity requires validated consent and stores only a pseudonymous visitor identifier.",
+    ),
+  ]);
+}
+
 function buildPhases(): Phase[] {
   return [
     phase1(),
@@ -344,6 +473,8 @@ function buildPhases(): Phase[] {
       ],
     ),
     phase8(),
+    phase9(),
+    phase10(),
   ];
 }
 
@@ -402,11 +533,13 @@ function main(): void {
       "Local execution cannot prove Contabo VPS 30 firewall, Fail2ban, TLS or recovery state.",
       "Billing cannot be validated live until a provider integration is connected and provider-specific checkout/webhook configuration is supplied.",
       "Tenant-isolation endpoint checks use authenticated test principals against the real routers and database, not a production identity-provider session.",
+      "Media endpoints provide provider-neutral prompts only; image and video rendering remain unavailable until a renderer is configured.",
     ],
     nextActions: [
       "Connect Stripe or Whop through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
       "Configure the pinned Contabo host, secret-backed SSH-key path, known-hosts file and approved recovery dry-run path through secure environment settings.",
       "Run the master build again after provider and VPS configuration are supplied.",
+      "Connect a rendering provider before claiming generated property images or video loops.",
     ],
   };
 

@@ -7,6 +7,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 import NotFound from '@/pages/not-found';
 import { Calculators, Dashboard, Market, Properties, Suite } from '@/pages/pages';
 import { DealingRoom } from '@/pages/enterprise';
+import { TrainingRoom } from '@/pages/training-room';
 import {
   Route,
   Switch,
@@ -28,6 +29,7 @@ function Router() {
          <Route path="/market" component={Market} />
          <Route path="/suite" component={Suite} />
           <Route path="/dealing-room" component={DealingRoom} />
+          <Route path="/training-room" component={TrainingRoom} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

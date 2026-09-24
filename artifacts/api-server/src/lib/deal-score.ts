@@ -6,6 +6,8 @@ export type DealScoreInput = {
   energyScore: number;
   subsidyAmount: number;
   transformationPotential?: number;
+  gutFeelingScore?: number | null;
+  gutFeelingConfidence?: number;
 };
 
 export type DealScore = {
@@ -18,6 +20,9 @@ export type DealScore = {
   decision: "GO" | "HOLD" | "REJECT";
   margin: number;
   grossYield: number;
+  gutFeelingScore: number | null;
+  gutFeelingConfidence: number;
+  gutFeelingContribution: number;
 };
 
 const clamp = (value: number, minimum = 0, maximum = 100): number =>
@@ -44,12 +49,24 @@ export function calculateDealScore(input: DealScoreInput): DealScore {
       ? 45 + (input.subsidyAmount / input.renovationCost) * 100
       : 30,
   );
-  const totalScore = clamp(
+  const objectiveScore =
     flitsScore * 0.3 +
       splitScore * 0.15 +
       transformationScore * 0.15 +
       energyScore * 0.2 +
-      subsidyScore * 0.2,
+      subsidyScore * 0.2;
+  const gutFeelingScore =
+    input.gutFeelingScore == null ? null : clamp(input.gutFeelingScore);
+  const gutFeelingConfidence =
+    gutFeelingScore === null ? 0 : clamp(input.gutFeelingConfidence ?? 100);
+  const gutFeelingWeight =
+    gutFeelingScore === null ? 0 : 0.1 * (gutFeelingConfidence / 100);
+  const totalScore = clamp(
+    objectiveScore * (1 - gutFeelingWeight) +
+      (gutFeelingScore ?? objectiveScore) * gutFeelingWeight,
+  );
+  const gutFeelingContribution = Number(
+    (((gutFeelingScore ?? objectiveScore) - objectiveScore) * gutFeelingWeight).toFixed(2),
   );
 
   return {
@@ -62,5 +79,8 @@ export function calculateDealScore(input: DealScoreInput): DealScore {
     decision: totalScore >= 70 ? "GO" : totalScore >= 50 ? "HOLD" : "REJECT",
     margin: Math.round(margin),
     grossYield: Number(grossYield.toFixed(2)),
+    gutFeelingScore,
+    gutFeelingConfidence,
+    gutFeelingContribution,
   };
 }

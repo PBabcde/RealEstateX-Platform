@@ -517,6 +517,20 @@ export const listDealsResponseOneRenovationCostMin = 0;
 
 export const listDealsResponseOneMonthlyRentMin = 0;
 
+export const listDealsResponseTwoScoreGutFeelingScoreMin = 0;
+export const listDealsResponseTwoScoreGutFeelingScoreMax = 100;
+
+export const listDealsResponseTwoScoreGutFeelingConfidenceMin = 0;
+export const listDealsResponseTwoScoreGutFeelingConfidenceMax = 100;
+
+export const listDealsResponseTwoGutFeelingScoreMin = 0;
+export const listDealsResponseTwoGutFeelingScoreMax = 100;
+
+export const listDealsResponseTwoGutFeelingConfidenceMin = 0;
+export const listDealsResponseTwoGutFeelingConfidenceMax = 100;
+
+export const listDealsResponseTwoGutFeelingSourceCountMin = 0;
+
 
 
 export const ListDealsResponseItem = zod.object({
@@ -544,8 +558,20 @@ export const ListDealsResponseItem = zod.object({
   "totalScore": zod.number(),
   "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
   "margin": zod.number(),
-  "grossYield": zod.number()
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(listDealsResponseTwoScoreGutFeelingScoreMin).max(listDealsResponseTwoScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(listDealsResponseTwoScoreGutFeelingConfidenceMin).max(listDealsResponseTwoScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
 }),
+  "gutFeeling": zod.object({
+  "score": zod.number().min(listDealsResponseTwoGutFeelingScoreMin).max(listDealsResponseTwoGutFeelingScoreMax),
+  "confidence": zod.number().min(listDealsResponseTwoGutFeelingConfidenceMin).max(listDealsResponseTwoGutFeelingConfidenceMax),
+  "summary": zod.string(),
+  "sourceCount": zod.number().int().min(listDealsResponseTwoGutFeelingSourceCountMin),
+  "region": zod.string(),
+  "observedAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date()
+}).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -586,6 +612,20 @@ export const createDealResponseOneRenovationCostMin = 0;
 
 export const createDealResponseOneMonthlyRentMin = 0;
 
+export const createDealResponseTwoScoreGutFeelingScoreMin = 0;
+export const createDealResponseTwoScoreGutFeelingScoreMax = 100;
+
+export const createDealResponseTwoScoreGutFeelingConfidenceMin = 0;
+export const createDealResponseTwoScoreGutFeelingConfidenceMax = 100;
+
+export const createDealResponseTwoGutFeelingScoreMin = 0;
+export const createDealResponseTwoGutFeelingScoreMax = 100;
+
+export const createDealResponseTwoGutFeelingConfidenceMin = 0;
+export const createDealResponseTwoGutFeelingConfidenceMax = 100;
+
+export const createDealResponseTwoGutFeelingSourceCountMin = 0;
+
 
 
 export const CreateDealResponse = zod.object({
@@ -613,8 +653,20 @@ export const CreateDealResponse = zod.object({
   "totalScore": zod.number(),
   "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
   "margin": zod.number(),
-  "grossYield": zod.number()
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(createDealResponseTwoScoreGutFeelingScoreMin).max(createDealResponseTwoScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(createDealResponseTwoScoreGutFeelingConfidenceMin).max(createDealResponseTwoScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
 }),
+  "gutFeeling": zod.object({
+  "score": zod.number().min(createDealResponseTwoGutFeelingScoreMin).max(createDealResponseTwoGutFeelingScoreMax),
+  "confidence": zod.number().min(createDealResponseTwoGutFeelingConfidenceMin).max(createDealResponseTwoGutFeelingConfidenceMax),
+  "summary": zod.string(),
+  "sourceCount": zod.number().int().min(createDealResponseTwoGutFeelingSourceCountMin),
+  "region": zod.string(),
+  "observedAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date()
+}).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -638,6 +690,20 @@ export const getDealResponseDealOneRenovationCostMin = 0;
 
 
 export const getDealResponseDealOneMonthlyRentMin = 0;
+
+export const getDealResponseDealTwoScoreGutFeelingScoreMin = 0;
+export const getDealResponseDealTwoScoreGutFeelingScoreMax = 100;
+
+export const getDealResponseDealTwoScoreGutFeelingConfidenceMin = 0;
+export const getDealResponseDealTwoScoreGutFeelingConfidenceMax = 100;
+
+export const getDealResponseDealTwoGutFeelingScoreMin = 0;
+export const getDealResponseDealTwoGutFeelingScoreMax = 100;
+
+export const getDealResponseDealTwoGutFeelingConfidenceMin = 0;
+export const getDealResponseDealTwoGutFeelingConfidenceMax = 100;
+
+export const getDealResponseDealTwoGutFeelingSourceCountMin = 0;
 
 
 
@@ -667,8 +733,20 @@ export const GetDealResponse = zod.object({
   "totalScore": zod.number(),
   "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
   "margin": zod.number(),
-  "grossYield": zod.number()
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(getDealResponseDealTwoScoreGutFeelingScoreMin).max(getDealResponseDealTwoScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(getDealResponseDealTwoScoreGutFeelingConfidenceMin).max(getDealResponseDealTwoScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
 }),
+  "gutFeeling": zod.object({
+  "score": zod.number().min(getDealResponseDealTwoGutFeelingScoreMin).max(getDealResponseDealTwoGutFeelingScoreMax),
+  "confidence": zod.number().min(getDealResponseDealTwoGutFeelingConfidenceMin).max(getDealResponseDealTwoGutFeelingConfidenceMax),
+  "summary": zod.string(),
+  "sourceCount": zod.number().int().min(getDealResponseDealTwoGutFeelingSourceCountMin),
+  "region": zod.string(),
+  "observedAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date()
+}).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })),
@@ -744,6 +822,20 @@ export const updateDealResponseOneRenovationCostMin = 0;
 
 export const updateDealResponseOneMonthlyRentMin = 0;
 
+export const updateDealResponseTwoScoreGutFeelingScoreMin = 0;
+export const updateDealResponseTwoScoreGutFeelingScoreMax = 100;
+
+export const updateDealResponseTwoScoreGutFeelingConfidenceMin = 0;
+export const updateDealResponseTwoScoreGutFeelingConfidenceMax = 100;
+
+export const updateDealResponseTwoGutFeelingScoreMin = 0;
+export const updateDealResponseTwoGutFeelingScoreMax = 100;
+
+export const updateDealResponseTwoGutFeelingConfidenceMin = 0;
+export const updateDealResponseTwoGutFeelingConfidenceMax = 100;
+
+export const updateDealResponseTwoGutFeelingSourceCountMin = 0;
+
 
 
 export const UpdateDealResponse = zod.object({
@@ -771,8 +863,20 @@ export const UpdateDealResponse = zod.object({
   "totalScore": zod.number(),
   "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
   "margin": zod.number(),
-  "grossYield": zod.number()
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(updateDealResponseTwoScoreGutFeelingScoreMin).max(updateDealResponseTwoScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(updateDealResponseTwoScoreGutFeelingConfidenceMin).max(updateDealResponseTwoScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
 }),
+  "gutFeeling": zod.object({
+  "score": zod.number().min(updateDealResponseTwoGutFeelingScoreMin).max(updateDealResponseTwoGutFeelingScoreMax),
+  "confidence": zod.number().min(updateDealResponseTwoGutFeelingConfidenceMin).max(updateDealResponseTwoGutFeelingConfidenceMax),
+  "summary": zod.string(),
+  "sourceCount": zod.number().int().min(updateDealResponseTwoGutFeelingSourceCountMin),
+  "region": zod.string(),
+  "observedAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date()
+}).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
@@ -801,6 +905,14 @@ export const ScoreDealParams = zod.object({
   "dealId": zod.coerce.string().min(1)
 })
 
+export const scoreDealResponseGutFeelingScoreMin = 0;
+export const scoreDealResponseGutFeelingScoreMax = 100;
+
+export const scoreDealResponseGutFeelingConfidenceMin = 0;
+export const scoreDealResponseGutFeelingConfidenceMax = 100;
+
+
+
 export const ScoreDealResponse = zod.object({
   "flitsScore": zod.number(),
   "splitScore": zod.number(),
@@ -810,7 +922,10 @@ export const ScoreDealResponse = zod.object({
   "totalScore": zod.number(),
   "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
   "margin": zod.number(),
-  "grossYield": zod.number()
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(scoreDealResponseGutFeelingScoreMin).max(scoreDealResponseGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(scoreDealResponseGutFeelingConfidenceMin).max(scoreDealResponseGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
 })
 
 
@@ -908,6 +1023,1111 @@ export const DownloadInvestorReadySheetParams = zod.object({
 })
 
 export const DownloadInvestorReadySheetResponse = zod.unknown()
+
+
+/**
+ * @summary Get tenant-scoped deal viewing and high-intent activity
+ */
+
+
+
+export const GetDealSalesIntelligenceParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const GetDealSalesIntelligenceResponse = zod.object({
+  "dealId": zod.string(),
+  "windowHours": zod.number().int(),
+  "uniqueVisitors": zod.number().int(),
+  "uniqueInvestors": zod.number().int(),
+  "dealViews": zod.number().int(),
+  "roiCalculatorInteractions": zod.number().int(),
+  "subsidyCalculatorInteractions": zod.number().int(),
+  "pdfDownloads": zod.number().int(),
+  "highIntentCount": zod.number().int(),
+  "urgencyLevel": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "investorViewText": zod.string()
+})
+
+
+/**
+ * @summary Analyze recent news for the deal neighborhood and update Gut Feeling
+ */
+
+
+
+export const RefreshDealNeighborhoodSentimentParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const refreshDealNeighborhoodSentimentResponseSentimentScoreMin = -1;
+export const refreshDealNeighborhoodSentimentResponseSentimentScoreMax = 1;
+
+export const refreshDealNeighborhoodSentimentResponseGutFeelingScoreMin = 0;
+export const refreshDealNeighborhoodSentimentResponseGutFeelingScoreMax = 100;
+
+export const refreshDealNeighborhoodSentimentResponseConfidenceMin = 0;
+export const refreshDealNeighborhoodSentimentResponseConfidenceMax = 100;
+
+export const refreshDealNeighborhoodSentimentResponseArticleCountMin = 0;
+
+export const refreshDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMin = -1;
+export const refreshDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMax = 1;
+
+export const refreshDealNeighborhoodSentimentResponseArticlesMax = 10;
+
+export const refreshDealNeighborhoodSentimentResponseTrendsItemArticleCountMin = 0;
+
+
+
+export const RefreshDealNeighborhoodSentimentResponse = zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(refreshDealNeighborhoodSentimentResponseSentimentScoreMin).max(refreshDealNeighborhoodSentimentResponseSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(refreshDealNeighborhoodSentimentResponseGutFeelingScoreMin).max(refreshDealNeighborhoodSentimentResponseGutFeelingScoreMax),
+  "confidence": zod.number().min(refreshDealNeighborhoodSentimentResponseConfidenceMin).max(refreshDealNeighborhoodSentimentResponseConfidenceMax),
+  "articleCount": zod.number().int().min(refreshDealNeighborhoodSentimentResponseArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(refreshDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMin).max(refreshDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(refreshDealNeighborhoodSentimentResponseArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(refreshDealNeighborhoodSentimentResponseTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+})
+
+
+/**
+ * @summary Get the latest tenant-scoped neighborhood sentiment snapshot for a deal
+ */
+
+
+
+export const GetDealNeighborhoodSentimentParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const getDealNeighborhoodSentimentResponseSentimentScoreMin = -1;
+export const getDealNeighborhoodSentimentResponseSentimentScoreMax = 1;
+
+export const getDealNeighborhoodSentimentResponseGutFeelingScoreMin = 0;
+export const getDealNeighborhoodSentimentResponseGutFeelingScoreMax = 100;
+
+export const getDealNeighborhoodSentimentResponseConfidenceMin = 0;
+export const getDealNeighborhoodSentimentResponseConfidenceMax = 100;
+
+export const getDealNeighborhoodSentimentResponseArticleCountMin = 0;
+
+export const getDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMin = -1;
+export const getDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMax = 1;
+
+export const getDealNeighborhoodSentimentResponseArticlesMax = 10;
+
+export const getDealNeighborhoodSentimentResponseTrendsItemArticleCountMin = 0;
+
+
+
+export const GetDealNeighborhoodSentimentResponse = zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(getDealNeighborhoodSentimentResponseSentimentScoreMin).max(getDealNeighborhoodSentimentResponseSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(getDealNeighborhoodSentimentResponseGutFeelingScoreMin).max(getDealNeighborhoodSentimentResponseGutFeelingScoreMax),
+  "confidence": zod.number().min(getDealNeighborhoodSentimentResponseConfidenceMin).max(getDealNeighborhoodSentimentResponseConfidenceMax),
+  "articleCount": zod.number().int().min(getDealNeighborhoodSentimentResponseArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(getDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMin).max(getDealNeighborhoodSentimentResponseArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(getDealNeighborhoodSentimentResponseArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(getDealNeighborhoodSentimentResponseTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+})
+
+
+/**
+ * @summary Create provider-neutral before-and-after render and video-loop prompts
+ */
+
+
+
+export const GetDealMediaBriefParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+export const GetDealMediaBriefResponse = zod.object({
+  "dealId": zod.string(),
+  "beforePrompt": zod.string(),
+  "afterPrompt": zod.string(),
+  "videoLoopPrompt": zod.string(),
+  "integrationStatus": zod.literal("NOT_CONFIGURED"),
+  "generatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List tenant-scoped Training Room scenarios
+ */
+export const trainingListScenariosResponseScoreGutFeelingScoreMin = 0;
+export const trainingListScenariosResponseScoreGutFeelingScoreMax = 100;
+
+export const trainingListScenariosResponseScoreGutFeelingConfidenceMin = 0;
+export const trainingListScenariosResponseScoreGutFeelingConfidenceMax = 100;
+
+export const trainingListScenariosResponseGutFeelingOneSentimentScoreMin = -1;
+export const trainingListScenariosResponseGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingListScenariosResponseGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingListScenariosResponseGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingListScenariosResponseGutFeelingOneConfidenceMin = 0;
+export const trainingListScenariosResponseGutFeelingOneConfidenceMax = 100;
+
+export const trainingListScenariosResponseGutFeelingOneArticleCountMin = 0;
+
+export const trainingListScenariosResponseGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingListScenariosResponseGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingListScenariosResponseGutFeelingOneArticlesMax = 10;
+
+export const trainingListScenariosResponseGutFeelingOneTrendsItemArticleCountMin = 0;
+
+
+
+export const TrainingListScenariosResponseItem = zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingListScenariosResponseScoreGutFeelingScoreMin).max(trainingListScenariosResponseScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingListScenariosResponseScoreGutFeelingConfidenceMin).max(trainingListScenariosResponseScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingListScenariosResponseGutFeelingOneSentimentScoreMin).max(trainingListScenariosResponseGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingListScenariosResponseGutFeelingOneGutFeelingScoreMin).max(trainingListScenariosResponseGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingListScenariosResponseGutFeelingOneConfidenceMin).max(trainingListScenariosResponseGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingListScenariosResponseGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingListScenariosResponseGutFeelingOneArticlesItemSentimentScoreMin).max(trainingListScenariosResponseGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingListScenariosResponseGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingListScenariosResponseGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const TrainingListScenariosResponse = zod.array(TrainingListScenariosResponseItem)
+
+
+/**
+ * @summary Create a Training Room renovation scenario
+ */
+
+export const trainingCreateScenarioBodyTitleMax = 160;
+
+export const trainingCreateScenarioBodyRegionMax = 120;
+
+
+export const trainingCreateScenarioBodyRenovationCostMin = 0;
+
+
+export const trainingCreateScenarioBodyMonthlyRentMin = 0;
+
+export const trainingCreateScenarioBodyMunicipalityMax = 120;
+
+
+
+export const TrainingCreateScenarioBody = zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1).max(trainingCreateScenarioBodyTitleMax),
+  "region": zod.string().min(1).max(trainingCreateScenarioBodyRegionMax),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(trainingCreateScenarioBodyRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(trainingCreateScenarioBodyMonthlyRentMin).optional(),
+  "municipality": zod.string().max(trainingCreateScenarioBodyMunicipalityMax).optional()
+})
+
+export const trainingCreateScenarioResponseScoreGutFeelingScoreMin = 0;
+export const trainingCreateScenarioResponseScoreGutFeelingScoreMax = 100;
+
+export const trainingCreateScenarioResponseScoreGutFeelingConfidenceMin = 0;
+export const trainingCreateScenarioResponseScoreGutFeelingConfidenceMax = 100;
+
+export const trainingCreateScenarioResponseGutFeelingOneSentimentScoreMin = -1;
+export const trainingCreateScenarioResponseGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingCreateScenarioResponseGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingCreateScenarioResponseGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingCreateScenarioResponseGutFeelingOneConfidenceMin = 0;
+export const trainingCreateScenarioResponseGutFeelingOneConfidenceMax = 100;
+
+export const trainingCreateScenarioResponseGutFeelingOneArticleCountMin = 0;
+
+export const trainingCreateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingCreateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingCreateScenarioResponseGutFeelingOneArticlesMax = 10;
+
+export const trainingCreateScenarioResponseGutFeelingOneTrendsItemArticleCountMin = 0;
+
+
+
+export const TrainingCreateScenarioResponse = zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingCreateScenarioResponseScoreGutFeelingScoreMin).max(trainingCreateScenarioResponseScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingCreateScenarioResponseScoreGutFeelingConfidenceMin).max(trainingCreateScenarioResponseScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingCreateScenarioResponseGutFeelingOneSentimentScoreMin).max(trainingCreateScenarioResponseGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingCreateScenarioResponseGutFeelingOneGutFeelingScoreMin).max(trainingCreateScenarioResponseGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingCreateScenarioResponseGutFeelingOneConfidenceMin).max(trainingCreateScenarioResponseGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingCreateScenarioResponseGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingCreateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin).max(trainingCreateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingCreateScenarioResponseGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingCreateScenarioResponseGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a tenant-scoped Training Room scenario
+ */
+
+
+
+export const TrainingGetScenarioParams = zod.object({
+  "scenarioId": zod.coerce.string().min(1)
+})
+
+export const trainingGetScenarioResponseScoreGutFeelingScoreMin = 0;
+export const trainingGetScenarioResponseScoreGutFeelingScoreMax = 100;
+
+export const trainingGetScenarioResponseScoreGutFeelingConfidenceMin = 0;
+export const trainingGetScenarioResponseScoreGutFeelingConfidenceMax = 100;
+
+export const trainingGetScenarioResponseGutFeelingOneSentimentScoreMin = -1;
+export const trainingGetScenarioResponseGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingGetScenarioResponseGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingGetScenarioResponseGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingGetScenarioResponseGutFeelingOneConfidenceMin = 0;
+export const trainingGetScenarioResponseGutFeelingOneConfidenceMax = 100;
+
+export const trainingGetScenarioResponseGutFeelingOneArticleCountMin = 0;
+
+export const trainingGetScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingGetScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingGetScenarioResponseGutFeelingOneArticlesMax = 10;
+
+export const trainingGetScenarioResponseGutFeelingOneTrendsItemArticleCountMin = 0;
+
+
+
+export const TrainingGetScenarioResponse = zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingGetScenarioResponseScoreGutFeelingScoreMin).max(trainingGetScenarioResponseScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingGetScenarioResponseScoreGutFeelingConfidenceMin).max(trainingGetScenarioResponseScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingGetScenarioResponseGutFeelingOneSentimentScoreMin).max(trainingGetScenarioResponseGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingGetScenarioResponseGutFeelingOneGutFeelingScoreMin).max(trainingGetScenarioResponseGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingGetScenarioResponseGutFeelingOneConfidenceMin).max(trainingGetScenarioResponseGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingGetScenarioResponseGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingGetScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin).max(trainingGetScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingGetScenarioResponseGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingGetScenarioResponseGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a draft Training Room scenario
+ */
+
+
+
+export const TrainingUpdateScenarioParams = zod.object({
+  "scenarioId": zod.coerce.string().min(1)
+})
+
+export const trainingUpdateScenarioBodyTitleMax = 160;
+
+export const trainingUpdateScenarioBodyRegionMax = 120;
+
+
+export const trainingUpdateScenarioBodyRenovationCostMin = 0;
+
+
+export const trainingUpdateScenarioBodyMonthlyRentMin = 0;
+
+export const trainingUpdateScenarioBodyMunicipalityMax = 120;
+
+
+
+export const TrainingUpdateScenarioBody = zod.object({
+  "title": zod.string().min(1).max(trainingUpdateScenarioBodyTitleMax).optional(),
+  "region": zod.string().min(1).max(trainingUpdateScenarioBodyRegionMax).optional(),
+  "askingPrice": zod.number().min(1).optional(),
+  "renovationCost": zod.number().min(trainingUpdateScenarioBodyRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1).optional(),
+  "monthlyRent": zod.number().min(trainingUpdateScenarioBodyMonthlyRentMin).optional(),
+  "municipality": zod.string().max(trainingUpdateScenarioBodyMunicipalityMax).optional()
+})
+
+export const trainingUpdateScenarioResponseScoreGutFeelingScoreMin = 0;
+export const trainingUpdateScenarioResponseScoreGutFeelingScoreMax = 100;
+
+export const trainingUpdateScenarioResponseScoreGutFeelingConfidenceMin = 0;
+export const trainingUpdateScenarioResponseScoreGutFeelingConfidenceMax = 100;
+
+export const trainingUpdateScenarioResponseGutFeelingOneSentimentScoreMin = -1;
+export const trainingUpdateScenarioResponseGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingUpdateScenarioResponseGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingUpdateScenarioResponseGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingUpdateScenarioResponseGutFeelingOneConfidenceMin = 0;
+export const trainingUpdateScenarioResponseGutFeelingOneConfidenceMax = 100;
+
+export const trainingUpdateScenarioResponseGutFeelingOneArticleCountMin = 0;
+
+export const trainingUpdateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingUpdateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingUpdateScenarioResponseGutFeelingOneArticlesMax = 10;
+
+export const trainingUpdateScenarioResponseGutFeelingOneTrendsItemArticleCountMin = 0;
+
+
+
+export const TrainingUpdateScenarioResponse = zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingUpdateScenarioResponseScoreGutFeelingScoreMin).max(trainingUpdateScenarioResponseScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingUpdateScenarioResponseScoreGutFeelingConfidenceMin).max(trainingUpdateScenarioResponseScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingUpdateScenarioResponseGutFeelingOneSentimentScoreMin).max(trainingUpdateScenarioResponseGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingUpdateScenarioResponseGutFeelingOneGutFeelingScoreMin).max(trainingUpdateScenarioResponseGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingUpdateScenarioResponseGutFeelingOneConfidenceMin).max(trainingUpdateScenarioResponseGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingUpdateScenarioResponseGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingUpdateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMin).max(trainingUpdateScenarioResponseGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingUpdateScenarioResponseGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingUpdateScenarioResponseGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Promote a scenario with score 80 or higher and prepare its investor PDF
+ */
+
+
+
+export const TrainingPromoteScenarioParams = zod.object({
+  "scenarioId": zod.coerce.string().min(1)
+})
+
+export const trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMin = 0;
+export const trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMax = 100;
+
+export const trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMin = 0;
+export const trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMax = 100;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneSentimentScoreMin = -1;
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneConfidenceMin = 0;
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneConfidenceMax = 100;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneArticleCountMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesMax = 10;
+
+export const trainingPromoteScenarioResponseScenarioGutFeelingOneTrendsItemArticleCountMin = 0;
+
+
+
+
+
+export const trainingPromoteScenarioResponseDealOneRenovationCostMin = 0;
+
+
+export const trainingPromoteScenarioResponseDealOneMonthlyRentMin = 0;
+
+export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMin = 0;
+export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMax = 100;
+
+export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMin = 0;
+export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMax = 100;
+
+export const trainingPromoteScenarioResponseDealTwoGutFeelingScoreMin = 0;
+export const trainingPromoteScenarioResponseDealTwoGutFeelingScoreMax = 100;
+
+export const trainingPromoteScenarioResponseDealTwoGutFeelingConfidenceMin = 0;
+export const trainingPromoteScenarioResponseDealTwoGutFeelingConfidenceMax = 100;
+
+export const trainingPromoteScenarioResponseDealTwoGutFeelingSourceCountMin = 0;
+
+
+
+export const TrainingPromoteScenarioResponse = zod.object({
+  "scenario": zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMin).max(trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMin).max(trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingPromoteScenarioResponseScenarioGutFeelingOneSentimentScoreMin).max(trainingPromoteScenarioResponseScenarioGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingPromoteScenarioResponseScenarioGutFeelingOneGutFeelingScoreMin).max(trainingPromoteScenarioResponseScenarioGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingPromoteScenarioResponseScenarioGutFeelingOneConfidenceMin).max(trainingPromoteScenarioResponseScenarioGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingPromoteScenarioResponseScenarioGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesItemSentimentScoreMin).max(trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingPromoteScenarioResponseScenarioGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingPromoteScenarioResponseScenarioGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "deal": zod.object({
+  "propertyId": zod.string().min(1),
+  "title": zod.string().min(1),
+  "region": zod.string().min(1),
+  "askingPrice": zod.number().min(1),
+  "renovationCost": zod.number().min(trainingPromoteScenarioResponseDealOneRenovationCostMin).optional(),
+  "expectedValue": zod.number().min(1),
+  "monthlyRent": zod.number().min(trainingPromoteScenarioResponseDealOneMonthlyRentMin).optional(),
+  "municipality": zod.string().optional()
+}).and(zod.object({
+  "dealId": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "status": zod.enum(['DRAFT', 'REVIEW', 'GO', 'HOLD', 'REJECT']),
+  "ownerId": zod.string(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMin).max(trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMin).max(trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.object({
+  "score": zod.number().min(trainingPromoteScenarioResponseDealTwoGutFeelingScoreMin).max(trainingPromoteScenarioResponseDealTwoGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingPromoteScenarioResponseDealTwoGutFeelingConfidenceMin).max(trainingPromoteScenarioResponseDealTwoGutFeelingConfidenceMax),
+  "summary": zod.string(),
+  "sourceCount": zod.number().int().min(trainingPromoteScenarioResponseDealTwoGutFeelingSourceCountMin),
+  "region": zod.string(),
+  "observedAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date()
+}).optional(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "investorReadySheetUrl": zod.string()
+})
+
+
+/**
+ * @summary Generate or download the promoted scenario's Investor Ready Sheet PDF
+ */
+
+
+
+export const TrainingDownloadInvestorReadySheetParams = zod.object({
+  "scenarioId": zod.coerce.string().min(1)
+})
+
+export const TrainingDownloadInvestorReadySheetResponse = zod.unknown()
+
+
+/**
+ * @summary Refresh neighborhood news sentiment and recalculate the scenario score
+ */
+
+
+
+export const TrainingRefreshScenarioSentimentParams = zod.object({
+  "scenarioId": zod.coerce.string().min(1)
+})
+
+export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMin = 0;
+export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMin = 0;
+export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneSentimentScoreMin = -1;
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneSentimentScoreMax = 1;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneGutFeelingScoreMin = 0;
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneGutFeelingScoreMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneConfidenceMin = 0;
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneConfidenceMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticleCountMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesItemSentimentScoreMin = -1;
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesItemSentimentScoreMax = 1;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesMax = 10;
+
+export const trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneTrendsItemArticleCountMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseSentimentSentimentScoreMin = -1;
+export const trainingRefreshScenarioSentimentResponseSentimentSentimentScoreMax = 1;
+
+export const trainingRefreshScenarioSentimentResponseSentimentGutFeelingScoreMin = 0;
+export const trainingRefreshScenarioSentimentResponseSentimentGutFeelingScoreMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseSentimentConfidenceMin = 0;
+export const trainingRefreshScenarioSentimentResponseSentimentConfidenceMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseSentimentArticleCountMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseSentimentArticlesItemSentimentScoreMin = -1;
+export const trainingRefreshScenarioSentimentResponseSentimentArticlesItemSentimentScoreMax = 1;
+
+export const trainingRefreshScenarioSentimentResponseSentimentArticlesMax = 10;
+
+export const trainingRefreshScenarioSentimentResponseSentimentTrendsItemArticleCountMin = 0;
+
+
+
+export const TrainingRefreshScenarioSentimentResponse = zod.object({
+  "scenario": zod.object({
+  "scenarioId": zod.string(),
+  "propertyId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number(),
+  "askingPrice": zod.number(),
+  "renovationCost": zod.number(),
+  "expectedValue": zod.number(),
+  "monthlyRent": zod.number(),
+  "municipality": zod.string().nullish(),
+  "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
+  "qualityGatePassed": zod.boolean(),
+  "score": zod.object({
+  "flitsScore": zod.number(),
+  "splitScore": zod.number(),
+  "transformationScore": zod.number(),
+  "energyScore": zod.number(),
+  "subsidyScore": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "margin": zod.number(),
+  "grossYield": zod.number(),
+  "gutFeelingScore": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMin).max(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMax).nullish(),
+  "gutFeelingConfidence": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMin).max(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMax).optional(),
+  "gutFeelingContribution": zod.number().optional()
+}),
+  "gutFeeling": zod.union([zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneSentimentScoreMin).max(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneGutFeelingScoreMin).max(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneConfidenceMin).max(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneConfidenceMax),
+  "articleCount": zod.number().int().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesItemSentimentScoreMin).max(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingRefreshScenarioSentimentResponseScenarioGutFeelingOneTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+}),zod.null()]).optional(),
+  "promotedDealId": zod.string().nullish(),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "sentiment": zod.object({
+  "snapshotId": zod.string(),
+  "region": zod.string(),
+  "sentimentScore": zod.number().min(trainingRefreshScenarioSentimentResponseSentimentSentimentScoreMin).max(trainingRefreshScenarioSentimentResponseSentimentSentimentScoreMax),
+  "gutFeelingScore": zod.number().min(trainingRefreshScenarioSentimentResponseSentimentGutFeelingScoreMin).max(trainingRefreshScenarioSentimentResponseSentimentGutFeelingScoreMax),
+  "confidence": zod.number().min(trainingRefreshScenarioSentimentResponseSentimentConfidenceMin).max(trainingRefreshScenarioSentimentResponseSentimentConfidenceMax),
+  "articleCount": zod.number().int().min(trainingRefreshScenarioSentimentResponseSentimentArticleCountMin),
+  "sampledAt": zod.coerce.date(),
+  "staleAt": zod.coerce.date(),
+  "source": zod.string(),
+  "narrativeTitle": zod.string(),
+  "narrativeSummary": zod.string(),
+  "scoreExplanation": zod.string(),
+  "articles": zod.array(zod.object({
+  "articleId": zod.string(),
+  "title": zod.string(),
+  "url": zod.string().url(),
+  "source": zod.string(),
+  "publishedAt": zod.coerce.date().nullable(),
+  "summary": zod.string(),
+  "sentimentScore": zod.number().min(trainingRefreshScenarioSentimentResponseSentimentArticlesItemSentimentScoreMin).max(trainingRefreshScenarioSentimentResponseSentimentArticlesItemSentimentScoreMax),
+  "topics": zod.array(zod.string()),
+  "imageUrl": zod.string().url().nullable()
+})).max(trainingRefreshScenarioSentimentResponseSentimentArticlesMax),
+  "trends": zod.array(zod.object({
+  "topic": zod.string(),
+  "articleCount": zod.number().int().min(trainingRefreshScenarioSentimentResponseSentimentTrendsItemArticleCountMin),
+  "deltaPercent": zod.number(),
+  "direction": zod.enum(['RISING', 'STABLE', 'COOLING', 'NEW'])
+}))
+})
+})
+
+
+/**
+ * Requires authentication; tenant identity is always taken from the session, never from the request.
+ * @summary Record a consented, pseudonymous visitor action
+ */
+export const recordVisitorIntentEventBodyVisitorIdMin = 8;
+export const recordVisitorIntentEventBodyVisitorIdMax = 128;
+
+
+export const recordVisitorIntentEventBodyVisitorIdRegExp = new RegExp('^[A-Za-z0-9_-]{8,128}$');
+
+
+
+
+export const RecordVisitorIntentEventBody = zod.object({
+  "visitorId": zod.string().min(recordVisitorIntentEventBodyVisitorIdMin).max(recordVisitorIntentEventBodyVisitorIdMax).regex(recordVisitorIntentEventBodyVisitorIdRegExp),
+  "eventType": zod.enum(['DEAL_VIEW', 'ROI_CALCULATOR', 'SUBSIDY_CALCULATOR', 'PDF_DOWNLOAD']),
+  "dealId": zod.string().min(1),
+  "investorId": zod.string().min(1).optional(),
+  "consent": zod.literal(true)
+})
+
+export const RecordVisitorIntentEventResponse = zod.object({
+  "eventId": zod.string(),
+  "visitorId": zod.string(),
+  "eventType": zod.enum(['DEAL_VIEW', 'ROI_CALCULATOR', 'SUBSIDY_CALCULATOR', 'PDF_DOWNLOAD']),
+  "dealId": zod.string().nullish(),
+  "investorId": zod.string().nullish(),
+  "occurredAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get tenant-scoped lead scores and visitor intent activity
+ */
+export const getVisitorIntentSummaryQueryDaysDefault = 30;
+export const getVisitorIntentSummaryQueryDaysMax = 90;
+
+
+
+export const GetVisitorIntentSummaryQueryParams = zod.object({
+  "days": zod.coerce.number().int().min(1).max(getVisitorIntentSummaryQueryDaysMax).default(getVisitorIntentSummaryQueryDaysDefault)
+})
+
+export const getVisitorIntentSummaryResponseLeadsItemScoreMin = 0;
+export const getVisitorIntentSummaryResponseLeadsItemScoreMax = 100;
+
+export const getVisitorIntentSummaryResponseLeadsItemEventCountMin = 0;
+
+
+
+export const GetVisitorIntentSummaryResponse = zod.object({
+  "asOf": zod.coerce.date(),
+  "windowDays": zod.number().int(),
+  "eventsCount": zod.number().int(),
+  "uniqueVisitors": zod.number().int(),
+  "uniqueInvestors": zod.number().int(),
+  "leads": zod.array(zod.object({
+  "visitorId": zod.string(),
+  "score": zod.number().int().min(getVisitorIntentSummaryResponseLeadsItemScoreMin).max(getVisitorIntentSummaryResponseLeadsItemScoreMax),
+  "intentLevel": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "eventCount": zod.number().int().min(getVisitorIntentSummaryResponseLeadsItemEventCountMin),
+  "lastSeen": zod.coerce.date(),
+  "viewedDealIds": zod.array(zod.string())
+})),
+  "interactionCounts": zod.record(zod.string(), zod.number().int())
+})
+
+
+/**
+ * @summary Get up to three real tenant deals ranked by net ROI and deal score
+ */
+export const getDailyMarketPulseResponseItemsItemRankMax = 3;
+
+export const getDailyMarketPulseResponseItemsMax = 3;
+
+
+
+export const GetDailyMarketPulseResponse = zod.object({
+  "generatedAt": zod.coerce.date(),
+  "ranking": zod.literal("netRoi-desc-score-desc"),
+  "availableDealsCount": zod.number().int(),
+  "items": zod.array(zod.object({
+  "rank": zod.number().int().min(1).max(getDailyMarketPulseResponseItemsItemRankMax),
+  "dealId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "netRoi": zod.number(),
+  "totalScore": zod.number(),
+  "decision": zod.enum(['GO', 'HOLD', 'REJECT']),
+  "investorMatchCount": zod.number().int(),
+  "explanation": zod.string()
+})).max(getDailyMarketPulseResponseItemsMax)
+})
+
+
+/**
+ * @summary Get profile-personalized deal recommendations and greeting
+ */
+
+
+
+export const GetInvestorRecommendationsParams = zod.object({
+  "investorId": zod.coerce.string().min(1)
+})
+
+
+export const getInvestorRecommendationsResponseInvestorOneBudgetMinMin = 0;
+
+export const getInvestorRecommendationsResponseInvestorOneBudgetMaxMin = 0;
+
+export const getInvestorRecommendationsResponseRecommendationsMax = 3;
+
+
+
+export const GetInvestorRecommendationsResponse = zod.object({
+  "greeting": zod.string(),
+  "investor": zod.object({
+  "name": zod.string().min(1),
+  "email": zod.string().email(),
+  "company": zod.string().optional(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "budgetMin": zod.number().min(getInvestorRecommendationsResponseInvestorOneBudgetMinMin),
+  "budgetMax": zod.number().min(getInvestorRecommendationsResponseInvestorOneBudgetMaxMin),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string())
+}).and(zod.object({
+  "investorId": zod.string(),
+  "riskProfile": zod.enum(['LOW', 'MEDIUM', 'HIGH']),
+  "preferredRegions": zod.array(zod.string()),
+  "interests": zod.array(zod.string()),
+  "ownerId": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})),
+  "recommendations": zod.array(zod.object({
+  "dealId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "askingPrice": zod.number(),
+  "expectedValue": zod.number(),
+  "totalScore": zod.number(),
+  "matchScore": zod.number(),
+  "reasons": zod.array(zod.string())
+})).max(getInvestorRecommendationsResponseRecommendationsMax)
+})
 
 
 /**

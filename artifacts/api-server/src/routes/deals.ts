@@ -87,6 +87,7 @@ async function parseDeal(
       : {}),
     status: existing?.status ?? "DRAFT",
     ownerId: existing?.ownerId ?? actorId,
+    ...(existing?.gutFeeling ? { gutFeeling: existing.gutFeeling } : {}),
     score:
       existing?.score ??
       calculateDealScore({
