@@ -8,3 +8,4 @@
 - [Release audit validation target](release-audit-validation.md) — run audit checks in a child process bound to the disposable restore database.
 - [Module and RAG tenant storage](module-rag-tenant-storage.md) — preserve ownerworld fallback files while isolating every non-default module and RAG index by tenant.
 - [Contabo VPS validation](contabo-vps-validation.md) — remote security and recovery readiness requires pinned SSH evidence; missing VPS configuration stays UNVERIFIED.
+- [tsx test module mode](tsx-test-module-mode.md) — root JavaScript integration tests need CommonJS-compatible setup and careful workspace alias resolution.
