@@ -31,6 +31,8 @@ import type {
   ChatReplyResponse,
   ChatSessionResponse,
   ChatStartInput,
+  CoInvestmentCommitmentInput,
+  CoInvestmentSummary,
   CrmActivityInput,
   CrmActivityRecord,
   CrmContactInput,
@@ -2402,6 +2404,174 @@ export function useGetDealMatches<TData = Awaited<ReturnType<typeof getDealMatch
 
 
 
+
+export const getGetDealCoInvestmentSummaryUrl = (dealId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/commitments`
+}
+
+/**
+ * @summary Get recorded co-investment commitments for a deal
+ */
+export const getDealCoInvestmentSummary = async (dealId: string, options?: Parameters<typeof customFetch>[1]): Promise<CoInvestmentSummary> => {
+
+  return customFetch<CoInvestmentSummary>(getGetDealCoInvestmentSummaryUrl(dealId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDealCoInvestmentSummaryQueryKey = (dealId: string,) => {
+    return [
+    `/api/deals/${dealId}/commitments`
+    ] as const;
+    }
+
+
+export const getGetDealCoInvestmentSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDealCoInvestmentSummary>>, TError = ErrorType<NotFoundResponse>>(dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealCoInvestmentSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDealCoInvestmentSummaryQueryKey(dealId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDealCoInvestmentSummary>>> = ({ signal }) => getDealCoInvestmentSummary(dealId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: dealId !== null && dealId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDealCoInvestmentSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDealCoInvestmentSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getDealCoInvestmentSummary>>>
+export type GetDealCoInvestmentSummaryQueryError = ErrorType<NotFoundResponse>
+
+
+/**
+ * @summary Get recorded co-investment commitments for a deal
+ */
+
+export function useGetDealCoInvestmentSummary<TData = Awaited<ReturnType<typeof getDealCoInvestmentSummary>>, TError = ErrorType<NotFoundResponse>>(
+ dealId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDealCoInvestmentSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDealCoInvestmentSummaryQueryOptions(dealId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertDealCoInvestmentCommitmentUrl = (dealId: string,
+    investorId: string,) => {
+
+
+
+
+  return `/api/deals/${dealId}/commitments/${investorId}`
+}
+
+/**
+ * @summary Record or update an internal co-investment commitment
+ */
+export const upsertDealCoInvestmentCommitment = async (dealId: string,
+    investorId: string,
+    coInvestmentCommitmentInput: CoInvestmentCommitmentInput, options?: Parameters<typeof customFetch>[1]): Promise<CoInvestmentSummary> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CoInvestmentSummary>(getUpsertDealCoInvestmentCommitmentUrl(dealId,investorId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(coInvestmentCommitmentInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertDealCoInvestmentCommitmentMutationKey = () => ['upsertDealCoInvestmentCommitment'] as const;
+
+export const getUpsertDealCoInvestmentCommitmentMutationOptions = <TError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>, TError,UpsertDealCoInvestmentCommitmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>, TError,UpsertDealCoInvestmentCommitmentMutationVariables, TContext> => {
+
+const mutationKey = getUpsertDealCoInvestmentCommitmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>, UpsertDealCoInvestmentCommitmentMutationVariables> = (props) => {
+          const {dealId,investorId,data} = props ?? {};
+
+          return  upsertDealCoInvestmentCommitment(dealId,investorId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertDealCoInvestmentCommitmentMutationResult = NonNullable<Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>>
+    export type UpsertDealCoInvestmentCommitmentMutationBody = BodyType<CoInvestmentCommitmentInput>
+    export type UpsertDealCoInvestmentCommitmentMutationError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>
+    export type UpsertDealCoInvestmentCommitmentMutationVariables = {dealId: string;investorId: string;data: BodyType<CoInvestmentCommitmentInput>}
+
+    /**
+ * @summary Record or update an internal co-investment commitment
+ */
+export const useUpsertDealCoInvestmentCommitment = <TError = ErrorType<BadRequestResponse | NotFoundResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>, TError,UpsertDealCoInvestmentCommitmentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertDealCoInvestmentCommitment>>,
+        TError,
+        UpsertDealCoInvestmentCommitmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpsertDealCoInvestmentCommitmentMutationOptions(options));
+    }
 
 export const getDownloadInvestorReadySheetUrl = (dealId: string,) => {
 

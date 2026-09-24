@@ -199,6 +199,29 @@ export type InvestorMatch = InvestorRecord & {
   reasons: string[];
 };
 
+export interface CoInvestmentCommitmentInput {
+  /** @minimum 1 */
+  committedAmount: number;
+}
+
+export interface CoInvestmentCommitment {
+  investorId: string;
+  investorName: string;
+  company?: string;
+  /** @minimum 1 */
+  committedAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoInvestmentSummary {
+  dealId: string;
+  totalInvestment: number;
+  totalCommittedAmount: number;
+  claimedPercent: number;
+  commitments: CoInvestmentCommitment[];
+}
+
 export type CrmContactInputType = typeof CrmContactInputType[keyof typeof CrmContactInputType];
 
 

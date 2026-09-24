@@ -431,6 +431,12 @@ function buildPhases(): Phase[] {
         "run",
         "test:dealing-room-tenant-isolation",
       ]),
+      runCommand("Dealing Room co-investment commitment isolation", "pnpm", [
+        "--filter",
+        "@workspace/scripts",
+        "run",
+        "test:dealing-room-commitments",
+      ]),
     ]),
     phaseCapability(
       "Fase 3",

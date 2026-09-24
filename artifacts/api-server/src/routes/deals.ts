@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request } from "express";
+import { requireDb } from "@workspace/db";
 import { getProperty, initialiseRealEstateStorage } from "../lib/realestatex-storage";
 import { canAccessOwner, forbidden, requireAuthentication } from "../middlewares/authorization";
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
@@ -17,6 +18,14 @@ import { calculateSubsidies, calculateNetRoi } from "../lib/subsidy-engine";
 import { createInvestorReadySheet } from "../lib/investor-ready-sheet";
 import { matchInvestors } from "../lib/investor-matching";
 import { type InvestorRecord } from "../lib/enterprise-modules";
+import {
+  GetDealCoInvestmentSummaryParams,
+  GetDealCoInvestmentSummaryResponse,
+  UpsertDealCoInvestmentCommitmentBody,
+  UpsertDealCoInvestmentCommitmentParams,
+  UpsertDealCoInvestmentCommitmentResponse,
+} from "@workspace/api-zod";
+import type { CoInvestmentCommitmentRecord } from "../lib/enterprise-modules";
 
 const router: IRouter = Router();
 router.use(requireAuthentication, attachEnterpriseContext);
@@ -219,6 +228,158 @@ router.get("/deals/:dealId/matches", async (req, res, next): Promise<void> => {
     const investors = await listEntities<InvestorRecord>("investor", tenantId);
     res.json(matchInvestors(enrichDeal(deal).deal, investors));
   } catch (error) {
+    next(error);
+  }
+});
+
+async function coInvestmentSummary(
+  deal: DealRecord,
+  commitments: CoInvestmentCommitmentRecord[],
+): Promise<unknown> {
+  const totalInvestment = enrichDeal(deal).netRoi.totalInvestment;
+  const totalCommittedAmount = commitments.reduce(
+    (total, commitment) => total + commitment.committedAmount,
+    0,
+  );
+  return {
+    dealId: deal.dealId,
+    totalInvestment,
+    totalCommittedAmount,
+    claimedPercent: totalInvestment > 0 ? (totalCommittedAmount / totalInvestment) * 100 : 0,
+    commitments: commitments.map(({ commitmentId: _commitmentId, dealId: _dealId, ...commitment }) => commitment),
+  };
+}
+
+async function withDealCommitmentLock<T>(
+  tenantId: string,
+  dealId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const { pool } = requireDb();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`realestatex:co-investment:${tenantId}:${dealId}`],
+    );
+    const result = await operation();
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+router.get("/deals/:dealId/commitments", async (req, res, next): Promise<void> => {
+  try {
+    const params = GetDealCoInvestmentSummaryParams.parse(req.params);
+    const tenantId = req.enterpriseContext!.tenantId;
+    const deal = await getEntity<DealRecord>("deal", params.dealId, tenantId);
+    if (!deal) {
+      res.status(404).json({ error: "Deal not found" });
+      return;
+    }
+    const commitments = await listEntities<CoInvestmentCommitmentRecord>(
+      "co-investment-commitment",
+      tenantId,
+    );
+    res.json(GetDealCoInvestmentSummaryResponse.parse(
+      await coInvestmentSummary(
+        deal,
+        commitments.filter((commitment) => commitment.dealId === deal.dealId),
+      ),
+    ));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/deals/:dealId/commitments/:investorId", async (req, res, next): Promise<void> => {
+  try {
+    const params = UpsertDealCoInvestmentCommitmentParams.parse(req.params);
+    const body = UpsertDealCoInvestmentCommitmentBody.parse(req.body);
+    const context = req.enterpriseContext!;
+    const deal = await getEntity<DealRecord>("deal", params.dealId, context.tenantId);
+    const investor = await getEntity<InvestorRecord>("investor", params.investorId, context.tenantId);
+    if (!deal || !investor) {
+      res.status(404).json({ error: !deal ? "Deal not found" : "Investor not found" });
+      return;
+    }
+    const matches = matchInvestors(
+      enrichDeal(deal).deal,
+      await listEntities<InvestorRecord>("investor", context.tenantId),
+    );
+    if (!matches.some((match) => match.investorId === investor.investorId)) {
+      res.status(404).json({ error: "Investor is not an eligible deal match" });
+      return;
+    }
+    const result = await withDealCommitmentLock(
+      context.tenantId,
+      deal.dealId,
+      async () => {
+        const commitments = await listEntities<CoInvestmentCommitmentRecord>(
+          "co-investment-commitment",
+          context.tenantId,
+        );
+        const commitmentId = `${deal.dealId}:${investor.investorId}`;
+        const existing = commitments.find(
+          (commitment) => commitment.commitmentId === commitmentId,
+        );
+        const totalInvestment = enrichDeal(deal).netRoi.totalInvestment;
+        const totalCommittedAmount = commitments
+          .filter(
+            (commitment) =>
+              commitment.dealId === deal.dealId &&
+              commitment.commitmentId !== commitmentId,
+          )
+          .reduce((total, commitment) => total + commitment.committedAmount, 0);
+        if (totalCommittedAmount + body.committedAmount > totalInvestment) {
+          return { kind: "over-limit" as const };
+        }
+        const now = new Date().toISOString();
+        const commitment: CoInvestmentCommitmentRecord = {
+          commitmentId,
+          dealId: deal.dealId,
+          investorId: investor.investorId,
+          investorName: investor.name,
+          ...(investor.company ? { company: investor.company } : {}),
+          committedAmount: body.committedAmount,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+        await saveEntity(
+          "co-investment-commitment",
+          commitment,
+          context.tenantId,
+          context.actorId,
+          existing ? "updated" : "created",
+        );
+        const updatedCommitments = commitments
+          .filter((item) => item.commitmentId !== commitmentId)
+          .concat(commitment)
+          .filter((item) => item.dealId === deal.dealId);
+        return {
+          kind: "saved" as const,
+          summary: await coInvestmentSummary(deal, updatedCommitments),
+        };
+      },
+    );
+    if (result.kind === "over-limit") {
+      res.status(409).json({ error: "Commitments exceed the deal investment requirement" });
+      return;
+    }
+    res.json(UpsertDealCoInvestmentCommitmentResponse.parse(
+      result.summary,
+    ));
+  } catch (error) {
+    if (error instanceof Error && "issues" in error) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     next(error);
   }
 });

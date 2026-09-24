@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { CoInvestmentIndicator } from "@/components/co-investment-indicator";
 import {
   ArrowDownToLine,
   Building2,
@@ -273,6 +274,13 @@ function DealDetail({ dealId }: { dealId: string }) {
           <Download size={15} /> Investor Ready Sheet
         </button>
       </div>
+      {data.deal.score.transformationScore >= 70 && (
+        <CoInvestmentIndicator
+          dealId={dealId}
+          matches={matches.data ?? []}
+          matchesLoading={matches.isLoading}
+        />
+      )}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Flits", data.deal.score.flitsScore],

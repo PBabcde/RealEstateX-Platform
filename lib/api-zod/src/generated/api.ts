@@ -1013,6 +1013,73 @@ export const GetDealMatchesResponse = zod.array(GetDealMatchesResponseItem)
 
 
 /**
+ * @summary Get recorded co-investment commitments for a deal
+ */
+
+
+
+export const GetDealCoInvestmentSummaryParams = zod.object({
+  "dealId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const GetDealCoInvestmentSummaryResponse = zod.object({
+  "dealId": zod.string(),
+  "totalInvestment": zod.number(),
+  "totalCommittedAmount": zod.number(),
+  "claimedPercent": zod.number(),
+  "commitments": zod.array(zod.object({
+  "investorId": zod.string(),
+  "investorName": zod.string(),
+  "company": zod.string().optional(),
+  "committedAmount": zod.number().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Record or update an internal co-investment commitment
+ */
+
+
+
+
+export const UpsertDealCoInvestmentCommitmentParams = zod.object({
+  "dealId": zod.coerce.string().min(1),
+  "investorId": zod.coerce.string().min(1)
+})
+
+
+
+
+export const UpsertDealCoInvestmentCommitmentBody = zod.object({
+  "committedAmount": zod.number().min(1)
+})
+
+
+
+
+export const UpsertDealCoInvestmentCommitmentResponse = zod.object({
+  "dealId": zod.string(),
+  "totalInvestment": zod.number(),
+  "totalCommittedAmount": zod.number(),
+  "claimedPercent": zod.number(),
+  "commitments": zod.array(zod.object({
+  "investorId": zod.string(),
+  "investorName": zod.string(),
+  "company": zod.string().optional(),
+  "committedAmount": zod.number().min(1),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
  * @summary Download an investor-ready PDF sheet
  */
 

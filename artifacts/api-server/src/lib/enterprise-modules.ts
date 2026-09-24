@@ -88,6 +88,17 @@ export type InvestorRecord = {
   updatedAt: string;
 };
 
+export type CoInvestmentCommitmentRecord = {
+  commitmentId: string;
+  dealId: string;
+  investorId: string;
+  investorName: string;
+  company?: string;
+  committedAmount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CrmContactRecord = {
   contactId: string;
   type: "INVESTOR" | "MAKELAAR" | "PARTNER";
@@ -120,7 +131,8 @@ type EnterpriseEntity =
   | CrmActivityRecord
   | TrainingScenarioRecord
   | VisitorIntentEventRecord
-  | NeighborhoodSentimentSnapshot;
+  | NeighborhoodSentimentSnapshot
+  | CoInvestmentCommitmentRecord;
 type EntityKind =
   | "deal"
   | "investor"
@@ -128,7 +140,8 @@ type EntityKind =
   | "crm-activity"
   | "training-scenario"
   | "visitor-intent-event"
-  | "neighborhood-sentiment";
+  | "neighborhood-sentiment"
+  | "co-investment-commitment";
 const moduleName = "EnterpriseModulesX";
 
 function requireDatabase() {
@@ -153,6 +166,9 @@ function entityId(kind: EntityKind, entity: EnterpriseEntity): string {
   if (kind === "neighborhood-sentiment") {
     return (entity as NeighborhoodSentimentSnapshot).snapshotId;
   }
+  if (kind === "co-investment-commitment") {
+    return (entity as CoInvestmentCommitmentRecord).commitmentId;
+  }
   return (entity as CrmContactRecord).contactId;
 }
 
@@ -161,6 +177,7 @@ function entityType(kind: EntityKind): string {
   if (kind === "training-scenario") return "training_scenario";
   if (kind === "visitor-intent-event") return "visitor_intent_event";
   if (kind === "neighborhood-sentiment") return "neighborhood_sentiment";
+  if (kind === "co-investment-commitment") return "co_investment_commitment";
   return kind;
 }
 

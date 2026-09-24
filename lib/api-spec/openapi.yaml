@@ -557,6 +557,53 @@ paths:
                   $ref: "#/components/schemas/InvestorMatch"
         "404":
           $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/commitments:
+    get:
+      operationId: getDealCoInvestmentSummary
+      tags: [enterprise]
+      summary: Get recorded co-investment commitments for a deal
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+      responses:
+        "200":
+          description: Co-investment commitment summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoInvestmentSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /deals/{dealId}/commitments/{investorId}:
+    put:
+      operationId: upsertDealCoInvestmentCommitment
+      tags: [enterprise]
+      summary: Record or update an internal co-investment commitment
+      parameters:
+        - $ref: "#/components/parameters/DealId"
+        - $ref: "#/components/parameters/InvestorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoInvestmentCommitmentInput"
+      responses:
+        "200":
+          description: Updated co-investment commitment summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoInvestmentSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Commitments exceed the deal investment requirement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /deals/{dealId}/investor-ready-sheet:
     get:
       operationId: downloadInvestorReadySheet
@@ -1425,6 +1472,32 @@ components:
           properties:
             matchScore: { type: number }
             reasons: { type: array, items: { type: string } }
+    CoInvestmentCommitmentInput:
+      type: object
+      required: [committedAmount]
+      properties:
+        committedAmount: { type: number, minimum: 1 }
+    CoInvestmentCommitment:
+      type: object
+      required: [investorId, investorName, committedAmount, createdAt, updatedAt]
+      properties:
+        investorId: { type: string }
+        investorName: { type: string }
+        company: { type: string }
+        committedAmount: { type: number, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CoInvestmentSummary:
+      type: object
+      required: [dealId, totalInvestment, totalCommittedAmount, claimedPercent, commitments]
+      properties:
+        dealId: { type: string }
+        totalInvestment: { type: number }
+        totalCommittedAmount: { type: number }
+        claimedPercent: { type: number }
+        commitments:
+          type: array
+          items: { $ref: "#/components/schemas/CoInvestmentCommitment" }
     CrmContactInput:
       type: object
       required: [type, name]
