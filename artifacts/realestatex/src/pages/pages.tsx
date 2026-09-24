@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { useCalculateMortgage, useCalculateRentalOverview, useCalculateValuation, useCreateProperty, useDeleteProperty, useGetDailyMarketPulse, useGetDashboardSummary, useGetMarketTrends, useGetProperty, useGetSuiteOverview, useListProperties, useUpdateProperty, getGetDailyMarketPulseQueryKey, getGetDashboardSummaryQueryKey, getGetMarketTrendsQueryKey, getGetPropertyQueryKey, getGetSuiteOverviewQueryKey, getListPropertiesQueryKey } from '@workspace/api-client-react';
 import type { DailyMarketPulse } from '@workspace/api-client-react';
-import { ArrowRight, BarChart3, Building2, Boxes, Calculator, ChevronDown, Check, CircleDollarSign, Edit3, Filter, Home, MapPin, Percent, Plus, Search, Sparkles, Trash2, TrendingUp, X, Radar } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, BarChart3, Building2, Boxes, Calculator, ChevronDown, Check, CircleDollarSign, Edit3, Filter, Home, MapPin, Percent, Plus, Search, Sparkles, Trash2, TrendingUp, X, Radar } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
 import { CheckRow, EmptyBlock, ErrorBlock, formatDate, formatEuro, formatNumber, LoadingBlock, SectionHeading, StatusPill, SubmitButton, TrendValue } from '@/components/ui-elements';
 
@@ -44,14 +44,46 @@ function Dashboard() {
   </AppShell>;
 }
 
+function DealConceptIllustration({ after, accent }: { after: boolean; accent: string }) {
+  return <svg viewBox="0 0 520 240" className="h-full w-full" aria-hidden="true">
+    <rect width="520" height="240" fill={after ? '#d8eee8' : '#e8e1d7'} />
+    <rect y="174" width="520" height="66" fill={after ? '#b7d6cd' : '#c8beb0'} />
+    <path d={after ? 'M40 174V77l90-45 104 45v97' : 'M38 174V92l88-56 102 56v82'} fill={after ? '#f3f8f5' : '#d9d1c5'} stroke={accent} strokeWidth="5" />
+    <path d={after ? 'M119 174v-48h58v48M75 104h49v42H75zM186 104h29v42h-29z' : 'M111 174v-48h49v48M75 111h27v31H75zM172 111h32v31h-32z'} fill={after ? '#86b8aa' : '#a89d90'} opacity={after ? 0.9 : 0.8} />
+    <path d={after ? 'M38 174h205M26 174h232' : 'M38 174h190M23 174h218'} stroke={accent} strokeWidth="7" strokeLinecap="round" />
+    {after ? <><circle cx="405" cy="56" r="22" fill="#f0b956" opacity="0.9" /><path d="M345 172c15-34 36-44 55 0m-8 0c16-25 35-27 49 0m-9 0c13-19 27-18 40 0" fill="none" stroke="#287b6a" strokeWidth="7" strokeLinecap="round" /></> : <><path d="M350 171h85M370 171v-51h52v51" stroke="#897e72" strokeWidth="7" /><path d="M348 120h96" stroke="#897e72" strokeWidth="5" /></>}
+  </svg>;
+}
+
+function DealComparison({ dealId }: { dealId: string }) {
+  const [position, setPosition] = useState(52);
+  const clip = `inset(0 ${100 - position}% 0 0)`;
+  const accent = '#287b6a';
+  const descriptionId = `market-pulse-slider-help-${dealId}`;
+  return <div className="mt-5 overflow-hidden rounded-xl border border-[#cfe1da] bg-[#e8f3ee]" onClick={(event) => event.stopPropagation()} data-testid={`comparison-market-pulse-${dealId}`}>
+    <div className="relative aspect-[2.15/1] overflow-hidden">
+      <DealConceptIllustration after={false} accent="#8a7c6a" />
+      <div className="absolute inset-0" style={{ clipPath: clip }} aria-hidden="true"><DealConceptIllustration after accent={accent} /></div>
+      <span className="absolute left-3 top-3 rounded-md bg-[#172c2a]/80 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white">Before</span>
+      <span className="absolute right-3 top-3 rounded-md bg-[#287b6a]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white">After · concept</span>
+      <div className="pointer-events-none absolute inset-y-0" style={{ left: `${position}%` }}><div className="h-full w-px bg-white shadow-[0_0_0_1px_rgba(23,44,42,0.22)]" /><div className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-[#287b6a] text-white shadow-md"><ArrowLeftRight size={13} /></div></div>
+    </div>
+    <div className="border-t border-[#cfe1da] px-3 py-2.5">
+      <label htmlFor={`market-pulse-slider-${dealId}`} className="flex items-center justify-between gap-3 text-[10px] font-bold text-[#287b6a]"><span>Renovatiebeeld vergelijken</span><span className="mono">{position}% after</span></label>
+      <input id={`market-pulse-slider-${dealId}`} type="range" min="0" max="100" value={position} onChange={(event) => setPosition(Number(event.target.value))} aria-label={`Voor en na vergelijking voor deal ${dealId}`} aria-describedby={descriptionId} className="mt-1.5 h-5 w-full cursor-ew-resize accent-[#287b6a]" data-testid={`slider-market-pulse-${dealId}`} />
+      <p id={descriptionId} className="text-[9px] leading-4 text-muted-foreground">Conceptillustratie, geen vastgoedfoto of render. Gebruik de schuif met toetsenbord of aanwijzer.</p>
+    </div>
+  </div>;
+}
+
 function DailyMarketPulse({ pulse }: { pulse: { data?: DailyMarketPulse; isLoading: boolean; isError: boolean; refetch: () => unknown } }) {
-  const items = pulse.data?.items ?? [];
+  const items = pulse.data?.items?.slice(0, 3) ?? [];
   return <section className="mt-8 overflow-hidden rounded-2xl border border-[#d7e6e0] bg-[#f5faf7] shadow-xs" data-testid="section-daily-market-pulse">
     <div className="flex flex-col justify-between gap-3 border-b border-[#d7e6e0] px-5 py-5 sm:flex-row sm:items-center sm:px-6">
       <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-[#dcefe8] text-[#287b6a]"><Radar size={18} /></div><div><p className="mono text-[10px] uppercase tracking-[0.18em] text-[#287b6a]">Daily Market Pulse</p><h3 className="display mt-1 text-xl font-bold tracking-[-0.04em]">De drie cases met de meeste ruimte</h3></div></div>
       <p className="text-xs text-muted-foreground">{pulse.data ? `Bijgewerkt ${formatDate(pulse.data.generatedAt)}` : 'Rangschikking laden'}</p>
     </div>
-    {pulse.isLoading ? <LoadingBlock lines={3} /> : pulse.isError ? <div className="p-5"><ErrorBlock onRetry={() => pulse.refetch()} /></div> : items.length === 0 ? <div className="px-6 py-8 text-sm text-muted-foreground" data-testid="status-market-pulse-empty">Nog geen tenant-deals beschikbaar voor deze rangschikking.</div> : <div className="grid divide-y divide-[#d7e6e0] md:grid-cols-3 md:divide-x md:divide-y-0">{items.map((item) => <Link key={item.dealId} href={`/dealing-room?deal=${item.dealId}`} className="group p-5 transition-colors hover:bg-[#eaf5f0]" data-testid={`card-market-pulse-${item.dealId}`}><div className="flex items-start justify-between gap-3"><span className="mono text-2xl text-[#86b8aa]">0{item.rank}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.decision === 'GO' ? 'bg-[#dcefe8] text-[#287b6a]' : item.decision === 'HOLD' ? 'bg-[#faeedc] text-[#a4671c]' : 'bg-[#fae7e3] text-[#a4443b]'}`}>{item.decision}</span></div><p className="mt-5 truncate text-sm font-bold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.region}</p><div className="mt-5 flex items-end justify-between"><div><p className="mono text-lg font-medium text-[#287b6a]">{item.netRoi.toFixed(1)}% ROI</p><p className="mt-1 text-[10px] text-muted-foreground">Score {item.totalScore}/100</p></div><ArrowRight size={15} className="text-muted-foreground transition-transform group-hover:translate-x-1" /></div><p className="mt-4 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.explanation}</p></Link>)}</div>}
+    {pulse.isLoading ? <LoadingBlock lines={3} /> : pulse.isError ? <div className="p-5"><ErrorBlock onRetry={() => pulse.refetch()} /></div> : items.length === 0 ? <div className="px-6 py-8 text-sm text-muted-foreground" data-testid="status-market-pulse-empty">Nog geen tenant-deals beschikbaar voor deze rangschikking.</div> : <div className="grid divide-y divide-[#d7e6e0] md:grid-cols-3 md:divide-x md:divide-y-0">{items.map((item) => <article key={item.dealId} className="group p-5 transition-colors hover:bg-[#eaf5f0]" data-testid={`card-market-pulse-${item.dealId}`}><div className="flex items-start justify-between gap-3"><span className="mono text-2xl text-[#86b8aa]">0{item.rank}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.decision === 'GO' ? 'bg-[#dcefe8] text-[#287b6a]' : item.decision === 'HOLD' ? 'bg-[#faeedc] text-[#a4671c]' : 'bg-[#fae7e3] text-[#a4443b]'}`}>{item.decision}</span></div><p className="mt-5 truncate text-sm font-bold" data-testid={`text-market-pulse-title-${item.dealId}`}>{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.region}</p><DealComparison dealId={item.dealId} /><div className="mt-5 flex items-end justify-between"><div><p className="mono text-lg font-medium text-[#287b6a]" data-testid={`text-market-pulse-roi-${item.dealId}`}>{item.netRoi.toFixed(1)}% ROI</p><p className="mt-1 text-[10px] text-muted-foreground">Score {item.totalScore}/100</p></div><Link href={`/dealing-room?deal=${item.dealId}`} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-[#287b6a] hover:bg-[#dcefe8]" data-testid={`link-market-pulse-deal-${item.dealId}`}>Bekijk deal <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" /></Link></div><p className="mt-4 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.explanation}</p></article>)}</div>}
   </section>;
 }
 

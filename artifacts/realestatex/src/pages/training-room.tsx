@@ -7,7 +7,9 @@ import {
   Download,
   FilePenLine,
   GraduationCap,
+  Paintbrush,
   RefreshCw,
+  Ruler,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -39,6 +41,7 @@ type FormState = {
   monthlyRent: string;
   municipality: string;
 };
+type RenovationStyle = "modern" | "klassiek";
 
 const blankForm: FormState = {
   propertyId: "",
@@ -71,6 +74,7 @@ export function TrainingRoom() {
   const [form, setForm] = useState<FormState>(blankForm);
   const [savedMessage, setSavedMessage] = useState("");
   const [promotion, setPromotion] = useState<{ scenarioId: string; dealId: string } | null>(null);
+  const [renovationStyle, setRenovationStyle] = useState<RenovationStyle>("modern");
   const detail = useTrainingGetScenario(selectedId, { query: { enabled: Boolean(selectedId), queryKey: getTrainingGetScenarioQueryKey(selectedId) } });
   const create = useTrainingCreateScenario();
   const update = useTrainingUpdateScenario();
@@ -79,6 +83,9 @@ export function TrainingRoom() {
 
   const selectedProperty = useMemo(() => properties.data?.find((property) => property.propertyId === form.propertyId), [properties.data, form.propertyId]);
   const activeScenario = detail.data ?? scenarios.data?.find((scenario) => scenario.scenarioId === selectedId);
+  const floorArea = activeScenario?.woonoppervlak ?? selectedProperty?.woonoppervlak ?? 0;
+  const renovationRate = renovationStyle === "modern" ? 850 : 1350;
+  const renovationEstimate = floorArea > 0 ? floorArea * renovationRate : null;
 
   const selectScenario = (scenarioId: string) => {
     setSelectedId(scenarioId);
@@ -197,6 +204,7 @@ export function TrainingRoom() {
               <label className="text-xs font-semibold">Huur per maand<input type="number" min="0" value={form.monthlyRent} onChange={(event) => updateField("monthlyRent")(event.target.value)} className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm" data-testid="input-training-monthly-rent" /></label>
               <label className="text-xs font-semibold sm:col-span-2">Gemeente<input value={form.municipality} onChange={(event) => updateField("municipality")(event.target.value)} placeholder={selectedProperty?.adres ?? "Optioneel"} className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm" data-testid="input-training-municipality" /></label>
             </div>
+             <RenovationStylePanel style={renovationStyle} onStyleChange={setRenovationStyle} floorArea={floorArea} estimate={renovationEstimate} onApply={() => renovationEstimate !== null && updateField("renovationCost")(String(renovationEstimate))} />
             <div className="mt-5 flex flex-col gap-2 sm:flex-row"><button type="submit" disabled={formBusy || !properties.data?.length} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground disabled:opacity-50" data-testid="button-save-training-scenario"><FilePenLine size={15} />{formBusy ? "Opslaan..." : selectedId ? "Wijzigingen opslaan" : "Scenario berekenen"}</button>{selectedId && <button type="button" onClick={refreshSentiment} disabled={refresh.isPending} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary disabled:opacity-50" data-testid="button-refresh-training-sentiment"><RefreshCw size={15} />{refresh.isPending ? "Verversen..." : "Ververs buurtbeeld"}</button>}</div>
           </form>
           {detail.isLoading && selectedId ? <LoadingBlock lines={6} /> : activeScenario && <QualityGate scenario={activeScenario} onPromote={promoteScenario} promoting={promote.isPending} promotion={promotion} onDownload={downloadPdf} onOpenDeal={() => promotion && setLocation(`/dealing-room?deal=${promotion.dealId}`)} />}
@@ -204,6 +212,54 @@ export function TrainingRoom() {
       </div>
     </div>
   </AppShell>;
+}
+
+function RenovationStylePanel({ style, onStyleChange, floorArea, estimate, onApply }: { style: RenovationStyle; onStyleChange: (style: RenovationStyle) => void; floorArea: number; estimate: number | null; onApply: () => void }) {
+  const isModern = style === "modern";
+  const renovationRate = isModern ? 850 : 1350;
+  const formattedEstimate = estimate === null ? "—" : formatEuro(estimate);
+  return <div className="mt-5 rounded-2xl border border-[#d7e6e0] bg-[#f5faf7] p-4 sm:p-5" data-testid="panel-training-renovation-style">
+    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+      <div>
+        <p className="mono text-[10px] uppercase tracking-[0.18em] text-[#287b6a]">Renovatieverkenner</p>
+        <h4 className="display mt-2 text-xl font-bold tracking-[-0.04em]">Welke sfeer past bij de case?</h4>
+        <p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">Kies een stijl voor een visuele richting en een transparante eerste raming. De raming is indicatief, geen offerte.</p>
+      </div>
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#dcefe8] text-[#287b6a]"><Paintbrush size={17} /></div>
+    </div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Renovatiestijl">
+      <button type="button" role="radio" aria-checked={isModern} onClick={() => onStyleChange("modern")} className={`rounded-xl border p-3 text-left transition-colors ${isModern ? "border-[#287b6a] bg-white shadow-sm" : "border-border bg-background hover:bg-white"}`} data-testid="button-training-style-modern">
+        <span className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Modern</span><span className={`h-2.5 w-2.5 rounded-full ${isModern ? "bg-[#287b6a]" : "border border-muted-foreground/40"}`} /></span>
+        <span className="mt-1 block text-[11px] text-muted-foreground">Licht, rustig en efficiënt</span>
+        <span className="mono mt-3 block text-xs font-bold text-[#287b6a]">€ 850 / m²</span>
+      </button>
+      <button type="button" role="radio" aria-checked={!isModern} onClick={() => onStyleChange("klassiek")} className={`rounded-xl border p-3 text-left transition-colors ${!isModern ? "border-[#b56d19] bg-white shadow-sm" : "border-border bg-background hover:bg-white"}`} data-testid="button-training-style-klassiek-luxe">
+        <span className="flex items-center justify-between gap-3"><span className="text-sm font-bold">Klassiek Luxe</span><span className={`h-2.5 w-2.5 rounded-full ${!isModern ? "bg-[#b56d19]" : "border border-muted-foreground/40"}`} /></span>
+        <span className="mt-1 block text-[11px] text-muted-foreground">Rijk materiaal, lange levensduur</span>
+        <span className="mono mt-3 block text-xs font-bold text-[#b56d19]">€ 1.350 / m²</span>
+      </button>
+    </div>
+    <div className={`relative mt-4 overflow-hidden rounded-xl border ${isModern ? "border-[#cfe1da] bg-[#dcefe8]" : "border-[#ead8b8] bg-[#faeedc]"}`} data-testid="preview-training-renovation-style">
+      <div className="absolute left-3 top-3 z-10 rounded-md bg-[#172c2a]/75 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white">Conceptpreview · {isModern ? "Modern" : "Klassiek Luxe"}</div>
+      <svg viewBox="0 0 720 210" className="h-36 w-full sm:h-44" role="img" aria-label={`Conceptpreview van een ${isModern ? "moderne" : "klassiek luxe"} renovatie`}>
+        <rect width="720" height="210" fill={isModern ? "#dcefe8" : "#f4e5cd"} />
+        <rect y="150" width="720" height="60" fill={isModern ? "#b9d9d0" : "#d9be92"} />
+        <path d="M65 150V67l150-38 150 38v83" fill={isModern ? "#f7fbf9" : "#efe0c5"} stroke={isModern ? "#287b6a" : "#a4671c"} strokeWidth="6" />
+        <path d="M105 91h78v59h-78zm113 0h82v59h-82z" fill={isModern ? "#85b9ae" : "#b98d54"} opacity=".78" />
+        <path d="M260 150v-62h58v62M62 150h318" fill="none" stroke={isModern ? "#287b6a" : "#a4671c"} strokeWidth="7" />
+        {isModern ? <><circle cx="551" cy="48" r="25" fill="#f0b956" /><path d="M472 150c21-38 49-38 70 0m8 0c18-27 38-25 56 0m-1 0c14-17 30-17 44 0" fill="none" stroke="#287b6a" strokeWidth="8" strokeLinecap="round" /></> : <><path d="M474 150V74h108v76M460 74h136M489 105h78M489 128h78" fill="none" stroke="#a4671c" strokeWidth="6" /><circle cx="622" cy="52" r="18" fill="#d0a15a" /></>}
+      </svg>
+    </div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div className="rounded-xl border border-[#cfe1da] bg-white/75 p-3">
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#287b6a]"><Ruler size={13} /> Indicatieve aanname</div>
+        <p className="mt-2 text-xs text-muted-foreground">{floorArea > 0 ? `${formatNumber(floorArea)} m² × € ${renovationRate.toLocaleString("nl-NL")} / m²` : "Kies eerst een object met woonoppervlak"}</p>
+        <p className="mono mt-1 text-xl font-medium" aria-live="polite" data-testid="text-training-renovation-estimate">{formattedEstimate}</p>
+      </div>
+      <button type="button" onClick={onApply} disabled={estimate === null} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#287b6a] px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-apply-renovation-estimate">Gebruik als renovatieveld</button>
+    </div>
+    <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Deze stijlkeuze verandert alleen de visuele preview en het bedrag dat je kunt overnemen in het bewerkbare renovatieveld. De Quality Gate blijft server-berekend.</p>
+  </div>;
 }
 
 function QualityGate({ scenario, onPromote, promoting, promotion, onDownload, onOpenDeal }: { scenario: TrainingScenario; onPromote: () => void; promoting: boolean; promotion: { scenarioId: string; dealId: string } | null; onDownload: (scenarioId: string) => Promise<void>; onOpenDeal: () => void }) {
