@@ -6,18 +6,16 @@ const user = process.env.CONTABO_VPS30_USER;
 const keyFile = process.env.CONTABO_VPS30_SSH_KEY_FILE;
 const knownHostsFile = process.env.CONTABO_VPS30_KNOWN_HOSTS_FILE;
 const tlsHost = process.env.CONTABO_VPS30_TLS_HOST ?? host;
-const recoveryScript =
-  process.env.CONTABO_VPS30_RECOVERY_SCRIPT ??
-  "/opt/realestatex/bin/recovery-dry-run.sh";
+const recoveryScript = process.env.CONTABO_VPS30_RECOVERY_SCRIPT;
 
 function stop(message: string, exitCode = 2): never {
   console.error(`CONTABO_VPS30_${exitCode === 2 ? "UNVERIFIED" : "FAIL"}: ${message}`);
   process.exit(exitCode);
 }
 
-if (!host || !user || !keyFile || !knownHostsFile || !tlsHost) {
+if (!host || !user || !keyFile || !knownHostsFile || !tlsHost || !recoveryScript) {
   stop(
-    "Set CONTABO_VPS30_HOST, CONTABO_VPS30_USER, CONTABO_VPS30_SSH_KEY_FILE, CONTABO_VPS30_KNOWN_HOSTS_FILE and optionally CONTABO_VPS30_TLS_HOST.",
+    "Set CONTABO_VPS30_HOST, CONTABO_VPS30_USER, CONTABO_VPS30_SSH_KEY_FILE, CONTABO_VPS30_KNOWN_HOSTS_FILE and CONTABO_VPS30_RECOVERY_SCRIPT; CONTABO_VPS30_TLS_HOST is optional.",
   );
 }
 if (!fs.existsSync(keyFile)) stop("The configured SSH key file does not exist.");

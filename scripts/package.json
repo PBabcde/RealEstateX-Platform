@@ -14,6 +14,7 @@
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
     "test:release-integrity": "tsx ../tests/audit_immutability.test.js",
     "test:tenant-isolation": "tsx ../tests/enterprise_tenant_isolation.test.js",
+    "test:dealing-room-tenant-isolation": "tsx ../tests/dealing_room_tenant_isolation.test.js",
     "test:enterprise-core-tenant-isolation": "tsx ../tests/enterprise_core_tenant_isolation.test.js",
     "test:ownerworld-compatibility": "tsx ../tests/module_data_ownerworld_compatibility.test.js",
     "test:rag-tenant-isolation": "tsx ../tests/rag_tenant_isolation.test.js",

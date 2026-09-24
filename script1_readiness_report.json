@@ -1,6 +1,6 @@
 {
   "reportType": "vastgoed-enterprise-master-build",
-  "generatedAt": "2026-09-23T20:23:51.045Z",
+  "generatedAt": "2026-09-24T06:37:11.850Z",
   "script": "Vastgoed_Enterprise_Master_Build.sh",
   "mode": "fail-closed",
   "readinessScore": 91,
@@ -9,8 +9,8 @@
   "contaboDecision": "CONTABO NO-GO",
   "script2Readiness": "NOT READY",
   "checks": {
-    "total": 22,
-    "passed": 20,
+    "total": 23,
+    "passed": 21,
     "partial": 0,
     "failed": 0,
     "unverified": 2
@@ -51,14 +51,14 @@
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm run typecheck",
-          "output": "> workspace@0.0.0 typecheck /home/runner/workspace\n> pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck\n\n\n> workspace@0.0.0 typecheck:libs /home/runner/workspace\n> tsc --build\n\nScope: 4 of 10 workspace projects\nartifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/realestatex typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck: Done\nartifacts/api-server typecheck: Done\nartifacts/mockup-sandbox typecheck: Done\nartifacts/realestatex typecheck: Done"
+          "output": "> workspace@0.0.0 typecheck /home/runner/workspace\n> pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck\n\n\n> workspace@0.0.0 typecheck:libs /home/runner/workspace\n> tsc --build\n\nScope: 4 of 10 workspace projects\nartifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit\nartifacts/realestatex typecheck$ tsc -p tsconfig.json --noEmit\nscripts typecheck: Done\nartifacts/api-server typecheck: Done\nartifacts/realestatex typecheck: Done\nartifacts/mockup-sandbox typecheck: Done"
         },
         {
           "name": "API build",
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/api-server run build",
-          "output": "> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server\n> node ./build.mjs\n\n\n\n  dist/index.mjs                       2.0mb ⚠️\n  dist/pino-worker.mjs               153.5kb\n  dist/pino-file.mjs                 142.1kb\n  dist/pino-pretty.mjs               115.3kb\n  dist/thread-stream-worker.mjs        7.4kb\n  dist/index.mjs.map                   3.4mb\n  dist/pino-worker.mjs.map           256.9kb\n  dist/pino-file.mjs.map             229.0kb\n  dist/pino-pretty.mjs.map           209.5kb\n  dist/thread-stream-worker.mjs.map   12.0kb\n\n⚡ Done in 245ms"
+          "output": "> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server\n> node ./build.mjs\n\n\n\n  dist/index.mjs                       2.0mb ⚠️\n  dist/pino-worker.mjs               153.5kb\n  dist/pino-file.mjs                 142.1kb\n  dist/pino-pretty.mjs               115.3kb\n  dist/thread-stream-worker.mjs        7.4kb\n  dist/index.mjs.map                   3.4mb\n  dist/pino-worker.mjs.map           256.9kb\n  dist/pino-file.mjs.map             229.0kb\n  dist/pino-pretty.mjs.map           209.5kb\n  dist/thread-stream-worker.mjs.map   12.0kb\n\n⚡ Done in 188ms"
         },
         {
           "name": "Release audit gate",
@@ -72,19 +72,19 @@
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/scripts run test:audit-immutability",
-          "output": "> @workspace/scripts@0.0.0 test:audit-immutability /home/runner/workspace/scripts\n> tsx ../tests/audit_immutability.test.js\n\n✔ audit_events is append-only and rejects UPDATE and DELETE (57.306624ms)\nAudit hash-chain validation passed: 0 event(s) across 0 tenant(s).\n✔ audit_events sequence and hash chain are valid (1.915352ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 66.367508"
+          "output": "> @workspace/scripts@0.0.0 test:audit-immutability /home/runner/workspace/scripts\n> tsx ../tests/audit_immutability.test.js\n\n✔ audit_events is append-only and rejects UPDATE and DELETE (39.990075ms)\nAudit hash-chain validation passed: 0 event(s) across 0 tenant(s).\n✔ audit_events sequence and hash chain are valid (1.859451ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 47.80173"
         },
         {
           "name": "Enterprise Core tenant test",
           "status": "PASS",
           "detail": "Command completed successfully.",
           "command": "pnpm --filter @workspace/scripts run test:enterprise-core-tenant-isolation",
-          "output": "> @workspace/scripts@0.0.0 test:enterprise-core-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/enterprise_core_tenant_isolation.test.js\n\n[20:23:50.802] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/7720b49a-452a-4bd2-a4dc-28d9994a62a8\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 47\n[20:23:50.822] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/7720b49a-452a-4bd2-a4dc-28d9994a62a8\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 6\n[20:23:50.831] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 8\n[20:23:50.836] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n[20:23:50.853] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 5,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 15\n[20:23:50.864] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 6,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[20:23:50.926] \u001b[32mINFO\u001b[39m (3594): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 7,\n      \"method\": \"POST\",\n      \"url\": \"/api/core/recovery/points\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 201\n    }\n    \u001b[35mresponseTime\u001b[39m: 52\n✔ core API isolates trust, audit, recovery points, and runtime state by tenant (327.230488ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 397.152546"
+          "output": "> @workspace/scripts@0.0.0 test:enterprise-core-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/enterprise_core_tenant_isolation.test.js\n\n[06:37:10.769] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 1,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/72d6b960-34b1-4d7f-bd38-686e83d0fc53\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 17\n[06:37:10.786] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 2,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/trust/tenant-isolation-test/72d6b960-34b1-4d7f-bd38-686e83d0fc53\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 5\n[06:37:10.795] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 3,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 7\n[06:37:10.800] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 4,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/audit\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 3\n[06:37:10.806] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 5,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n[06:37:10.811] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 6,\n      \"method\": \"GET\",\n      \"url\": \"/api/core/recovery/status\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 200\n    }\n    \u001b[35mresponseTime\u001b[39m: 4\n✔ core API isolates trust, audit, recovery points, and runtime state by tenant (166.009268ms)\n[06:37:10.841] \u001b[32mINFO\u001b[39m (1759): \u001b[36mrequest completed\u001b[39m\n    \u001b[35mreq\u001b[39m: {\n      \"id\": 7,\n      \"method\": \"POST\",\n      \"url\": \"/api/core/recovery/points\"\n    }\n    \u001b[35mres\u001b[39m: {\n      \"statusCode\": 201\n    }\n    \u001b[35mresponseTime\u001b[39m: 24\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 218.37702"
         },
         {
           "name": "Contabo VPS 30 UFW, Fail2ban, TLS and recovery dry-run",
           "status": "UNVERIFIED",
-          "detail": "No approved VPS host, SSH key-file hook and pinned known-hosts file were configured; the runner did not connect."
+          "detail": "No approved VPS host, SSH key-file hook, pinned known-hosts file and explicit recovery-script path were configured; the runner did not connect."
         }
       ],
       "blockers": [
@@ -97,19 +97,26 @@
       "status": "PASS",
       "checks": [
         {
-          "name": "Dealing Room MVP implementation",
+          "name": "Dealing Room API and PDF",
           "status": "PASS",
-          "detail": "Dealing Room MVP implementation path is present."
+          "detail": "Deal routes and investor-ready PDF generation are implemented."
         },
         {
-          "name": "Dealing Room MVP implementation",
+          "name": "Deal Score Engine",
           "status": "PASS",
-          "detail": "Dealing Room MVP implementation path is present."
+          "detail": "Deal Score Engine is implemented."
         },
         {
-          "name": "Dealing Room MVP implementation",
+          "name": "Investor-ready PDF",
           "status": "PASS",
-          "detail": "Dealing Room MVP implementation path is present."
+          "detail": "Investor-ready PDF generation is implemented."
+        },
+        {
+          "name": "Authenticated Dealing Room tenant isolation",
+          "status": "PASS",
+          "detail": "Command completed successfully.",
+          "command": "pnpm --filter @workspace/scripts run test:dealing-room-tenant-isolation",
+          "output": "> @workspace/scripts@0.0.0 test:dealing-room-tenant-isolation /home/runner/workspace/scripts\n> tsx ../tests/dealing_room_tenant_isolation.test.js\n\n✔ authenticated Dealing Room, Investor Room and CRM routes cannot cross tenants (172.720816ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 181.674745"
         }
       ],
       "blockers": []
@@ -207,14 +214,12 @@
   ],
   "limitations": [
     "Local execution cannot prove Contabo VPS 30 firewall, Fail2ban, TLS or recovery state.",
-    "Missing Fase 2–8 production module paths are reported as blockers rather than represented by placeholders.",
-    "This report does not claim deployment readiness without an approved VPS dry-run and deployment evidence."
+    "Billing cannot be validated live until a provider integration is connected and provider-specific checkout/webhook configuration is supplied.",
+    "Tenant-isolation endpoint checks use authenticated test principals against the real routers and database, not a production identity-provider session."
   ],
   "nextActions": [
-    "Implement tenant-safe Deal, Energy, Subsidy, Investor and CRM persistence with API tests.",
-    "Add matching, tiering, billing hooks and investor-ready document generation behind authenticated tenant routes.",
-    "Run an approved Contabo VPS 30 recovery dry-run and capture the result in release logs.",
-    "Close Trust boundary/mixed-data enforcement and expand the release gate to schema and restore validation.",
-    "Re-run this master build only after Fase 2–8 checks have concrete implementations."
+    "Connect Stripe or Whop through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
+    "Configure the pinned Contabo host, secret-backed SSH-key path, known-hosts file and approved recovery dry-run path through secure environment settings.",
+    "Run the master build again after provider and VPS configuration are supplied."
   ]
 }

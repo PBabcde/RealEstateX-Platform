@@ -202,6 +202,7 @@ function phase1(): Phase {
     process.env.CONTABO_VPS30_USER,
     process.env.CONTABO_VPS30_SSH_KEY_FILE,
     process.env.CONTABO_VPS30_KNOWN_HOSTS_FILE,
+    process.env.CONTABO_VPS30_RECOVERY_SCRIPT,
   ].every(Boolean);
   if (contaboConfigured) {
     checks.push(
@@ -216,7 +217,7 @@ function phase1(): Phase {
       name: "Contabo VPS 30 UFW, Fail2ban, TLS and recovery dry-run",
       status: "UNVERIFIED",
       detail:
-        "No approved VPS host, SSH key-file hook and pinned known-hosts file were configured; the runner did not connect.",
+        "No approved VPS host, SSH key-file hook, pinned known-hosts file and explicit recovery-script path were configured; the runner did not connect.",
     });
   }
 
@@ -279,18 +280,29 @@ function phase8(): Phase {
 function buildPhases(): Phase[] {
   return [
     phase1(),
-    phaseCapability(
-      "Fase 2",
-      "Dealing Room MVP",
-      [
+    createPhase("Fase 2", "Dealing Room MVP", [
+      fileCheck(
+        "Dealing Room API and PDF",
         "artifacts/api-server/src/routes/deals.ts",
+        "Deal routes and investor-ready PDF generation are implemented.",
+      ),
+      fileCheck(
+        "Deal Score Engine",
         "artifacts/api-server/src/lib/deal-score.ts",
+        "Deal Score Engine is implemented.",
+      ),
+      fileCheck(
+        "Investor-ready PDF",
         "artifacts/api-server/src/lib/investor-ready-sheet.ts",
-      ],
-      [
-        "Deal dashboard/detail, Deal Score Engine and investor-ready PDF generation are not implemented as production modules.",
-      ],
-    ),
+        "Investor-ready PDF generation is implemented.",
+      ),
+      runCommand("Authenticated Dealing Room tenant isolation", "pnpm", [
+        "--filter",
+        "@workspace/scripts",
+        "run",
+        "test:dealing-room-tenant-isolation",
+      ]),
+    ]),
     phaseCapability(
       "Fase 3",
       "Energy integratie",
@@ -388,15 +400,13 @@ function main(): void {
     phases,
     limitations: [
       "Local execution cannot prove Contabo VPS 30 firewall, Fail2ban, TLS or recovery state.",
-      "Missing Fase 2–8 production module paths are reported as blockers rather than represented by placeholders.",
-      "This report does not claim deployment readiness without an approved VPS dry-run and deployment evidence.",
+      "Billing cannot be validated live until a provider integration is connected and provider-specific checkout/webhook configuration is supplied.",
+      "Tenant-isolation endpoint checks use authenticated test principals against the real routers and database, not a production identity-provider session.",
     ],
     nextActions: [
-      "Implement tenant-safe Deal, Energy, Subsidy, Investor and CRM persistence with API tests.",
-      "Add matching, tiering, billing hooks and investor-ready document generation behind authenticated tenant routes.",
-      "Run an approved Contabo VPS 30 recovery dry-run and capture the result in release logs.",
-      "Close Trust boundary/mixed-data enforcement and expand the release gate to schema and restore validation.",
-      "Re-run this master build only after Fase 2–8 checks have concrete implementations.",
+      "Connect Stripe or Whop through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
+      "Configure the pinned Contabo host, secret-backed SSH-key path, known-hosts file and approved recovery dry-run path through secure environment settings.",
+      "Run the master build again after provider and VPS configuration are supplied.",
     ],
   };
 
