@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
-import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Sparkles, Split, SunMedium, Trash2, WandSparkles, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
 import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, savePropertyImage, savePropertyProject, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
@@ -524,6 +524,17 @@ function ProjectManager({ projects, loading, busy, activeProjectId, onClose, onC
   onOpen: (id: string) => void;
   onDelete: (project: PropertyProject) => void;
 }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
+  const matchingProjects = projects.filter((item) => {
+    const searchableText = [item.projectName || 'Transformatiescan', item.address, item.municipality]
+      .join(' ')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('nl-NL');
+    return queryTerms.every((term) => searchableText.includes(term));
+  });
+
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-[#1c2739]/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-project-list-title" data-testid="dialog-project-manager">
     <div className="mx-auto my-6 max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
       <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
@@ -532,8 +543,9 @@ function ProjectManager({ projects, loading, busy, activeProjectId, onClose, onC
       </div>
       <div className="space-y-3 p-5 sm:p-7">
         <button onClick={onCreate} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] transition-colors hover:bg-[#34435b] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw vastgoedproject</button>
-        {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
-          {projects.map((item) => <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
+        {!loading && projects.length > 0 && <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Zoek opgeslagen projecten</span><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Naam, adres of gemeente" aria-label="Zoek op projectnaam, adres of gemeente" className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-10 text-sm outline-none transition-shadow placeholder:text-muted-foreground/50 focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-search-projects" />{searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary" aria-label="Wis zoekopdracht" data-testid="button-clear-project-search"><X size={14} /></button>}</div></label>}
+        {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : matchingProjects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center" role="status" data-testid="empty-project-search"><p className="text-sm font-bold">Geen opgeslagen projecten gevonden</p><p className="mt-1 text-xs text-muted-foreground">Geen projectnaam, adres of gemeente komt overeen met “{searchQuery.trim()}”. Pas je zoekopdracht aan of wis deze om alle projecten te zien.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
+          {matchingProjects.map((item) => <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toegevoegd'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p></div>
             <div className="flex shrink-0 gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
           </li>)}
