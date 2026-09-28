@@ -9,3 +9,4 @@
 - [Module and RAG tenant storage](module-rag-tenant-storage.md) — preserve ownerworld fallback files while isolating every non-default module and RAG index by tenant.
 - [Contabo VPS validation](contabo-vps-validation.md) — remote security and recovery readiness requires pinned SSH evidence; missing VPS configuration stays UNVERIFIED.
 - [tsx test module mode](tsx-test-module-mode.md) — root JavaScript integration tests need CommonJS-compatible setup and careful workspace alias resolution.
+- [Browser IndexedDB testing](browser-indexeddb-testing.md) — headless browser storage tests must wait via DevTools; dump-dom can finish before IndexedDB callbacks.
