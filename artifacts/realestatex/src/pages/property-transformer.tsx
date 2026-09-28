@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Sparkles, Split, SunMedium, Trash2, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadLatestPropertyProject, loadPropertyImage, savePropertyImage, savePropertyProject, deletePropertyImage, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, savePropertyImage, savePropertyProject, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -100,9 +100,13 @@ function ActionButton({ action, disabled, pending, onClick }: { action: typeof a
 
 function PropertyTransformer() {
   const [project, setProject] = useState<PropertyProject | null>(null);
+  const [projects, setProjects] = useState<PropertyProject[]>([]);
   const [originalUrl, setOriginalUrl] = useState('');
   const [results, setResults] = useState<Partial<Record<PropertyAction, ResultMeta>>>({});
   const [loading, setLoading] = useState(true);
+  const [projectManagerOpen, setProjectManagerOpen] = useState(false);
+  const [projectListLoading, setProjectListLoading] = useState(false);
+  const [isProjectSwitching, setIsProjectSwitching] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [notice, setNotice] = useState('');
   const [splitRatio, setSplitRatio] = useState(50);
@@ -127,6 +131,35 @@ function PropertyTransformer() {
     URL.revokeObjectURL(url);
     objectUrls.current.delete(url);
   };
+  const revokeAllObjectUrls = () => {
+    for (const url of objectUrls.current) URL.revokeObjectURL(url);
+    objectUrls.current.clear();
+  };
+  const loadProjectPreviews = async (target: PropertyProject) => {
+    const createdUrls: string[] = [];
+    try {
+      let loadedOriginalUrl = '';
+      if (target.originalKey) {
+        const image = await loadPropertyImage(target.originalKey);
+        if (!image) throw new Error('De bronfoto van dit project ontbreekt in de browseropslag.');
+        loadedOriginalUrl = createObjectUrl(image.blob);
+        createdUrls.push(loadedOriginalUrl);
+      }
+      const loadedResults: Partial<Record<PropertyAction, ResultMeta>> = {};
+      for (const [action, key] of Object.entries(target.resultKeys)) {
+        if (!key) continue;
+        const image = await loadPropertyImage(key);
+        if (!image) throw new Error('Een opgeslagen conceptfoto van dit project ontbreekt in de browseropslag.');
+        const imageUrl = createObjectUrl(image.blob);
+        createdUrls.push(imageUrl);
+        loadedResults[action as PropertyAction] = { key, label: image.label, imageUrl, isConcept: image.isConcept, disclaimer: image.disclaimer };
+      }
+      return { originalUrl: loadedOriginalUrl, results: loadedResults };
+    } catch (error) {
+      for (const url of createdUrls) revokeObjectUrl(url);
+      throw error;
+    }
+  };
 
   useEffect(() => () => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url);
@@ -141,25 +174,30 @@ function PropertyTransformer() {
     let active = true;
     void (async () => {
       try {
-        const existing = await loadLatestPropertyProject();
+        const storedProjects = await loadPropertyProjects();
         if (!active) return;
-        if (existing) {
-          setProject(existing);
-          setSplitRatio(existing.splitRatio);
-          if (existing.originalKey) {
-            const image = await loadPropertyImage(existing.originalKey);
-            if (image && active) setOriginalUrl(createObjectUrl(image.blob));
+        setProjects(storedProjects);
+        let existing = storedProjects[0];
+        if (!existing) {
+          existing = makeProject();
+          await savePropertyProject(existing);
+          if (!active) return;
+          setProjects([existing]);
+        }
+        setProject(existing);
+        setSplitRatio(existing.splitRatio);
+        try {
+          const loaded = await loadProjectPreviews(existing);
+          if (!active) {
+            for (const url of [loaded.originalUrl, ...Object.values(loaded.results).map((item) => item?.imageUrl ?? '')]) {
+              if (url) revokeObjectUrl(url);
+            }
+            return;
           }
-          const resultEntries = Object.entries(existing.resultKeys);
-          const loaded: Partial<Record<PropertyAction, ResultMeta>> = {};
-          for (const [action, key] of resultEntries) {
-            if (!key) continue;
-            const image = await loadPropertyImage(key);
-            if (image && active) loaded[action as PropertyAction] = { key, label: image.label, imageUrl: createObjectUrl(image.blob), isConcept: image.isConcept, disclaimer: image.disclaimer };
-          }
-          if (active) setResults(loaded);
-        } else {
-          setProject(makeProject());
+          setOriginalUrl(loaded.originalUrl);
+          setResults(loaded.results);
+        } catch (error) {
+          if (active) setUploadError(error instanceof Error ? error.message : 'De projectfoto’s konden niet uit de lokale opslag worden geladen.');
         }
       } catch {
         if (active) {
@@ -198,6 +236,88 @@ function PropertyTransformer() {
   const roi = totalInvestment ? (valueCreation / totalInvestment) * 100 : 0;
   const yieldValue = totalInvestment > 0 ? ((form.monthlyRent * 12) / totalInvestment) * 100 : 0;
   const totalArea = form.units.reduce((sum, unit) => sum + unit.area, 0);
+
+  const refreshProjects = async () => {
+    setProjectListLoading(true);
+    try {
+      setProjects(await loadPropertyProjects());
+    } finally {
+      setProjectListLoading(false);
+    }
+  };
+  const openProjectManager = () => {
+    setProjectManagerOpen(true);
+    void refreshProjects().catch(() => setUploadError('De projectlijst kon niet uit de lokale browseropslag worden geladen.'));
+  };
+  const openSavedProject = async (id: string) => {
+    setIsProjectSwitching(true);
+    setUploadError('');
+    try {
+      const selected = await loadPropertyProject(id);
+      if (!selected) throw new Error('Dit project bestaat niet meer in de browseropslag. Vernieuw de projectlijst.');
+      const loaded = await loadProjectPreviews(selected);
+      revokeAllObjectUrls();
+      projectRef.current = selected;
+      setProject(selected);
+      setOriginalUrl(loaded.originalUrl);
+      setResults(loaded.results);
+      setSplitRatio(selected.splitRatio);
+      setActiveTab('studio');
+      setTransferOpen(false);
+      setProjectManagerOpen(false);
+      setNotice('');
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Het project kon niet uit de browseropslag worden geopend.');
+    } finally {
+      setIsProjectSwitching(false);
+    }
+  };
+  const createProject = async () => {
+    setIsProjectSwitching(true);
+    setUploadError('');
+    const created = makeProject();
+    try {
+      await savePropertyProject(created);
+      revokeAllObjectUrls();
+      projectRef.current = created;
+      setProject(created);
+      setOriginalUrl('');
+      setResults({});
+      setSplitRatio(created.splitRatio);
+      setActiveTab('studio');
+      setTransferOpen(false);
+      setProjectManagerOpen(false);
+      setNotice('');
+      setProjects(await loadPropertyProjects());
+    } catch {
+      setUploadError('Het nieuwe project kon niet in deze browser worden opgeslagen.');
+    } finally {
+      setIsProjectSwitching(false);
+    }
+  };
+  const removeSavedProject = async (target: PropertyProject) => {
+    if (!window.confirm(`Verwijder "${target.projectName || 'Transformatiescan'}" en alle bijbehorende foto’s uit deze browser?`)) return;
+    setIsProjectSwitching(true);
+    setUploadError('');
+    try {
+      await deletePropertyProject(target);
+      if (projectRef.current?.id === target.id) {
+        revokeAllObjectUrls();
+        projectRef.current = null;
+        setProject(null);
+        setOriginalUrl('');
+        setResults({});
+        setSplitRatio(50);
+        setTransferOpen(false);
+      }
+      setProjects(await loadPropertyProjects());
+      setNotice('Project en bijbehorende foto’s verwijderd uit deze browser.');
+    } catch {
+      setUploadError('Het project of de bijbehorende foto’s konden niet volledig worden verwijderd.');
+    } finally {
+      setIsProjectSwitching(false);
+    }
+  };
 
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -348,10 +468,25 @@ function PropertyTransformer() {
 
   if (loading) return <AppShell><div className="space-y-4"><div className="skeleton h-10 w-1/3 rounded-xl" /><div className="skeleton h-56 rounded-2xl" /><div className="grid gap-4 md:grid-cols-3"><div className="skeleton h-44 rounded-2xl" /><div className="skeleton h-44 rounded-2xl" /><div className="skeleton h-44 rounded-2xl" /></div></div></AppShell>;
 
+  if (!project) return <AppShell><div className="property-noise mx-auto max-w-3xl py-12">
+    <Card className="p-8 text-center sm:p-12">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#f3e7da] text-[#a95f39]"><Layers3 size={23} /></div>
+      <p className="mono mt-5 text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Local-first studio</p>
+      <h1 className="display mt-2 text-3xl font-bold tracking-[-.06em]">Geen actief project</h1>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Maak een nieuw vastgoedproject of open een eerder opgeslagen project. Projectgegevens en foto’s blijven in deze browser.</p>
+      {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}</p>}
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50"><Plus size={15} /> Nieuw project</button>
+        <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
+      </div>
+    </Card>
+    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching} activeProjectId={null} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} />}
+  </div></AppShell>;
+
   return <AppShell><div className="property-noise animate-rise">
     <header className="mb-7 flex flex-col justify-between gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end">
       <div><div className="mb-3 flex items-center gap-2"><span className="mono rounded bg-[#e4eee9] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#287b6a]">Local-first studio</span><span className="text-[10px] text-muted-foreground">Geen projecten verlaten je browser</span></div><h1 className="display max-w-3xl text-4xl font-bold leading-[.98] tracking-[-0.07em] sm:text-6xl">Van foto naar een <span className="text-[#a95f39]">bespreekbaar plan.</span></h1><p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">Maak transformatiekeuzes zichtbaar voor je team, zonder te doen alsof een AI-beeld de werkelijkheid voorspelt.</p></div>
-      <div className="flex shrink-0 items-center gap-2"><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={openProjectManager} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
     </header>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
@@ -370,7 +505,42 @@ function PropertyTransformer() {
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
+    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching} activeProjectId={project.id} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} />}
   </div></AppShell>;
+}
+
+function formatProjectUpdatedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Bijwerktijd onbekend' : `Bijgewerkt ${new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}`;
+}
+
+function ProjectManager({ projects, loading, busy, activeProjectId, onClose, onCreate, onOpen, onDelete }: {
+  projects: PropertyProject[];
+  loading: boolean;
+  busy: boolean;
+  activeProjectId: string | null;
+  onClose: () => void;
+  onCreate: () => void;
+  onOpen: (id: string) => void;
+  onDelete: (project: PropertyProject) => void;
+}) {
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-[#1c2739]/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-project-list-title" data-testid="dialog-project-manager">
+    <div className="mx-auto my-6 max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
+        <div><p className="mono text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Browser-only opslag</p><h2 id="property-project-list-title" className="display mt-1 text-2xl font-bold tracking-[-.05em]">Vastgoedprojecten</h2><p className="mt-1 text-xs text-muted-foreground">Projectdetails en foto’s worden alleen in deze browser bewaard.</p></div>
+        <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Sluit projectenlijst" data-testid="button-close-projects"><X size={18} /></button>
+      </div>
+      <div className="space-y-3 p-5 sm:p-7">
+        <button onClick={onCreate} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] transition-colors hover:bg-[#34435b] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw vastgoedproject</button>
+        {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
+          {projects.map((item) => <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toegevoegd'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p></div>
+            <div className="flex shrink-0 gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
+          </li>)}
+        </ul>}
+      </div>
+    </div>
+  </div>;
 }
 
 type ProjectProjectRoi = 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent';

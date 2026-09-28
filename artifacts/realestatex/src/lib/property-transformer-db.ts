@@ -87,15 +87,44 @@ export async function savePropertyProject(project: PropertyProject): Promise<voi
   await put(PROJECTS, project);
 }
 
-export async function loadLatestPropertyProject(): Promise<PropertyProject | undefined> {
+export async function loadPropertyProjects(): Promise<PropertyProject[]> {
   const db = await openDb();
-  const projects = await new Promise<PropertyProject[]>((resolve, reject) => {
-    const request = db.transaction(PROJECTS, 'readonly').objectStore(PROJECTS).getAll();
-    request.onsuccess = () => resolve(request.result as PropertyProject[]);
-    request.onerror = () => reject(request.error);
-  });
-  db.close();
-  return projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  try {
+    const projects = await new Promise<PropertyProject[]>((resolve, reject) => {
+      const request = db.transaction(PROJECTS, 'readonly').objectStore(PROJECTS).getAll();
+      request.onsuccess = () => resolve(request.result as PropertyProject[]);
+      request.onerror = () => reject(request.error);
+    });
+    return projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  } finally {
+    db.close();
+  }
+}
+
+export async function loadPropertyProject(id: string): Promise<PropertyProject | undefined> {
+  return get<PropertyProject>(PROJECTS, id);
+}
+
+export async function loadLatestPropertyProject(): Promise<PropertyProject | undefined> {
+  return (await loadPropertyProjects())[0];
+}
+
+export async function deletePropertyProject(project: Pick<PropertyProject, 'id' | 'originalKey' | 'resultKeys'>): Promise<void> {
+  const db = await openDb();
+  const imageKeys = new Set([project.originalKey, ...Object.values(project.resultKeys)].filter((key): key is string => Boolean(key)));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      transaction.objectStore(PROJECTS).delete(project.id);
+      const imageStore = transaction.objectStore(IMAGES);
+      for (const key of imageKeys) imageStore.delete(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export async function savePropertyImage(record: PropertyImageRecord): Promise<void> {
