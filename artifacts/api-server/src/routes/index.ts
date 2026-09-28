@@ -11,6 +11,7 @@ import crmRouter from "./crm";
 import enterpriseRouter from "./enterprise";
 import trainingRouter from "./training";
 import intelligenceRouter from "./intelligence";
+import propertyTransformationsRouter from "./property-transformations";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(crmRouter);
 router.use(enterpriseRouter);
 router.use(trainingRouter);
 router.use(intelligenceRouter);
+router.use(propertyTransformationsRouter);
 
 export default router;

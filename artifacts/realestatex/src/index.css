@@ -431,6 +431,26 @@
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+
+  .property-grid {
+    background-image: linear-gradient(to right, rgba(36, 50, 75, .055) 1px, transparent 1px), linear-gradient(to bottom, rgba(36, 50, 75, .055) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .property-noise {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .property-noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: .04;
+    z-index: -1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+  }
 }
 
 @layer base {

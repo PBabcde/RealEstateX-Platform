@@ -34,6 +34,8 @@ tags:
     description: ChatBoxX sessions
   - name: enterprise
     description: Tenant-scoped Dealing Room, investor, CRM and SaaS operations
+  - name: property-transformations
+    description: Authenticated, non-persistent AI image transformations for RealEstateX
 paths:
   /healthz:
     get:
@@ -890,6 +892,182 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DailyMarketPulse"
+  /property-transformations/declutter:
+    post:
+      operationId: declutterPropertyImage
+      tags: [property-transformations]
+      summary: Declutter movable items in a property photograph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyImageTransformInput"
+      responses:
+        "200":
+          description: Decluttered concept image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyImageTransformResult"
+        "400":
+          description: Invalid image input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Image exceeds the request body limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Per-user transformation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Image transformation provider failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /property-transformations/virtual-staging:
+    post:
+      operationId: stagePropertyImage
+      tags: [property-transformations]
+      summary: Virtually stage a property photograph
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyImageTransformInput"
+      responses:
+        "200":
+          description: Virtually staged concept image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyImageTransformResult"
+        "400":
+          description: Invalid image input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Image exceeds the request body limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Per-user transformation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Image transformation provider failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /property-transformations/makeover:
+    post:
+      operationId: makeoverPropertyImage
+      tags: [property-transformations]
+      summary: Apply a selected Japandi, Modern, or Industrial visual makeover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyMakeoverInput"
+      responses:
+        "200":
+          description: Styled concept image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyImageTransformResult"
+        "400":
+          description: Invalid image input or style
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Image exceeds the request body limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Per-user transformation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Image transformation provider failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /property-transformations/day-to-dusk:
+    post:
+      operationId: convertPropertyImageToDusk
+      tags: [property-transformations]
+      summary: Convert a property photograph to a dusk lighting concept
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyImageTransformInput"
+      responses:
+        "200":
+          description: Day-to-dusk concept image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyImageTransformResult"
+        "400":
+          description: Invalid image input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Image exceeds the request body limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Per-user transformation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Image transformation provider failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /investors/{investorId}/recommendations:
     get:
       operationId: getInvestorRecommendations
@@ -1330,6 +1508,46 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    PropertyImageTransformInput:
+      type: object
+      required: [imageDataUrl]
+      properties:
+        imageDataUrl:
+          type: string
+          description: Base64 data URL for a resized JPEG or PNG; retained only by the caller's browser.
+          maxLength: 880000
+          pattern: "^data:image/(jpeg|png);base64,"
+        style:
+          type: string
+          enum: [japandi, modern, industrial]
+          description: Optional style for virtual staging.
+    PropertyMakeoverInput:
+      type: object
+      required: [imageDataUrl, style]
+      properties:
+        imageDataUrl:
+          type: string
+          description: Base64 data URL for a resized JPEG or PNG; retained only by the caller's browser.
+          maxLength: 880000
+          pattern: "^data:image/(jpeg|png);base64,"
+        style:
+          type: string
+          enum: [japandi, modern, industrial]
+    PropertyImageTransformResult:
+      type: object
+      required: [imageDataUrl, mimeType, isConcept, disclaimer]
+      properties:
+        imageDataUrl:
+          type: string
+          description: Generated PNG data URL returned to the browser; not persisted by the API.
+        mimeType:
+          type: string
+          const: image/png
+        isConcept:
+          type: boolean
+          const: true
+        disclaimer:
+          type: string
     DealInput:
       type: object
       required: [propertyId, title, region, askingPrice, expectedValue]

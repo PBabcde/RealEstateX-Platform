@@ -8,6 +8,7 @@ import NotFound from '@/pages/not-found';
 import { Calculators, Dashboard, Market, Properties, Suite } from '@/pages/pages';
 import { DealingRoom } from '@/pages/enterprise';
 import { TrainingRoom } from '@/pages/training-room';
+import { PropertyTransformer } from '@/pages/property-transformer';
 import {
   Route,
   Switch,
@@ -30,6 +31,7 @@ function Router() {
          <Route path="/suite" component={Suite} />
           <Route path="/dealing-room" component={DealingRoom} />
           <Route path="/training-room" component={TrainingRoom} />
+          <Route path="/property-transformer" component={PropertyTransformer} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

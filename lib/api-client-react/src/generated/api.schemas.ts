@@ -5,6 +5,56 @@
  * RealEstateX property intelligence API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Optional style for virtual staging.
+ */
+export type PropertyImageTransformInputStyle = typeof PropertyImageTransformInputStyle[keyof typeof PropertyImageTransformInputStyle];
+
+
+export const PropertyImageTransformInputStyle = {
+  japandi: 'japandi',
+  modern: 'modern',
+  industrial: 'industrial',
+} as const;
+
+export interface PropertyImageTransformInput {
+  /**
+     * Base64 data URL for a resized JPEG or PNG; retained only by the caller's browser.
+     * @maxLength 880000
+     * @pattern ^data:image/(jpeg|png);base64,
+     */
+  imageDataUrl: string;
+  /** Optional style for virtual staging. */
+  style?: PropertyImageTransformInputStyle;
+}
+
+export type PropertyMakeoverInputStyle = typeof PropertyMakeoverInputStyle[keyof typeof PropertyMakeoverInputStyle];
+
+
+export const PropertyMakeoverInputStyle = {
+  japandi: 'japandi',
+  modern: 'modern',
+  industrial: 'industrial',
+} as const;
+
+export interface PropertyMakeoverInput {
+  /**
+     * Base64 data URL for a resized JPEG or PNG; retained only by the caller's browser.
+     * @maxLength 880000
+     * @pattern ^data:image/(jpeg|png);base64,
+     */
+  imageDataUrl: string;
+  style: PropertyMakeoverInputStyle;
+}
+
+export interface PropertyImageTransformResult {
+  /** Generated PNG data URL returned to the browser; not persisted by the API. */
+  imageDataUrl: string;
+  mimeType: 'image/png';
+  isConcept: true;
+  disclaimer: string;
+}
+
 export interface DealInput {
   /** @minLength 1 */
   propertyId: string;

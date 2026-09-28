@@ -2146,6 +2146,94 @@ export const GetDailyMarketPulseResponse = zod.object({
 
 
 /**
+ * @summary Declutter movable items in a property photograph
+ */
+export const declutterPropertyImageBodyImageDataUrlMax = 880000;
+
+
+export const declutterPropertyImageBodyImageDataUrlRegExp = new RegExp('^data:image/(jpeg|png);base64,');
+
+
+export const DeclutterPropertyImageBody = zod.object({
+  "imageDataUrl": zod.string().max(declutterPropertyImageBodyImageDataUrlMax).regex(declutterPropertyImageBodyImageDataUrlRegExp).describe('Base64 data URL for a resized JPEG or PNG; retained only by the caller\'s browser.'),
+  "style": zod.enum(['japandi', 'modern', 'industrial']).optional().describe('Optional style for virtual staging.')
+})
+
+export const DeclutterPropertyImageResponse = zod.object({
+  "imageDataUrl": zod.string().describe('Generated PNG data URL returned to the browser; not persisted by the API.'),
+  "mimeType": zod.literal("image/png"),
+  "isConcept": zod.literal(true),
+  "disclaimer": zod.string()
+})
+
+
+/**
+ * @summary Virtually stage a property photograph
+ */
+export const stagePropertyImageBodyImageDataUrlMax = 880000;
+
+
+export const stagePropertyImageBodyImageDataUrlRegExp = new RegExp('^data:image/(jpeg|png);base64,');
+
+
+export const StagePropertyImageBody = zod.object({
+  "imageDataUrl": zod.string().max(stagePropertyImageBodyImageDataUrlMax).regex(stagePropertyImageBodyImageDataUrlRegExp).describe('Base64 data URL for a resized JPEG or PNG; retained only by the caller\'s browser.'),
+  "style": zod.enum(['japandi', 'modern', 'industrial']).optional().describe('Optional style for virtual staging.')
+})
+
+export const StagePropertyImageResponse = zod.object({
+  "imageDataUrl": zod.string().describe('Generated PNG data URL returned to the browser; not persisted by the API.'),
+  "mimeType": zod.literal("image/png"),
+  "isConcept": zod.literal(true),
+  "disclaimer": zod.string()
+})
+
+
+/**
+ * @summary Apply a selected Japandi, Modern, or Industrial visual makeover
+ */
+export const makeoverPropertyImageBodyImageDataUrlMax = 880000;
+
+
+export const makeoverPropertyImageBodyImageDataUrlRegExp = new RegExp('^data:image/(jpeg|png);base64,');
+
+
+export const MakeoverPropertyImageBody = zod.object({
+  "imageDataUrl": zod.string().max(makeoverPropertyImageBodyImageDataUrlMax).regex(makeoverPropertyImageBodyImageDataUrlRegExp).describe('Base64 data URL for a resized JPEG or PNG; retained only by the caller\'s browser.'),
+  "style": zod.enum(['japandi', 'modern', 'industrial'])
+})
+
+export const MakeoverPropertyImageResponse = zod.object({
+  "imageDataUrl": zod.string().describe('Generated PNG data URL returned to the browser; not persisted by the API.'),
+  "mimeType": zod.literal("image/png"),
+  "isConcept": zod.literal(true),
+  "disclaimer": zod.string()
+})
+
+
+/**
+ * @summary Convert a property photograph to a dusk lighting concept
+ */
+export const convertPropertyImageToDuskBodyImageDataUrlMax = 880000;
+
+
+export const convertPropertyImageToDuskBodyImageDataUrlRegExp = new RegExp('^data:image/(jpeg|png);base64,');
+
+
+export const ConvertPropertyImageToDuskBody = zod.object({
+  "imageDataUrl": zod.string().max(convertPropertyImageToDuskBodyImageDataUrlMax).regex(convertPropertyImageToDuskBodyImageDataUrlRegExp).describe('Base64 data URL for a resized JPEG or PNG; retained only by the caller\'s browser.'),
+  "style": zod.enum(['japandi', 'modern', 'industrial']).optional().describe('Optional style for virtual staging.')
+})
+
+export const ConvertPropertyImageToDuskResponse = zod.object({
+  "imageDataUrl": zod.string().describe('Generated PNG data URL returned to the browser; not persisted by the API.'),
+  "mimeType": zod.literal("image/png"),
+  "isConcept": zod.literal(true),
+  "disclaimer": zod.string()
+})
+
+
+/**
  * @summary Get profile-personalized deal recommendations and greeting
  */
 

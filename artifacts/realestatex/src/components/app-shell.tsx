@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, X } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/suite', label: 'Suite', note: '20 verbonden modules', icon: Boxes },
   { href: '/dealing-room', label: 'Dealing Room', note: 'Deals & matching', icon: Handshake },
   { href: '/training-room', label: 'Training Room', note: 'Scenario simulator', icon: GraduationCap },
+  { href: '/property-transformer', label: 'Property Transformer', note: 'Foto naar plan', icon: Sparkles },
 ];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {

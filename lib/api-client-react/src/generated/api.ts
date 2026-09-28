@@ -71,7 +71,10 @@ import type {
   NeighborhoodSentimentSnapshot,
   NotFoundResponse,
   Property,
+  PropertyImageTransformInput,
+  PropertyImageTransformResult,
   PropertyInput,
+  PropertyMakeoverInput,
   PropertyUpdate,
   RentalInput,
   RentalResult,
@@ -3760,6 +3763,358 @@ export function useGetDailyMarketPulse<TData = Awaited<ReturnType<typeof getDail
 
 
 
+
+export const getDeclutterPropertyImageUrl = () => {
+
+
+
+
+  return `/api/property-transformations/declutter`
+}
+
+/**
+ * @summary Declutter movable items in a property photograph
+ */
+export const declutterPropertyImage = async (propertyImageTransformInput: PropertyImageTransformInput, options?: Parameters<typeof customFetch>[1]): Promise<PropertyImageTransformResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PropertyImageTransformResult>(getDeclutterPropertyImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyImageTransformInput)
+  }
+);}
+
+
+
+
+
+export const getDeclutterPropertyImageMutationKey = () => ['declutterPropertyImage'] as const;
+
+export const getDeclutterPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext> => {
+
+const mutationKey = getDeclutterPropertyImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declutterPropertyImage>>, DeclutterPropertyImageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  declutterPropertyImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclutterPropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof declutterPropertyImage>>>
+    export type DeclutterPropertyImageMutationBody = BodyType<PropertyImageTransformInput>
+    export type DeclutterPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type DeclutterPropertyImageMutationVariables = {data: BodyType<PropertyImageTransformInput>}
+
+    /**
+ * @summary Declutter movable items in a property photograph
+ */
+export const useDeclutterPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declutterPropertyImage>>,
+        TError,
+        DeclutterPropertyImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeclutterPropertyImageMutationOptions(options));
+    }
+
+export const getStagePropertyImageUrl = () => {
+
+
+
+
+  return `/api/property-transformations/virtual-staging`
+}
+
+/**
+ * @summary Virtually stage a property photograph
+ */
+export const stagePropertyImage = async (propertyImageTransformInput: PropertyImageTransformInput, options?: Parameters<typeof customFetch>[1]): Promise<PropertyImageTransformResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PropertyImageTransformResult>(getStagePropertyImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyImageTransformInput)
+  }
+);}
+
+
+
+
+
+export const getStagePropertyImageMutationKey = () => ['stagePropertyImage'] as const;
+
+export const getStagePropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext> => {
+
+const mutationKey = getStagePropertyImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof stagePropertyImage>>, StagePropertyImageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  stagePropertyImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StagePropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof stagePropertyImage>>>
+    export type StagePropertyImageMutationBody = BodyType<PropertyImageTransformInput>
+    export type StagePropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type StagePropertyImageMutationVariables = {data: BodyType<PropertyImageTransformInput>}
+
+    /**
+ * @summary Virtually stage a property photograph
+ */
+export const useStagePropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof stagePropertyImage>>,
+        TError,
+        StagePropertyImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getStagePropertyImageMutationOptions(options));
+    }
+
+export const getMakeoverPropertyImageUrl = () => {
+
+
+
+
+  return `/api/property-transformations/makeover`
+}
+
+/**
+ * @summary Apply a selected Japandi, Modern, or Industrial visual makeover
+ */
+export const makeoverPropertyImage = async (propertyMakeoverInput: PropertyMakeoverInput, options?: Parameters<typeof customFetch>[1]): Promise<PropertyImageTransformResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PropertyImageTransformResult>(getMakeoverPropertyImageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyMakeoverInput)
+  }
+);}
+
+
+
+
+
+export const getMakeoverPropertyImageMutationKey = () => ['makeoverPropertyImage'] as const;
+
+export const getMakeoverPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext> => {
+
+const mutationKey = getMakeoverPropertyImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof makeoverPropertyImage>>, MakeoverPropertyImageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  makeoverPropertyImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MakeoverPropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof makeoverPropertyImage>>>
+    export type MakeoverPropertyImageMutationBody = BodyType<PropertyMakeoverInput>
+    export type MakeoverPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type MakeoverPropertyImageMutationVariables = {data: BodyType<PropertyMakeoverInput>}
+
+    /**
+ * @summary Apply a selected Japandi, Modern, or Industrial visual makeover
+ */
+export const useMakeoverPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof makeoverPropertyImage>>,
+        TError,
+        MakeoverPropertyImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMakeoverPropertyImageMutationOptions(options));
+    }
+
+export const getConvertPropertyImageToDuskUrl = () => {
+
+
+
+
+  return `/api/property-transformations/day-to-dusk`
+}
+
+/**
+ * @summary Convert a property photograph to a dusk lighting concept
+ */
+export const convertPropertyImageToDusk = async (propertyImageTransformInput: PropertyImageTransformInput, options?: Parameters<typeof customFetch>[1]): Promise<PropertyImageTransformResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PropertyImageTransformResult>(getConvertPropertyImageToDuskUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyImageTransformInput)
+  }
+);}
+
+
+
+
+
+export const getConvertPropertyImageToDuskMutationKey = () => ['convertPropertyImageToDusk'] as const;
+
+export const getConvertPropertyImageToDuskMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext> => {
+
+const mutationKey = getConvertPropertyImageToDuskMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, ConvertPropertyImageToDuskMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  convertPropertyImageToDusk(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertPropertyImageToDuskMutationResult = NonNullable<Awaited<ReturnType<typeof convertPropertyImageToDusk>>>
+    export type ConvertPropertyImageToDuskMutationBody = BodyType<PropertyImageTransformInput>
+    export type ConvertPropertyImageToDuskMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type ConvertPropertyImageToDuskMutationVariables = {data: BodyType<PropertyImageTransformInput>}
+
+    /**
+ * @summary Convert a property photograph to a dusk lighting concept
+ */
+export const useConvertPropertyImageToDusk = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertPropertyImageToDusk>>,
+        TError,
+        ConvertPropertyImageToDuskMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConvertPropertyImageToDuskMutationOptions(options));
+    }
 
 export const getGetInvestorRecommendationsUrl = (investorId: string,) => {
 

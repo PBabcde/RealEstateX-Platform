@@ -76,6 +76,15 @@ app.use(
     res: Response,
     _next: NextFunction,
   ): void => {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
+      res.status(413).json({ error: "Request body is too large." });
+      return;
+    }
     if (error instanceof SyntaxError) {
       res.status(400).json({ error: "Invalid JSON body" });
       return;
