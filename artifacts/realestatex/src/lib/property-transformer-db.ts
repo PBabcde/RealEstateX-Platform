@@ -87,6 +87,22 @@ export async function savePropertyProject(project: PropertyProject): Promise<voi
   await put(PROJECTS, project);
 }
 
+export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord): Promise<void> {
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      transaction.objectStore(PROJECTS).put(project);
+      transaction.objectStore(IMAGES).put(image);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function loadPropertyProjects(): Promise<PropertyProject[]> {
   const db = await openDb();
   try {
@@ -148,6 +164,29 @@ export async function deletePropertyImage(key: string): Promise<void> {
 
 export async function loadPropertyImage(key: string): Promise<PropertyImageRecord | undefined> {
   return get<PropertyImageRecord>(IMAGES, key);
+}
+
+export async function loadPropertyProjectImages(project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>): Promise<{
+  original?: PropertyImageRecord;
+  results: Partial<Record<PropertyAction, PropertyImageRecord>>;
+  missingOriginal: boolean;
+  missingConcepts: PropertyAction[];
+}> {
+  const original = project.originalKey ? await loadPropertyImage(project.originalKey) : undefined;
+  const missingConcepts: PropertyAction[] = [];
+  const results: Partial<Record<PropertyAction, PropertyImageRecord>> = {};
+  for (const [action, key] of Object.entries(project.resultKeys)) {
+    if (!key) continue;
+    const image = await loadPropertyImage(key);
+    if (image) results[action as PropertyAction] = image;
+    else missingConcepts.push(action as PropertyAction);
+  }
+  return {
+    original,
+    results,
+    missingOriginal: Boolean(project.originalKey) && !original,
+    missingConcepts,
+  };
 }
 
 export function blobToObjectUrl(blob: Blob): string {

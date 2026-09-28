@@ -1,10 +1,13 @@
 import {
   deletePropertyProject,
+  deletePropertyImage,
   loadPropertyImage,
   loadPropertyProject,
+  loadPropertyProjectImages,
   loadPropertyProjects,
   savePropertyImage,
   savePropertyProject,
+  savePropertyProjectWithImage,
 } from '../src/lib/property-transformer-db.ts';
 
 const result = document.querySelector('#test-result');
@@ -15,6 +18,8 @@ const imagePayloads = {
   'alpha-stage': { text: 'alpha generated concept', type: 'image/jpeg', label: 'Virtual stage' },
   'beta-original': { text: 'beta source photo', type: 'image/png', label: 'Originele foto' },
   'beta-dusk': { text: 'beta generated concept', type: 'image/jpeg', label: 'Day to dusk' },
+  'recovery-original': { text: 'replacement source photo', type: 'image/png', label: 'Originele foto' },
+  'recovery-stage': { text: 'saved concept whose image is missing', type: 'image/jpeg', label: 'Virtual stage' },
 };
 
 function assert(condition, message) {
@@ -188,9 +193,74 @@ async function run() {
       assert(!(await loadPropertyImage(key)), `Image ${key} returned after deletion and reload.`);
     }
     await assertProjectAndPhotos('beta');
-    sessionStorage.removeItem(phaseKey);
+    const recoveryProject = makeProject({
+      id: 'project-recovery',
+      name: 'Photo recovery fixture',
+      originalKey: 'recovery-original',
+      resultAction: 'stage',
+      resultKey: 'recovery-stage',
+      style: 'industrial',
+      splitRatio: 71,
+      flipHorizontal: true,
+      purchasePrice: 384000,
+      renovationCost: 46250,
+      acquisitionCost: 10750,
+      estimatedValue: 498000,
+      monthlyRent: 2180,
+      unitFlip: true,
+      checklist: [
+        ['recovery-inspect', 'Inspect roof', true],
+        ['recovery-contract', 'Confirm contractor', false],
+      ],
+    });
+    recoveryProject.updatedAt = '2026-09-28T00:00:00.000Z';
+    await savePropertyProjectWithImage(recoveryProject, {
+      key: 'recovery-original',
+      blob: new Blob([imagePayloads['recovery-original'].text], { type: 'image/png' }),
+      label: imagePayloads['recovery-original'].label,
+      mimeType: 'image/png',
+      isConcept: false,
+      disclaimer: 'Source photo stored locally.',
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    await saveImage('recovery-stage');
+    await deletePropertyImage('recovery-original');
+    await deletePropertyImage('recovery-stage');
+    const missingImages = await loadPropertyProjectImages(recoveryProject);
+    assert(missingImages.missingOriginal, 'A missing source image was not identified.');
+    assert(missingImages.missingConcepts.includes('stage'), 'A missing concept image was not identified.');
+    assert(!missingImages.results.stage, 'A missing concept was returned as if its image existed.');
+    assert(recoveryProject.selectedResult === 'stage', 'The selected scenario changed when its image went missing.');
+
+    const restoredProject = { ...recoveryProject, originalKey: 'recovery-restored-original', updatedAt: '2026-09-28T00:01:00.000Z' };
+    await savePropertyProjectWithImage(restoredProject, {
+      key: 'recovery-restored-original',
+      blob: new Blob(['replacement source photo'], { type: 'image/png' }),
+      label: 'Originele foto',
+      mimeType: 'image/png',
+      isConcept: false,
+      disclaimer: 'Source photo stored locally.',
+      createdAt: '2026-09-28T00:01:00.000Z',
+    });
+    const storedRecovery = await loadPropertyProject(recoveryProject.id);
+    assert(storedRecovery?.originalKey === 'recovery-restored-original', 'Replacement source photo was not saved with the project.');
+    const settingsOnly = (project) => {
+      const settings = { ...project };
+      delete settings.originalKey;
+      delete settings.updatedAt;
+      return settings;
+    };
+    const storedSettings = settingsOnly(storedRecovery);
+    const expectedSettings = settingsOnly(recoveryProject);
+    assert(JSON.stringify(storedSettings) === JSON.stringify(expectedSettings), 'Source-photo recovery changed saved project settings.');
+    const restoredImages = await loadPropertyProjectImages(storedRecovery);
+    assert(restoredImages.original?.key === 'recovery-restored-original', 'Replacement source photo could not be loaded.');
+    assert(restoredImages.missingConcepts.includes('stage'), 'Restoring the source photo hid the still-missing concept image.');
+    assert(storedRecovery.selectedResult === 'stage', 'Restoring the source photo changed the selected scenario.');
+
+    await deletePropertyImage('recovery-stage');
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: both projects and all settings/photos survived reload; deleting project A left project B and its images intact.';
+    result.textContent = 'Passed: project settings and photos survived reload; missing source and concept images were reported; restoring the source preserved settings and the selected concept scenario.';
     return;
   }
 

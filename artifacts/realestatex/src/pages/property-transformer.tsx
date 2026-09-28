@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, savePropertyImage, savePropertyProject, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, loadPropertyProjectImages, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -109,6 +109,8 @@ function PropertyTransformer() {
   const [isProjectSwitching, setIsProjectSwitching] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [notice, setNotice] = useState('');
+  const [missingOriginalPhoto, setMissingOriginalPhoto] = useState(false);
+  const [missingConceptActions, setMissingConceptActions] = useState<PropertyAction[]>([]);
   const [splitRatio, setSplitRatio] = useState(50);
   const [transferOpen, setTransferOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'studio' | 'split' | 'roi'>('studio');
@@ -139,22 +141,18 @@ function PropertyTransformer() {
     const createdUrls: string[] = [];
     try {
       let loadedOriginalUrl = '';
-      if (target.originalKey) {
-        const image = await loadPropertyImage(target.originalKey);
-        if (!image) throw new Error('De bronfoto van dit project ontbreekt in de browseropslag.');
-        loadedOriginalUrl = createObjectUrl(image.blob);
+      const projectImages = await loadPropertyProjectImages(target);
+      if (projectImages.original) {
+        loadedOriginalUrl = createObjectUrl(projectImages.original.blob);
         createdUrls.push(loadedOriginalUrl);
       }
       const loadedResults: Partial<Record<PropertyAction, ResultMeta>> = {};
-      for (const [action, key] of Object.entries(target.resultKeys)) {
-        if (!key) continue;
-        const image = await loadPropertyImage(key);
-        if (!image) throw new Error('Een opgeslagen conceptfoto van dit project ontbreekt in de browseropslag.');
+      for (const [action, image] of Object.entries(projectImages.results)) {
         const imageUrl = createObjectUrl(image.blob);
         createdUrls.push(imageUrl);
-        loadedResults[action as PropertyAction] = { key, label: image.label, imageUrl, isConcept: image.isConcept, disclaimer: image.disclaimer };
+        loadedResults[action as PropertyAction] = { key: image.key, label: image.label, imageUrl, isConcept: image.isConcept, disclaimer: image.disclaimer };
       }
-      return { originalUrl: loadedOriginalUrl, results: loadedResults };
+      return { originalUrl: loadedOriginalUrl, results: loadedResults, missingSource: projectImages.missingOriginal, missingConcepts: projectImages.missingConcepts };
     } catch (error) {
       for (const url of createdUrls) revokeObjectUrl(url);
       throw error;
@@ -196,6 +194,8 @@ function PropertyTransformer() {
           }
           setOriginalUrl(loaded.originalUrl);
           setResults(loaded.results);
+          setMissingOriginalPhoto(loaded.missingSource);
+          setMissingConceptActions(loaded.missingConcepts);
         } catch (error) {
           if (active) setUploadError(error instanceof Error ? error.message : 'De projectfoto’s konden niet uit de lokale opslag worden geladen.');
         }
@@ -261,6 +261,8 @@ function PropertyTransformer() {
       setProject(selected);
       setOriginalUrl(loaded.originalUrl);
       setResults(loaded.results);
+      setMissingOriginalPhoto(loaded.missingSource);
+      setMissingConceptActions(loaded.missingConcepts);
       setSplitRatio(selected.splitRatio);
       setActiveTab('studio');
       setTransferOpen(false);
@@ -283,6 +285,8 @@ function PropertyTransformer() {
       setProject(created);
       setOriginalUrl('');
       setResults({});
+      setMissingOriginalPhoto(false);
+      setMissingConceptActions([]);
       setSplitRatio(created.splitRatio);
       setActiveTab('studio');
       setTransferOpen(false);
@@ -307,6 +311,8 @@ function PropertyTransformer() {
         setProject(null);
         setOriginalUrl('');
         setResults({});
+        setMissingOriginalPhoto(false);
+        setMissingConceptActions([]);
         setSplitRatio(50);
         setTransferOpen(false);
       }
@@ -333,21 +339,34 @@ function PropertyTransformer() {
       const compressed = await compressImage(file);
       const latestProject = projectRef.current ?? form;
       const key = `${latestProject.id}-original-${crypto.randomUUID()}`;
-      await savePropertyImage({ key, blob: compressed.blob, label: 'Originele foto', mimeType: compressed.blob.type, isConcept: false, disclaimer: 'Originele foto, lokaal opgeslagen in deze browser.', createdAt: new Date().toISOString() });
-      const oldImageKeys = [...new Set([latestProject.originalKey, ...Object.values(latestProject.resultKeys)].filter((imageKey): imageKey is string => Boolean(imageKey)))];
-      const next = { ...latestProject, originalKey: key, resultKeys: {}, selectedResult: null, updatedAt: new Date().toISOString() };
-      await savePropertyProject(next);
-      for (const oldResult of Object.values(results)) {
-        if (oldResult) revokeObjectUrl(oldResult.imageUrl);
+      const image: PropertyImageRecord = { key, blob: compressed.blob, label: 'Originele foto', mimeType: compressed.blob.type, isConcept: false, disclaimer: 'Originele foto, lokaal opgeslagen in deze browser.', createdAt: new Date().toISOString() };
+      const recoveringMissingSource = missingOriginalPhoto;
+      const oldImageKeys = [...new Set((recoveringMissingSource
+        ? [latestProject.originalKey]
+        : [latestProject.originalKey, ...Object.values(latestProject.resultKeys)]).filter((imageKey): imageKey is string => Boolean(imageKey)))];
+      const next = {
+        ...latestProject,
+        originalKey: key,
+        ...(!recoveringMissingSource ? { resultKeys: {}, selectedResult: null } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      await savePropertyProjectWithImage(next, image);
+      if (!recoveringMissingSource) {
+        for (const oldResult of Object.values(results)) {
+          if (oldResult) revokeObjectUrl(oldResult.imageUrl);
+        }
       }
       if (originalUrl) revokeObjectUrl(originalUrl);
+      projectRef.current = next;
       setProject(next);
       setOriginalUrl(createObjectUrl(compressed.blob));
-      setResults({});
+      if (!recoveringMissingSource) setResults({});
+      setMissingOriginalPhoto(false);
+      if (!recoveringMissingSource) setMissingConceptActions([]);
       try {
         await Promise.all(oldImageKeys.map(deletePropertyImage));
       } catch {
-        setUploadError('De nieuwe foto is opgeslagen, maar oude afbeeldingen konden niet allemaal worden opgeruimd.');
+        setUploadError('De nieuwe foto is opgeslagen, maar de oude bronfoto kon niet worden opgeruimd.');
       }
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Probeer een andere afbeelding.');
@@ -382,6 +401,7 @@ function PropertyTransformer() {
               if (previousResult) revokeObjectUrl(previousResult.imageUrl);
               const meta = { key, label: actions.find((item) => item.id === action)?.label ?? action, imageUrl: createObjectUrl(blob), isConcept: response.isConcept, disclaimer: response.disclaimer };
               setResults((current) => ({ ...current, [action]: meta }));
+              setMissingConceptActions((current) => current.filter((missingAction) => missingAction !== action));
               setProject(next);
               if (previousKey && previousKey !== key) {
                 try {
@@ -489,6 +509,10 @@ function PropertyTransformer() {
       <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={openProjectManager} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
     </header>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
+     {(missingOriginalPhoto || missingConceptActions.length > 0) && <div className="mb-5 flex flex-col gap-2 rounded-xl border border-[#e7c98a] bg-[#fff8e7] px-4 py-3 text-xs text-[#76551c]" role="alert" data-testid="status-missing-project-images">
+       {missingOriginalPhoto && <div className="flex flex-wrap items-center justify-between gap-2"><p><strong>De bronfoto ontbreekt.</strong> Je project, financiële aannames, units en checklist zijn behouden.</p><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="shrink-0 rounded-lg bg-[#8d6320] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-50" data-testid="button-restore-source-photo">{isUploading ? 'Foto voorbereiden…' : 'Bronfoto toevoegen'}</button></div>}
+       {missingConceptActions.length > 0 && <div><p><strong>Conceptfoto ontbreekt:</strong> {missingConceptActions.map((action) => actions.find((item) => item.id === action)?.label ?? action).join(', ')}.</p><p className="mt-1">Het gekozen scenario blijft {actions.find((item) => item.id === project.selectedResult)?.label ?? 'ongewijzigd'}; het is niet automatisch aangepast.</p></div>}
+     </div>}
     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
     {notice && <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-transform-success"><Check size={15} />{notice}</div>}
     <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1" aria-label="Transformer onderdelen">{[{ id: 'studio', label: 'Studio', icon: WandSparkles }, { id: 'split', label: 'Split & flip', icon: Split }, { id: 'roi', label: 'ROI & yield', icon: CircleHelp }].map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActiveTab(id as typeof activeTab)} className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-colors ${activeTab === id ? 'bg-[#24324b] text-[#f7f3ec]' : 'text-muted-foreground hover:bg-secondary'}`} data-testid={`button-tab-${id}`}><Icon size={15} />{label}</button>)}</nav>
