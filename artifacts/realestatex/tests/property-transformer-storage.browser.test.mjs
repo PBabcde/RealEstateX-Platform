@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 
 const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -147,12 +148,206 @@ async function runBrowserTest(debugPort, url, browser) {
   throw new Error('Browser storage test timed out waiting for IndexedDB and reload checks to finish.');
 }
 
+async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser) {
+  const socketUrl = await getPageTarget(debugPort, browser);
+  const devTools = await connectDevTools(socketUrl);
+  await devTools.send('Runtime.enable');
+  await devTools.send('Page.enable');
+  await devTools.send('DOM.enable');
+  await devTools.send('Page.navigate', { url });
+
+  const evaluate = async (expression, awaitPromise = false) => {
+    const response = await devTools.send('Runtime.evaluate', {
+      expression,
+      awaitPromise,
+      returnByValue: true,
+    });
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+    }
+    return response.result?.value;
+  };
+  const waitFor = async (expression, predicate, description, timeoutMs = 30_000) => {
+    const deadline = Date.now() + timeoutMs;
+    let lastValue;
+    while (Date.now() < deadline) {
+      if (browser.exitCode !== null) throw new Error(`Chromium exited during ${description} (code ${browser.exitCode}).`);
+      const value = await evaluate(expression, true);
+      lastValue = value;
+      if (value?.status === 'failed') throw new Error(`Photo recovery fixture failed:\n${value.text}`);
+      if (predicate(value)) return value;
+      if (devTools.exceptions.length) {
+        throw new Error(`Browser exception during ${description}:\n${devTools.exceptions.join('\n')}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error(`Timed out waiting for ${description}. Last browser state: ${JSON.stringify(lastValue)}`);
+  };
+
+  try {
+    const initial = await waitFor(
+      `(() => {
+        const result = document.querySelector('#test-result');
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]');
+        return {
+          status: result?.dataset.status,
+          text: result?.textContent ?? '',
+          signedIn: Boolean(document.querySelector('[data-testid="button-logout"]')) && !document.querySelector('[data-testid="button-login"]'),
+          studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+          notice: notice?.textContent ?? '',
+        };
+      })()`,
+      (value) => value?.signedIn && value?.studioReady && value?.notice,
+      'the signed-in studio and missing-photo notices',
+    );
+    if (!initial.notice.includes('De bronfoto ontbreekt.')) {
+      throw new Error(`The studio did not show the missing source-photo notice: ${initial.notice}`);
+    }
+    if (!initial.notice.includes('Conceptfoto ontbreekt: Virtual stage.')) {
+      throw new Error(`The studio did not show the missing concept-photo notice: ${initial.notice}`);
+    }
+    if (!initial.notice.includes('Het gekozen scenario blijft Virtual stage')) {
+      throw new Error(`The studio did not explain that the selected scenario remains unchanged: ${initial.notice}`);
+    }
+
+    const initialProject = await evaluate(
+      `window.__propertyRecoveryTest.readProject()`,
+      true,
+    );
+    if (!initialProject || initialProject.id !== 'browser-photo-recovery-project') {
+      throw new Error('The expected saved project was not opened in the studio.');
+    }
+    const originalProjectSettings = JSON.stringify(initialProject);
+
+    const documentRoot = await devTools.send('DOM.getDocument');
+    const input = await devTools.send('DOM.querySelector', {
+      nodeId: documentRoot.root.nodeId,
+      selector: '[data-testid="input-property-image"]',
+    });
+    if (!input.nodeId) throw new Error('The source-photo upload input was not rendered.');
+    await devTools.send('DOM.setFileInputFiles', {
+      files: [uploadPath],
+      nodeId: input.nodeId,
+    });
+
+    await waitFor(
+      `(() => {
+        const result = document.querySelector('#test-result');
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]');
+        const stageAction = document.querySelector('[data-testid="button-transform-stage"]');
+        const error = document.querySelector('[data-testid="status-upload-error"]');
+        return {
+          status: result?.dataset.status,
+          text: result?.textContent ?? '',
+          notice: notice?.textContent ?? '',
+          sourceReady: !document.querySelector('[data-testid="button-empty-upload"]') && stageAction && !stageAction.disabled,
+          error: error?.textContent ?? '',
+        };
+      })()`,
+      (value) => value?.sourceReady && value.notice && !value.notice.includes('De bronfoto ontbreekt.'),
+      'the replacement source photo to be saved and displayed',
+    );
+
+    const persisted = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        source: await window.__propertyRecoveryTest.readSourceImage(
+          (await window.__propertyRecoveryTest.readProject())?.originalKey
+        ),
+      }))()`,
+      true,
+    );
+    if (!persisted.project || !persisted.source) {
+      throw new Error('The replacement source image was not stored in the browser.');
+    }
+    if (persisted.source.size <= 0 || persisted.source.isConcept || !persisted.source.type.startsWith('image/')) {
+      throw new Error('The recovered source image is not stored as a non-empty source photo.');
+    }
+    const settingsAfterRecovery = { ...persisted.project };
+    delete settingsAfterRecovery.originalKey;
+    delete settingsAfterRecovery.updatedAt;
+    const originalSettings = { ...JSON.parse(originalProjectSettings) };
+    delete originalSettings.originalKey;
+    delete originalSettings.updatedAt;
+    if (JSON.stringify(settingsAfterRecovery) !== JSON.stringify(originalSettings)) {
+      throw new Error('Replacing the missing source photo changed saved project assumptions or settings.');
+    }
+    if (persisted.project.selectedResult !== 'stage') {
+      throw new Error(`Source-photo recovery changed the selected scenario to ${persisted.project.selectedResult}.`);
+    }
+    const finalNotice = await evaluate(
+      `document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? ''`,
+    );
+    if (!finalNotice.includes('Conceptfoto ontbreekt: Virtual stage.')) {
+      throw new Error(`Recovering the source photo hid the still-missing concept notice: ${finalNotice}`);
+    }
+    if (!finalNotice.includes('Het gekozen scenario blijft Virtual stage')) {
+      throw new Error(`Recovering the source photo changed or hid the selected-scenario notice: ${finalNotice}`);
+    }
+
+    await evaluate(`(() => {
+      const result = document.querySelector('#test-result');
+      result.dataset.status = 'passed';
+      result.textContent = 'Passed: the authenticated studio showed both missing-photo notices, accepted a replacement source photo, and preserved saved assumptions and the selected Virtual stage scenario.';
+    })()`);
+    const passed = await waitFor(
+      `(() => {
+        const result = document.querySelector('#test-result');
+        return { status: result?.dataset.status, text: result?.textContent ?? '' };
+      })()`,
+      (value) => value?.status === 'passed',
+      'the authenticated photo recovery assertions',
+    );
+    return passed.text;
+  } finally {
+    devTools.close();
+  }
+}
+
+function pngChunk(type, data = Buffer.alloc(0)) {
+  const typeBytes = Buffer.from(type, 'ascii');
+  const payload = Buffer.concat([typeBytes, data]);
+  let checksum = 0xffffffff;
+  for (const byte of payload) {
+    checksum ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      checksum = (checksum >>> 1) ^ ((checksum & 1) ? 0xedb88320 : 0);
+    }
+  }
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE((checksum ^ 0xffffffff) >>> 0);
+  return Buffer.concat([length, payload, crc]);
+}
+
+function makeTestPng() {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const pixel = Buffer.from([0, 180, 130, 75, 255]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(pixel)),
+    pngChunk('IEND'),
+  ]);
+}
+
 const chromiumPath = process.env.CHROMIUM_PATH || process.env.CHROME_BIN || '/repl/tools/bin/chromium';
 const port = await getFreePort();
 const debugPort = await getFreePort();
-const url = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
+const storageUrl = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
+const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
-const server = spawn('pnpm', ['exec', 'vite', '--config', 'vite.config.ts', '--host', '127.0.0.1'], {
+const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
+await writeFile(
+  recoveryImagePath,
+  makeTestPng(),
+);
+const server = spawn('pnpm', ['exec', 'vite', '--config', 'tests/vite.authenticated.config.ts', '--host', '127.0.0.1'], {
   cwd: packageDir,
   env: { ...process.env, PORT: String(port), BASE_PATH: '/' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -163,7 +358,7 @@ server.stderr.setEncoding('utf8').on('data', (chunk) => { serverOutput += chunk;
 let browser;
 
 try {
-  await waitForServer(server, url);
+  await waitForServer(server, storageUrl);
   browser = spawn(chromiumPath, [
     '--headless',
     '--no-sandbox',
@@ -178,9 +373,11 @@ try {
     `--user-data-dir=${userDataDir}`,
     'about:blank',
   ], { stdio: 'ignore' });
-  const timeout = setTimeout(() => browser.kill('SIGKILL'), 60_000);
+  const timeout = setTimeout(() => browser.kill('SIGKILL'), 120_000);
   try {
-    console.log(await runBrowserTest(debugPort, url, browser));
+    const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
+    const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, browser);
+    console.log(`${storageResult}\n${recoveryResult}`);
   } finally {
     clearTimeout(timeout);
     await stopProcess(browser);
