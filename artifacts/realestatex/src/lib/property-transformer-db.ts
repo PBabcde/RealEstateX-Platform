@@ -205,27 +205,40 @@ function sortOrderPreferenceKey(scope: StorageScope): string {
 }
 
 export function loadPropertyProjectSortOrderPreference(scope: StorageScope = null): PropertyProjectSortOrder {
-  if (typeof window === 'undefined') return 'recent';
+  return readPropertyProjectSortOrderPreference(scope).order;
+}
+
+export type PropertyProjectSortOrderPreference = {
+  order: PropertyProjectSortOrder;
+  storageAvailable: boolean;
+};
+
+export function readPropertyProjectSortOrderPreference(
+  scope: StorageScope = null,
+): PropertyProjectSortOrderPreference {
+  if (typeof window === 'undefined') return { order: 'recent', storageAvailable: false };
 
   try {
     const preference = window.localStorage.getItem(sortOrderPreferenceKey(scope));
-    if (preference === 'recent' || preference === 'name' || preference === 'municipality') {
-      return preference;
-    }
+    const order = preference === 'recent' || preference === 'name' || preference === 'municipality'
+      ? preference
+      : 'recent';
+    return { order, storageAvailable: true };
   } catch {
     // Keep the project list available when browser preference storage is blocked.
+    return { order: 'recent', storageAvailable: false };
   }
-
-  return 'recent';
 }
 
-export function savePropertyProjectSortOrderPreference(order: PropertyProjectSortOrder, scope: StorageScope = null): void {
-  if (typeof window === 'undefined') return;
+export function savePropertyProjectSortOrderPreference(order: PropertyProjectSortOrder, scope: StorageScope = null): boolean {
+  if (typeof window === 'undefined') return false;
 
   try {
     window.localStorage.setItem(sortOrderPreferenceKey(scope), order);
+    return true;
   } catch {
     // Sorting still works for this session if browser preference storage is blocked.
+    return false;
   }
 }
 

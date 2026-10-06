@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk, useJoinPropertyProBetaWaitlist } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, readPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -911,13 +911,14 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
   onImportPortfolio: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<PropertyProjectSortOrder>(() => loadPropertyProjectSortOrderPreference(accountId));
+  const [sortPreference, setSortPreference] = useState(() => readPropertyProjectSortOrderPreference(accountId));
+  const sortOrder = sortPreference.order;
   const updateSortOrder = (order: PropertyProjectSortOrder) => {
-    setSortOrder(order);
-    savePropertyProjectSortOrderPreference(order, accountId);
+    const storageAvailable = savePropertyProjectSortOrderPreference(order, accountId);
+    setSortPreference({ order, storageAvailable });
   };
   useEffect(() => subscribePropertyProjectSortOrderPreferenceChanges(() => {
-    setSortOrder(loadPropertyProjectSortOrderPreference(accountId));
+    setSortPreference(readPropertyProjectSortOrderPreference(accountId));
   }, accountId), [accountId]);
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
   const matchingProjects = sortPropertyProjects(projects.filter((item) => {
@@ -959,6 +960,7 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
           <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Zoek opgeslagen projecten</span><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Naam, adres of gemeente" aria-label="Zoek op projectnaam, adres of gemeente" className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-10 text-sm outline-none transition-shadow placeholder:text-muted-foreground/50 focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-search-projects" />{searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary" aria-label="Wis zoekopdracht" data-testid="button-clear-project-search"><X size={14} /></button>}</div></label>
           <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Volgorde</span><select value={sortOrder} onChange={(event) => updateSortOrder(event.target.value as PropertyProjectSortOrder)} aria-label="Sorteer opgeslagen projecten" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition-shadow focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="select-project-sort-order"><option value="recent">Meest recent bijgewerkt</option><option value="name">Projectnaam A–Z</option><option value="municipality">Gemeente A–Z</option></select></label>
         </div>}
+        {!sortPreference.storageAvailable && <p className="rounded-xl border border-[#e7c98b] bg-[#fff8e8] px-4 py-3 text-xs text-[#76551c]" role="status" data-testid="status-project-sort-not-saved">Browseropslag voor je sorteerkeuze is geblokkeerd. De volgorde werkt nu wel, maar wordt niet bewaard na vernieuwen.</p>}
         {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 && queryTerms.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : matchingProjects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center" role="status" data-testid="empty-project-search"><p className="text-sm font-bold">Geen opgeslagen projecten gevonden</p><p className="mt-1 text-xs text-muted-foreground">Geen projectnaam, adres of gemeente komt overeen met “{searchQuery.trim()}”. Pas je zoekopdracht aan of wis deze om alle projecten te zien.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
            {matchingProjects.map((item) => {
              const health = photoHealthByProject[item.id];

@@ -728,7 +728,66 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
       throw new Error('Synchronizing the project-list order changed a saved project or its timestamp.');
     }
 
-    return 'Cross-tab project sorting passed: both open lists updated immediately and saved projects stayed unchanged.';
+    const blockedStorageResult = await evaluate(firstTab, `(() => {
+      const originalGetItem = Storage.prototype.getItem;
+      const originalSetItem = Storage.prototype.setItem;
+      const preferenceKey = window.__propertySortSyncTest.preferenceKey;
+      const originalPreference = originalGetItem.call(localStorage, preferenceKey);
+      let blockRead = true;
+      let blockWrite = false;
+      Storage.prototype.getItem = function(key) {
+        if (blockRead && key === preferenceKey) throw new DOMException('Storage access denied', 'SecurityError');
+        return originalGetItem.call(this, key);
+      };
+      Storage.prototype.setItem = function(key, value) {
+        if (blockWrite && key === preferenceKey) throw new DOMException('Storage access denied', 'SecurityError');
+        return originalSetItem.call(this, key, value);
+      };
+      originalSetItem.call(localStorage, preferenceKey, 'recent');
+      window.__propertySortSyncTest.setFailureMode = (mode) => {
+        blockRead = mode === 'read';
+        blockWrite = mode === 'write';
+      };
+      window.__propertySortSyncTest.restoreStorage = () => {
+        Storage.prototype.getItem = originalGetItem;
+        Storage.prototype.setItem = originalSetItem;
+      };
+      window.__propertySortSyncTest.cleanupStorage = () => {
+        if (originalPreference === null) localStorage.removeItem(preferenceKey);
+        else originalSetItem.call(localStorage, preferenceKey, originalPreference);
+      };
+      window.__propertySortSyncTest.remount();
+      return true;
+    })()`);
+    if (!blockedStorageResult) throw new Error('Could not configure blocked project-sort storage in the browser test.');
+    const blockedRead = await waitForState(firstTab, 'recent', recentOrder, 'the project list with blocked preference reads');
+    const getNotice = async () => evaluate(firstTab, `(() => ({
+      text: document.querySelector('[data-testid="status-project-sort-not-saved"]')?.textContent ?? '',
+      order: document.querySelector('[data-testid="select-project-sort-order"]')?.value,
+      projectIds: Array.from(document.querySelectorAll('li[data-testid^="project-row-"]'))
+        .map((row) => row.getAttribute('data-testid')?.replace('project-row-', '')),
+    }))()`);
+    const readWarning = await getNotice();
+    if (!readWarning.text.includes('wordt niet bewaard na vernieuwen')) {
+      throw new Error('The project list did not explain that its sort preference could not be read.');
+    }
+    await evaluate(firstTab, `window.__propertySortSyncTest.setFailureMode('write')`);
+    await selectOrder(firstTab, 'name');
+    const writeWarning = await getNotice();
+    if (writeWarning.order !== 'name' || writeWarning.projectIds?.join(',') !== nameOrder.join(',')) {
+      throw new Error('Project sorting stopped working for the current session when saving the preference was blocked.');
+    }
+    if (!writeWarning.text.includes('wordt niet bewaard na vernieuwen')) {
+      throw new Error('The project list did not explain that its sort preference could not be saved.');
+    }
+    await evaluate(firstTab, `window.__propertySortSyncTest.restoreStorage()`);
+    await evaluate(firstTab, `window.__propertySortSyncTest.remount()`);
+    const afterReload = await waitForState(firstTab, 'recent', recentOrder, 'the default order after a blocked preference write');
+    const clearedWarning = await getNotice();
+    if (clearedWarning.text) throw new Error('The storage warning remained after preference storage became available again.');
+    await evaluate(firstTab, `window.__propertySortSyncTest.cleanupStorage()`);
+
+    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}).`;
   } finally {
     for (const { devTools } of targets) devTools.close();
     await Promise.all(targets.map(({ targetId }) =>

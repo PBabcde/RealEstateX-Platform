@@ -71,12 +71,7 @@ async function initialize() {
   }
   savePropertyProjectSortOrderPreference('recent', accountId);
 
-  window.__propertySortSyncTest = {
-    readProjects: async () => (await storage.loadPropertyProjects())
-      .filter((project) => projectIds.has(project.id))
-      .sort((left, right) => left.id.localeCompare(right.id)),
-  };
-  createRoot(document.querySelector('#root')).render(createElement(ProjectManager, {
+  const managerProps = {
     accountId,
     legacyClaimStatus: { status: 'none', projectCount: 0 },
     legacyClaimBusy: false,
@@ -96,7 +91,22 @@ async function initialize() {
     onExportPortfolio() {},
     onImport() {},
     onImportPortfolio() {},
-  }));
+  };
+  let root = createRoot(document.querySelector('#root'));
+  const mountProjectManager = () => root.render(createElement(ProjectManager, managerProps));
+  window.__propertySortSyncTest = {
+    accountId,
+    preferenceKey: `realestatex.property-project-sort-order:${encodeURIComponent(accountId)}`,
+    readProjects: async () => (await storage.loadPropertyProjects())
+      .filter((project) => projectIds.has(project.id))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+    remount() {
+      root.unmount();
+      root = createRoot(document.querySelector('#root'));
+      mountProjectManager();
+    },
+  };
+  mountProjectManager();
   await new Promise((resolve) => setTimeout(resolve, 0));
   result.dataset.status = 'ready';
   result.textContent = `Project list ready; saved order is ${loadPropertyProjectSortOrderPreference(accountId)}.`;
