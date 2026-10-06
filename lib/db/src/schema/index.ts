@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { DEFAULT_TENANT_ID, tenantsTable } from "./auth";
 export * from "./auth";
+export * from "./property-beta";
 
 export type PropertyFeatures = Record<string, string>;
 

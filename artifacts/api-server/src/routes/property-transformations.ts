@@ -3,10 +3,16 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   ConvertPropertyImageToDuskBody,
   DeclutterPropertyImageBody,
+  JoinPropertyProBetaWaitlistBody,
   MakeoverPropertyImageBody,
   StagePropertyImageBody,
 } from "@workspace/api-zod";
 import { requireAuthentication } from "../middlewares/authorization";
+import {
+  FREE_PROPERTY_ANALYSIS_LIMIT,
+  propertyBetaService,
+  type PropertyBetaService,
+} from "../lib/property-beta";
 
 type PropertyStyle = "japandi" | "modern" | "industrial";
 type ImageMimeType = "image/jpeg" | "image/png";
@@ -48,6 +54,7 @@ const STYLE_PROMPTS: Record<PropertyStyle, string> = {
 };
 
 const rateWindow = new Map<string, { startedAt: number; count: number }>();
+const waitlistRateWindow = new Map<string, { startedAt: number; count: number }>();
 
 function consumeRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -62,6 +69,25 @@ function consumeRateLimit(userId: string): boolean {
   if (rateWindow.size > 1_000) {
     for (const [id, window] of rateWindow) {
       if (now - window.startedAt >= RATE_WINDOW_MS) rateWindow.delete(id);
+    }
+  }
+  return true;
+}
+
+function consumeWaitlistRateLimit(scopeKey: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const current = waitlistRateWindow.get(scopeKey);
+  if (current && now - current.startedAt < windowMs) {
+    if (current.count >= 3) return false;
+    current.count += 1;
+    return true;
+  }
+
+  waitlistRateWindow.set(scopeKey, { startedAt: now, count: 1 });
+  if (waitlistRateWindow.size > 1_000) {
+    for (const [key, entry] of waitlistRateWindow) {
+      if (now - entry.startedAt >= windowMs) waitlistRateWindow.delete(key);
     }
   }
   return true;
@@ -147,6 +173,7 @@ async function runTransform<T extends ImageInput>(
   schema: InputSchema<T>,
   transformation: Transformation,
   editImage: ImageEditor,
+  betaService: PropertyBetaService,
 ): Promise<void> {
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
@@ -167,7 +194,8 @@ async function runTransform<T extends ImageInput>(
   }
 
   const userId = req.dbUser?.id;
-  if (!userId) {
+  const tenantId = req.dbUser?.tenantId;
+  if (!userId || !tenantId) {
     res.status(401).json({ error: "Authentication required." });
     return;
   }
@@ -179,6 +207,32 @@ async function runTransform<T extends ImageInput>(
     return;
   }
 
+  let reservation: Awaited<ReturnType<PropertyBetaService["reserveAnalysis"]>>;
+  try {
+    reservation = await betaService.reserveAnalysis({ tenantId, userId });
+  } catch (error) {
+    req.log?.error({ err: error }, "Could not verify or reserve the property analysis allowance");
+    res.status(503).json({ error: "The free analysis allowance is temporarily unavailable." });
+    return;
+  }
+  if (reservation.status === "limit") {
+    res.status(402).json({
+      code: "PRO_BETA_REQUIRED",
+      error: "Your three free property analyses have been used.",
+      analysisLimit: FREE_PROPERTY_ANALYSIS_LIMIT,
+      analysesUsed: reservation.analysesUsed,
+    });
+    return;
+  }
+
+  const releaseReservation = async (): Promise<void> => {
+    try {
+      await betaService.releaseAnalysis(reservation.reservationId);
+    } catch (error) {
+      req.log?.error({ err: error }, "Could not release the unsuccessful property analysis reservation");
+    }
+  };
+
   try {
     const image = await editImage(
       decoded.image,
@@ -189,7 +243,17 @@ async function runTransform<T extends ImageInput>(
       image.length >= 8 &&
       image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
     if (!isPng || image.length > MAX_OUTPUT_IMAGE_BYTES) {
+      await releaseReservation();
       res.status(502).json({ error: "Image transformation returned invalid data." });
+      return;
+    }
+
+    try {
+      await betaService.completeAnalysis(reservation.reservationId);
+    } catch (error) {
+      await releaseReservation();
+      req.log?.error({ err: error }, "Could not complete the property analysis reservation");
+      res.status(503).json({ error: "The free analysis allowance could not be saved." });
       return;
     }
 
@@ -200,6 +264,7 @@ async function runTransform<T extends ImageInput>(
       disclaimer: DISCLAIMER,
     });
   } catch {
+    await releaseReservation();
     res
       .status(502)
       .json({ error: "Image transformation is temporarily unavailable." });
@@ -208,6 +273,7 @@ async function runTransform<T extends ImageInput>(
 
 export function createPropertyTransformationsRouter(
   editImage: ImageEditor = editWithOpenAI,
+  betaService: PropertyBetaService = propertyBetaService,
 ): IRouter {
   const router: IRouter = Router();
   router.use((_req, res, next) => {
@@ -224,6 +290,7 @@ export function createPropertyTransformationsRouter(
       DeclutterPropertyImageBody,
       "declutter",
       editImage,
+      betaService,
     );
   });
 
@@ -234,6 +301,7 @@ export function createPropertyTransformationsRouter(
       StagePropertyImageBody,
       "virtual-staging",
       editImage,
+      betaService,
     );
   });
 
@@ -244,6 +312,7 @@ export function createPropertyTransformationsRouter(
       MakeoverPropertyImageBody as InputSchema<MakeoverInput>,
       "makeover",
       editImage,
+      betaService,
     );
   });
 
@@ -254,7 +323,47 @@ export function createPropertyTransformationsRouter(
       ConvertPropertyImageToDuskBody,
       "day-to-dusk",
       editImage,
+      betaService,
     );
+  });
+
+  router.post("/property-transformations/pro-beta-waitlist", async (req, res): Promise<void> => {
+    const parsed = JoinPropertyProBetaWaitlistBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Provide a valid email address and explicit consent." });
+      return;
+    }
+    if (parsed.data.consent !== true) {
+      res.status(400).json({ error: "Explicit consent is required to join the beta waitlist." });
+      return;
+    }
+
+    const userId = req.dbUser?.id;
+    const tenantId = req.dbUser?.tenantId;
+    if (!userId || !tenantId) {
+      res.status(401).json({ error: "Authentication required." });
+      return;
+    }
+    if (!consumeWaitlistRateLimit(`${tenantId}:${userId}`)) {
+      res.setHeader("Retry-After", "3600");
+      res.status(429).json({ error: "Waitlist registration limit reached. Try again later." });
+      return;
+    }
+
+    try {
+      const lead = await betaService.registerWaitlistLead({
+        tenantId,
+        userId,
+        email: parsed.data.email.trim().toLowerCase(),
+      });
+      res.status(201).json({
+        registered: true,
+        consentedAt: lead.consentedAt.toISOString(),
+      });
+    } catch (error) {
+      req.log?.error({ err: error }, "Could not save the RealEstateX Pro beta waitlist lead");
+      res.status(503).json({ error: "The beta waitlist registration could not be saved." });
+    }
   });
 
   return router;

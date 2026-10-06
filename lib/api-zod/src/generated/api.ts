@@ -2234,6 +2234,24 @@ export const ConvertPropertyImageToDuskResponse = zod.object({
 
 
 /**
+ * @summary Register the authenticated account for the RealEstateX Pro beta
+ */
+export const joinPropertyProBetaWaitlistBodyEmailMax = 254;
+
+
+
+export const JoinPropertyProBetaWaitlistBody = zod.object({
+  "email": zod.string().email().max(joinPropertyProBetaWaitlistBodyEmailMax),
+  "consent": zod.literal(true)
+})
+
+export const JoinPropertyProBetaWaitlistResponse = zod.object({
+  "registered": zod.literal(true),
+  "consentedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Get profile-personalized deal recommendations and greeting
  */
 
@@ -2720,6 +2738,24 @@ export const GetSaasBillingStatusResponse = zod.object({
   "supportedTiers": zod.array(zod.string()),
   "message": zod.string()
 })
+
+
+/**
+ * @summary Payment checkout is unavailable during the RealEstateX beta
+ */
+export const CreateSaasBillingCheckoutResponse = zod.void()
+
+
+/**
+ * @summary Payment management is unavailable during the RealEstateX beta
+ */
+export const CreateSaasBillingPortalResponse = zod.void()
+
+
+/**
+ * @summary Stripe checkout is unavailable during the RealEstateX beta
+ */
+export const CreateStripeCheckoutResponse = zod.void()
 
 
 /**

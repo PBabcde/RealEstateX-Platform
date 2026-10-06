@@ -1,8 +1,8 @@
-import {
-  deletePropertyImage,
-  savePropertyImage,
-  savePropertyProjectWithImage,
-} from '../src/lib/property-transformer-db.ts';
+import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
+import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
+
+const { deletePropertyImage, savePropertyImage, savePropertyProjectWithImage } =
+  createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 
 const result = document.querySelector('#test-result');
 

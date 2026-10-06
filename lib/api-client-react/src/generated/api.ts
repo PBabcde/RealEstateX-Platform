@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AnalysisLimitResponse,
   ApplicationAccount,
   AssistantInput,
   AssistantResponse,
@@ -64,7 +65,10 @@ import type {
   MortgageResult,
   NeighborhoodSentimentSnapshot,
   NotFoundResponse,
+  PaymentHoldResponse,
   Property,
+  PropertyBetaWaitlistInput,
+  PropertyBetaWaitlistReceipt,
   PropertyImageTransformInput,
   PropertyImageTransformResult,
   PropertyInput,
@@ -3800,7 +3804,7 @@ return customFetch<PropertyImageTransformResult>(getDeclutterPropertyImageUrl(),
 
 export const getDeclutterPropertyImageMutationKey = () => ['declutterPropertyImage'] as const;
 
-export const getDeclutterPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const getDeclutterPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext> => {
 
@@ -3829,13 +3833,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeclutterPropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof declutterPropertyImage>>>
     export type DeclutterPropertyImageMutationBody = BodyType<PropertyImageTransformInput>
-    export type DeclutterPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type DeclutterPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>
     export type DeclutterPropertyImageMutationVariables = {data: BodyType<PropertyImageTransformInput>}
 
     /**
  * @summary Declutter movable items in a property photograph
  */
-export const useDeclutterPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const useDeclutterPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declutterPropertyImage>>, TError,DeclutterPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof declutterPropertyImage>>,
@@ -3888,7 +3892,7 @@ return customFetch<PropertyImageTransformResult>(getStagePropertyImageUrl(),
 
 export const getStagePropertyImageMutationKey = () => ['stagePropertyImage'] as const;
 
-export const getStagePropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const getStagePropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext> => {
 
@@ -3917,13 +3921,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type StagePropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof stagePropertyImage>>>
     export type StagePropertyImageMutationBody = BodyType<PropertyImageTransformInput>
-    export type StagePropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type StagePropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>
     export type StagePropertyImageMutationVariables = {data: BodyType<PropertyImageTransformInput>}
 
     /**
  * @summary Virtually stage a property photograph
  */
-export const useStagePropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const useStagePropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stagePropertyImage>>, TError,StagePropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof stagePropertyImage>>,
@@ -3976,7 +3980,7 @@ return customFetch<PropertyImageTransformResult>(getMakeoverPropertyImageUrl(),
 
 export const getMakeoverPropertyImageMutationKey = () => ['makeoverPropertyImage'] as const;
 
-export const getMakeoverPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const getMakeoverPropertyImageMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext> => {
 
@@ -4005,13 +4009,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type MakeoverPropertyImageMutationResult = NonNullable<Awaited<ReturnType<typeof makeoverPropertyImage>>>
     export type MakeoverPropertyImageMutationBody = BodyType<PropertyMakeoverInput>
-    export type MakeoverPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type MakeoverPropertyImageMutationError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>
     export type MakeoverPropertyImageMutationVariables = {data: BodyType<PropertyMakeoverInput>}
 
     /**
  * @summary Apply a selected Japandi, Modern, or Industrial visual makeover
  */
-export const useMakeoverPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const useMakeoverPropertyImage = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof makeoverPropertyImage>>, TError,MakeoverPropertyImageMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof makeoverPropertyImage>>,
@@ -4064,7 +4068,7 @@ return customFetch<PropertyImageTransformResult>(getConvertPropertyImageToDuskUr
 
 export const getConvertPropertyImageToDuskMutationKey = () => ['convertPropertyImageToDusk'] as const;
 
-export const getConvertPropertyImageToDuskMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const getConvertPropertyImageToDuskMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext> => {
 
@@ -4093,13 +4097,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ConvertPropertyImageToDuskMutationResult = NonNullable<Awaited<ReturnType<typeof convertPropertyImageToDusk>>>
     export type ConvertPropertyImageToDuskMutationBody = BodyType<PropertyImageTransformInput>
-    export type ConvertPropertyImageToDuskMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type ConvertPropertyImageToDuskMutationError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>
     export type ConvertPropertyImageToDuskMutationVariables = {data: BodyType<PropertyImageTransformInput>}
 
     /**
  * @summary Convert a property photograph to a dusk lighting concept
  */
-export const useConvertPropertyImageToDusk = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+export const useConvertPropertyImageToDusk = <TError = ErrorType<ErrorResponse | UnauthorizedResponse | AnalysisLimitResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertPropertyImageToDusk>>, TError,ConvertPropertyImageToDuskMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof convertPropertyImageToDusk>>,
@@ -4108,6 +4112,94 @@ export const useConvertPropertyImageToDusk = <TError = ErrorType<ErrorResponse |
         TContext
       > => {
       return useMutation(getConvertPropertyImageToDuskMutationOptions(options));
+    }
+
+export const getJoinPropertyProBetaWaitlistUrl = () => {
+
+
+
+
+  return `/api/property-transformations/pro-beta-waitlist`
+}
+
+/**
+ * @summary Register the authenticated account for the RealEstateX Pro beta
+ */
+export const joinPropertyProBetaWaitlist = async (propertyBetaWaitlistInput: PropertyBetaWaitlistInput, options?: Parameters<typeof customFetch>[1]): Promise<PropertyBetaWaitlistReceipt> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<PropertyBetaWaitlistReceipt>(getJoinPropertyProBetaWaitlistUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyBetaWaitlistInput)
+  }
+);}
+
+
+
+
+
+export const getJoinPropertyProBetaWaitlistMutationKey = () => ['joinPropertyProBetaWaitlist'] as const;
+
+export const getJoinPropertyProBetaWaitlistMutationOptions = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>, TError,JoinPropertyProBetaWaitlistMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>, TError,JoinPropertyProBetaWaitlistMutationVariables, TContext> => {
+
+const mutationKey = getJoinPropertyProBetaWaitlistMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>, JoinPropertyProBetaWaitlistMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinPropertyProBetaWaitlist(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinPropertyProBetaWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>>
+    export type JoinPropertyProBetaWaitlistMutationBody = BodyType<PropertyBetaWaitlistInput>
+    export type JoinPropertyProBetaWaitlistMutationError = ErrorType<ErrorResponse | UnauthorizedResponse>
+    export type JoinPropertyProBetaWaitlistMutationVariables = {data: BodyType<PropertyBetaWaitlistInput>}
+
+    /**
+ * @summary Register the authenticated account for the RealEstateX Pro beta
+ */
+export const useJoinPropertyProBetaWaitlist = <TError = ErrorType<ErrorResponse | UnauthorizedResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>, TError,JoinPropertyProBetaWaitlistMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinPropertyProBetaWaitlist>>,
+        TError,
+        JoinPropertyProBetaWaitlistMutationVariables,
+        TContext
+      > => {
+      return useMutation(getJoinPropertyProBetaWaitlistMutationOptions(options));
     }
 
 export const getGetInvestorRecommendationsUrl = (investorId: string,) => {
@@ -5400,6 +5492,228 @@ export function useGetSaasBillingStatus<TData = Awaited<ReturnType<typeof getSaa
 
 
 
+
+export const getCreateSaasBillingCheckoutUrl = () => {
+
+
+
+
+  return `/api/saas/billing/checkout`
+}
+
+/**
+ * @summary Payment checkout is unavailable during the RealEstateX beta
+ */
+export const createSaasBillingCheckout = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCreateSaasBillingCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateSaasBillingCheckoutMutationKey = () => ['createSaasBillingCheckout'] as const;
+
+export const getCreateSaasBillingCheckoutMutationOptions = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingCheckout>>, TError,void, TContext> => {
+
+const mutationKey = getCreateSaasBillingCheckoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSaasBillingCheckout>>, void> = () => {
+
+
+          return  createSaasBillingCheckout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSaasBillingCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createSaasBillingCheckout>>>
+
+    export type CreateSaasBillingCheckoutMutationError = ErrorType<PaymentHoldResponse>
+
+
+    /**
+ * @summary Payment checkout is unavailable during the RealEstateX beta
+ */
+export const useCreateSaasBillingCheckout = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSaasBillingCheckout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateSaasBillingCheckoutMutationOptions(options));
+    }
+
+export const getCreateSaasBillingPortalUrl = () => {
+
+
+
+
+  return `/api/saas/billing/portal`
+}
+
+/**
+ * @summary Payment management is unavailable during the RealEstateX beta
+ */
+export const createSaasBillingPortal = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCreateSaasBillingPortalUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateSaasBillingPortalMutationKey = () => ['createSaasBillingPortal'] as const;
+
+export const getCreateSaasBillingPortalMutationOptions = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingPortal>>, TError,void, TContext> => {
+
+const mutationKey = getCreateSaasBillingPortalMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSaasBillingPortal>>, void> = () => {
+
+
+          return  createSaasBillingPortal(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSaasBillingPortalMutationResult = NonNullable<Awaited<ReturnType<typeof createSaasBillingPortal>>>
+
+    export type CreateSaasBillingPortalMutationError = ErrorType<PaymentHoldResponse>
+
+
+    /**
+ * @summary Payment management is unavailable during the RealEstateX beta
+ */
+export const useCreateSaasBillingPortal = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSaasBillingPortal>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSaasBillingPortal>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateSaasBillingPortalMutationOptions(options));
+    }
+
+export const getCreateStripeCheckoutUrl = () => {
+
+
+
+
+  return `/api/stripe/checkout`
+}
+
+/**
+ * @summary Stripe checkout is unavailable during the RealEstateX beta
+ */
+export const createStripeCheckout = async ( options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCreateStripeCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateStripeCheckoutMutationKey = () => ['createStripeCheckout'] as const;
+
+export const getCreateStripeCheckoutMutationOptions = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckout>>, TError,void, TContext> => {
+
+const mutationKey = getCreateStripeCheckoutMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStripeCheckout>>, void> = () => {
+
+
+          return  createStripeCheckout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStripeCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createStripeCheckout>>>
+
+    export type CreateStripeCheckoutMutationError = ErrorType<PaymentHoldResponse>
+
+
+    /**
+ * @summary Stripe checkout is unavailable during the RealEstateX beta
+ */
+export const useCreateStripeCheckout = <TError = ErrorType<PaymentHoldResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStripeCheckout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStripeCheckout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateStripeCheckoutMutationOptions(options));
+    }
 
 export const getGetAccountUrl = () => {
 

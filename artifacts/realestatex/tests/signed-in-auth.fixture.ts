@@ -1,15 +1,36 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account';
 
 const testUser = {
-  id: 'photo-recovery-browser-test',
+  id: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
   externalId: null,
   primaryEmailAddress: { emailAddress: 'photo-recovery@example.invalid' },
   firstName: 'Studio',
   lastName: 'Test',
 };
+let activeTestUser = testUser;
+
+declare global {
+  interface Window {
+    __setPropertyTestUser?: (userId: string) => void;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__setPropertyTestUser = (userId: string) => {
+    activeTestUser = { ...testUser, id: userId };
+    window.dispatchEvent(new Event('property-test-user-changed'));
+  };
+}
 
 export function useUser() {
-  return { user: testUser, isLoaded: true };
+  const [user, setUser] = useState(activeTestUser);
+  useEffect(() => {
+    const update = () => setUser(activeTestUser);
+    window.addEventListener('property-test-user-changed', update);
+    return () => window.removeEventListener('property-test-user-changed', update);
+  }, []);
+  return { user, isLoaded: true };
 }
 export function useAuth() {
   return { isLoaded: true, isSignedIn: true };

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk, useJoinPropertyProBetaWaitlist } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, subscribePropertyStorageChanges, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -107,10 +107,66 @@ function ActionButton({ action, disabled, pending, onClick }: { action: typeof a
   return <button onClick={onClick} disabled={disabled || pending} className="group flex w-full items-center gap-3 rounded-xl border border-border bg-background px-3 py-3 text-left transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-transform-${action.id}`}><span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#f3e7da] text-[#a95f39] transition-transform group-hover:scale-105">{pending ? <LoaderCircle size={16} className="animate-spin" /> : <Icon size={16} />}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold">{action.label}</span><span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{action.note}</span></span><ArrowRight size={14} className="text-muted-foreground" /></button>;
 }
 
-function PropertyTransformer() {
+function isHttpStatus(error: unknown, status: number): boolean {
+  return error !== null
+    && typeof error === 'object'
+    && 'status' in error
+    && error.status === status;
+}
+
+function ProBetaWaitlistDialog({ initialEmail, onClose }: { initialEmail: string; onClose: () => void }) {
+  const joinWaitlist = useJoinPropertyProBetaWaitlist();
+  const [email, setEmail] = useState(initialEmail);
+  const [consent, setConsent] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    try {
+      await joinWaitlist.mutateAsync({ data: { email: email.trim(), consent: true } });
+      setRegistered(true);
+    } catch (cause) {
+      setError(isHttpStatus(cause, 429)
+        ? 'Je hebt dit formulier kort geleden al verstuurd. Probeer het later opnieuw.'
+        : 'Je aanmelding kon niet worden opgeslagen. Probeer het opnieuw.');
+    }
+  };
+
+  return <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[#1c2739]/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-pro-beta-title" data-testid="dialog-pro-beta">
+    <div className="my-6 w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
+        <div><p className="mono text-[9px] uppercase tracking-[.18em] text-[#a95f39]">RealEstateX Pro</p><h2 id="property-pro-beta-title" className="display mt-1 text-2xl font-bold tracking-[-.05em]">{registered ? 'Je staat op de lijst' : 'Pro-bèta aanvragen'}</h2></div>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-secondary" aria-label="Sluit Pro-bèta-aanmelding"><X size={18} /></button>
+      </div>
+      {registered ? <div className="space-y-5 px-5 py-6 sm:px-7">
+        <p className="text-sm leading-6 text-muted-foreground">Je aanmelding is opgeslagen. Alleen je contactadres en toestemmingsregistratie zijn hiervoor vastgelegd; vastgoedprojecten en foto’s zijn niet meegestuurd.</p>
+        <button type="button" onClick={onClose} className="w-full rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec]" data-testid="button-close-beta-success">Gereed</button>
+      </div> : <form onSubmit={(event) => void submit(event)} className="space-y-5 px-5 py-6 sm:px-7">
+        <p className="text-sm leading-6 text-muted-foreground">Je hebt de drie gratis vastgoedanalyses gebruikt. Schrijf je in voor nieuws over de Pro-bèta.</p>
+        <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">E-mailadres</span><input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm outline-none focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-pro-beta-email" /></label>
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-background p-3.5 text-xs leading-5">
+          <input type="checkbox" required checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-1 accent-[#a95f39]" data-testid="checkbox-pro-beta-consent" />
+          <span>Ik geef RealEstateX toestemming om mijn e-mailadres en deze toestemming te bewaren en mij over de Pro-bèta te benaderen. Mijn vastgoedprojecten en foto’s worden niet meegestuurd met deze aanmelding.</span>
+        </label>
+        <p className="text-[10px] leading-4 text-muted-foreground">Je toestemming wordt met datum en versie vastgelegd. Je kunt je later afmelden.</p>
+        {error && <p className="rounded-lg bg-[#fff1ee] px-3 py-2 text-[10px] font-semibold leading-4 text-[#9e4336]" role="alert" data-testid="status-pro-beta-error">{error}</p>}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary">Niet nu</button>
+          <button type="submit" disabled={!consent || joinWaitlist.isPending} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-submit-pro-beta">{joinWaitlist.isPending && <LoaderCircle size={14} className="animate-spin" />} Aanmelden voor de bèta</button>
+        </div>
+      </form>}
+    </div>
+  </div>;
+}
+
+function PropertyTransformer({ accountId, userEmail }: { accountId: string; userEmail: string }) {
+  const storage = useMemo(() => createPropertyProjectStorage(accountId), [accountId]);
   const [project, setProject] = useState<PropertyProject | null>(null);
   const [projects, setProjects] = useState<PropertyProject[]>([]);
   const [photoHealthByProject, setPhotoHealthByProject] = useState<Record<string, PropertyProjectPhotoHealth>>({});
+  const [legacyClaimStatus, setLegacyClaimStatus] = useState<LegacyProjectClaimStatus>({ status: 'none', projectCount: 0 });
   const [originalUrl, setOriginalUrl] = useState('');
   const [results, setResults] = useState<Partial<Record<PropertyAction, ResultMeta>>>({});
   const [loading, setLoading] = useState(true);
@@ -118,10 +174,12 @@ function PropertyTransformer() {
   const [projectListLoading, setProjectListLoading] = useState(false);
   const [isProjectSwitching, setIsProjectSwitching] = useState(false);
   const [isProjectTransferring, setIsProjectTransferring] = useState(false);
+  const [isLegacyClaiming, setIsLegacyClaiming] = useState(false);
   const [projectTransferError, setProjectTransferError] = useState('');
   const [projectTransferNotice, setProjectTransferNotice] = useState('');
   const [pendingDuplicateImport, setPendingDuplicateImport] = useState<{ archive: unknown; existing: PropertyProject } | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [proBetaDialogOpen, setProBetaDialogOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [missingOriginalPhoto, setMissingOriginalPhoto] = useState(false);
   const [missingConceptActions, setMissingConceptActions] = useState<PropertyAction[]>([]);
@@ -158,7 +216,7 @@ function PropertyTransformer() {
     const createdUrls: string[] = [];
     try {
       let loadedOriginalUrl = '';
-      const projectImages = await loadPropertyProjectImages(target);
+      const projectImages = await storage.loadPropertyProjectImages(target);
       if (projectImages.original) {
         loadedOriginalUrl = createObjectUrl(projectImages.original.blob);
         createdUrls.push(loadedOriginalUrl);
@@ -189,18 +247,26 @@ function PropertyTransformer() {
     let active = true;
     void (async () => {
       try {
-        const storedList = await loadPropertyProjectsWithPhotoHealth();
+        const storedList = await storage.loadPropertyProjectsWithPhotoHealth();
+        let claimStatus: LegacyProjectClaimStatus;
+        try {
+          claimStatus = await storage.getLegacyProjectClaimStatus();
+        } catch {
+          claimStatus = { status: 'error', projectCount: 0 };
+        }
         if (!active) return;
         let existing = storedList.projects[0];
         let projectList = storedList;
-        if (!existing) {
+        if (!existing && claimStatus.status !== 'available') {
           existing = makeProject();
-          await savePropertyProject(existing);
-          projectList = await loadPropertyProjectsWithPhotoHealth();
+          await storage.savePropertyProject(existing);
+          projectList = await storage.loadPropertyProjectsWithPhotoHealth();
           if (!active) return;
         }
         setProjects(projectList.projects);
         setPhotoHealthByProject(projectList.photoHealthById);
+        setLegacyClaimStatus(claimStatus);
+        if (!existing) return;
         setProject(existing);
         setSplitRatio(existing.splitRatio);
         try {
@@ -228,7 +294,7 @@ function PropertyTransformer() {
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [storage]);
 
   const form = project ?? makeProject();
   const updateProject = (patch: Partial<PropertyProject>) => setProject((current) => current ? { ...current, ...patch, updatedAt: new Date().toISOString() } : current);
@@ -241,7 +307,7 @@ function PropertyTransformer() {
     if (!nextProject) return;
     setIsSaving(true);
     try {
-      await savePropertyProject(nextProject);
+      await storage.savePropertyProject(nextProject);
     } catch {
       setUploadError('Opslaan in deze browser is mislukt. Maak ruimte vrij en probeer opnieuw.');
     } finally {
@@ -266,29 +332,39 @@ function PropertyTransformer() {
     const refreshSequence = ++projectListRefreshSequence.current;
     setProjectListLoading(true);
     try {
-      const projectList = await loadPropertyProjectsWithPhotoHealth();
+      const projectList = await storage.loadPropertyProjectsWithPhotoHealth();
+      let claimStatus: LegacyProjectClaimStatus;
+      try {
+        claimStatus = await storage.getLegacyProjectClaimStatus();
+      } catch {
+        claimStatus = { status: 'error', projectCount: 0 };
+      }
       if (refreshSequence === projectListRefreshSequence.current) {
         setProjects(projectList.projects);
         setPhotoHealthByProject(projectList.photoHealthById);
+        setLegacyClaimStatus(claimStatus);
       }
     } finally {
       if (refreshSequence === projectListRefreshSequence.current) setProjectListLoading(false);
     }
-  }, []);
+  }, [storage]);
 
   useEffect(() => {
     if (!projectManagerOpen) return;
     let active = true;
-    const unsubscribe = subscribePropertyStorageChanges(() => {
+    const refresh = () => {
       void refreshProjects().catch(() => {
         if (active) setProjectTransferError('De foto-status in de projectlijst kon niet uit de lokale browseropslag worden bijgewerkt.');
       });
-    });
+    };
+    const unsubscribe = storage.subscribePropertyStorageChanges(refresh);
+    const unsubscribeLegacyClaim = subscribeLegacyProjectClaimChanges(refresh);
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeLegacyClaim();
     };
-  }, [projectManagerOpen, refreshProjects]);
+  }, [projectManagerOpen, refreshProjects, storage]);
   const openProjectManager = () => {
     setProjectTransferError('');
     setProjectTransferNotice('');
@@ -299,7 +375,7 @@ function PropertyTransformer() {
     setIsProjectSwitching(true);
     setUploadError('');
     try {
-      const selected = await loadPropertyProject(id);
+      const selected = await storage.loadPropertyProject(id);
       if (!selected) throw new Error('Dit project bestaat niet meer in de browseropslag. Vernieuw de projectlijst.');
       const loaded = await loadProjectPreviews(selected);
       revokeAllObjectUrls();
@@ -325,7 +401,7 @@ function PropertyTransformer() {
     setUploadError('');
     const created = makeProject();
     try {
-      await savePropertyProject(created);
+      await storage.savePropertyProject(created);
       revokeAllObjectUrls();
       projectRef.current = created;
       setProject(created);
@@ -350,7 +426,7 @@ function PropertyTransformer() {
     setIsProjectSwitching(true);
     setUploadError('');
     try {
-      await deletePropertyProject(target);
+      await storage.deletePropertyProject(target);
       if (projectRef.current?.id === target.id) {
         revokeAllObjectUrls();
         projectRef.current = null;
@@ -371,14 +447,36 @@ function PropertyTransformer() {
     }
   };
 
+  const claimLegacyProjects = async () => {
+    if (legacyClaimStatus.status !== 'available' || isLegacyClaiming) return;
+    setIsLegacyClaiming(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      const result = await storage.claimLegacyPropertyProjects();
+      if (result.status === 'claimed') {
+        setProjectTransferNotice(`${result.importedCount} oudere ${result.importedCount === 1 ? 'project is' : 'projecten zijn'} aan deze account gekoppeld. De originelen blijven lokaal bewaard.`);
+      } else if (result.status === 'unavailable') {
+        setProjectTransferNotice('Deze oudere projecten zijn al aan een andere account gekoppeld en worden hier niet getoond.');
+      } else if (result.status === 'in-progress') {
+        setProjectTransferNotice('Het koppelen van de oudere projecten is al bezig in een ander tabblad.');
+      }
+      await refreshProjects();
+    } catch (error) {
+      setProjectTransferError(error instanceof Error ? error.message : 'De oudere projecten konden niet veilig aan deze account worden gekoppeld.');
+    } finally {
+      setIsLegacyClaiming(false);
+    }
+  };
+
   const exportSavedProject = async (target: PropertyProject) => {
     setIsProjectTransferring(true);
     setProjectTransferError('');
     setProjectTransferNotice('');
     try {
       const current = projectRef.current?.id === target.id ? projectRef.current : target;
-      await savePropertyProject(current);
-      const archive = await exportPropertyProject(current);
+      await storage.savePropertyProject(current);
+      const archive = await storage.exportPropertyProject(current);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(file);
       const link = document.createElement('a');
@@ -402,9 +500,9 @@ function PropertyTransformer() {
     setProjectTransferNotice('');
     try {
       const current = projectRef.current;
-      if (current) await savePropertyProject(current);
-      const savedProjects = await loadPropertyProjects();
-      const archive = await exportPropertyPortfolio(savedProjects);
+      if (current) await storage.savePropertyProject(current);
+      const savedProjects = await storage.loadPropertyProjects();
+      const archive = await storage.exportPropertyPortfolio(savedProjects);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(file);
       const link = document.createElement('a');
@@ -423,7 +521,7 @@ function PropertyTransformer() {
   };
 
   const restoreImportedProject = async (archive: unknown) => {
-    const restored = await importPropertyProject(archive);
+    const restored = await storage.importPropertyProject(archive);
     const loaded = await loadProjectPreviews(restored);
     revokeAllObjectUrls();
     projectRef.current = restored;
@@ -457,7 +555,7 @@ function PropertyTransformer() {
       } catch {
         throw new Error('Import afgewezen: dit bestand bevat geen geldige JSON-projectexport.');
       }
-      const existing = await findMatchingSavedPropertyProject(archive);
+      const existing = await storage.findMatchingSavedPropertyProject(archive);
       if (existing) {
         setPendingDuplicateImport({ archive, existing });
         return;
@@ -484,7 +582,7 @@ function PropertyTransformer() {
       } catch {
         throw new Error('De portfolio-back-up is niet hersteld: het bestand kan niet als geldige JSON worden gelezen. Er is niets toegevoegd.');
       }
-      const imported = await importPropertyPortfolio(portfolio);
+      const imported = await storage.importPropertyPortfolio(portfolio);
       setProjectTransferNotice(`${imported.length} ${imported.length === 1 ? 'project' : 'projecten'} met foto’s en concepten hersteld als nieuwe projecten. Bestaande projecten zijn ongewijzigd.`);
       try {
         await refreshProjects();
@@ -546,7 +644,7 @@ function PropertyTransformer() {
         ...(!recoveringMissingSource ? { resultKeys: {}, selectedResult: null } : {}),
         updatedAt: new Date().toISOString(),
       };
-      await savePropertyProjectWithImage(next, image);
+      await storage.savePropertyProjectWithImage(next, image);
       if (!recoveringMissingSource) {
         for (const oldResult of Object.values(results)) {
           if (oldResult) revokeObjectUrl(oldResult.imageUrl);
@@ -560,7 +658,7 @@ function PropertyTransformer() {
       setMissingOriginalPhoto(false);
       if (!recoveringMissingSource) setMissingConceptActions([]);
       try {
-        await Promise.all(oldImageKeys.map(deletePropertyImage));
+        await Promise.all(oldImageKeys.map((key) => storage.deletePropertyImage(key)));
       } catch {
         setUploadError('De nieuwe foto is opgeslagen, maar de oude bronfoto kon niet worden opgeruimd.');
       }
@@ -577,9 +675,10 @@ function PropertyTransformer() {
       if (missingOriginalPhoto) setUploadError('Herstel eerst de bronfoto voordat je een ontbrekend concept opnieuw maakt.');
       return;
     }
+    setUploadError('');
     void (async () => {
       try {
-        const image = await loadPropertyImage(project.originalKey);
+        const image = await storage.loadPropertyImage(project.originalKey);
         if (!image) {
           setUploadError('De bronfoto ontbreekt in deze browser. Upload de foto opnieuw.');
           return;
@@ -596,7 +695,7 @@ function PropertyTransformer() {
               const latestProject = projectRef.current ?? project;
               const next = { ...latestProject, resultKeys: { ...latestProject.resultKeys, [action]: key }, selectedResult: action, splitRatio, updatedAt: new Date().toISOString() };
               const previousKey = latestProject.resultKeys[action];
-              await savePropertyProjectWithImage(next, imageRecord);
+              await storage.savePropertyProjectWithImage(next, imageRecord);
               const previousResult = results[action];
               if (previousResult) revokeObjectUrl(previousResult.imageUrl);
               const meta = { key, label: actions.find((item) => item.id === action)?.label ?? action, imageUrl: createObjectUrl(blob), isConcept: response.isConcept, disclaimer: response.disclaimer };
@@ -605,7 +704,7 @@ function PropertyTransformer() {
               setProject(next);
               if (previousKey && previousKey !== key) {
                 try {
-                  await deletePropertyImage(previousKey);
+                  await storage.deletePropertyImage(previousKey);
                 } catch {
                   setUploadError('Het concept is opgeslagen, maar een oude versie kon niet worden opgeruimd.');
                 }
@@ -617,7 +716,13 @@ function PropertyTransformer() {
               setUploadError('Het resultaat is gemaakt, maar kon niet lokaal worden opgeslagen.');
             }
           };
-          const onError = () => setUploadError('De AI-transformatie is niet gelukt. Probeer het opnieuw.');
+          const onError = (error: unknown) => {
+            if (isHttpStatus(error, 402)) {
+              setProBetaDialogOpen(true);
+              return;
+            }
+            setUploadError('De AI-transformatie is niet gelukt. Probeer het opnieuw.');
+          };
           if (action === 'declutter') declutter.mutate({ data: { imageDataUrl } }, { onSuccess, onError });
           if (action === 'stage') stage.mutate({ data: { imageDataUrl } }, { onSuccess, onError });
           if (action === 'makeover') makeover.mutate({ data: { imageDataUrl, style: form.selectedStyle } }, { onSuccess, onError });
@@ -650,7 +755,7 @@ function PropertyTransformer() {
     printWindow.opener = null;
     void (async () => {
       try {
-        const conceptImage = result ? await loadPropertyImage(result.key).then((image) => image ? blobToDataUrl(image.blob) : '') : '';
+        const conceptImage = result ? await storage.loadPropertyImage(result.key).then((image) => image ? blobToDataUrl(image.blob) : '') : '';
         const html = safeDossierHtml(form, result, roi, yieldValue, totalInvestment, valueCreation, conceptImage);
         printWindow.document.open();
         printWindow.document.write(html);
@@ -670,7 +775,7 @@ function PropertyTransformer() {
   const downloadHtml = async () => {
     let downloadUrl = '';
     try {
-      const conceptImage = result ? await loadPropertyImage(result.key).then((image) => image ? blobToDataUrl(image.blob) : '') : '';
+      const conceptImage = result ? await storage.loadPropertyImage(result.key).then((image) => image ? blobToDataUrl(image.blob) : '') : '';
       const html = safeDossierHtml(form, result, roi, yieldValue, totalInvestment, valueCreation, conceptImage);
       const blob = new Blob([html], { type: 'text/html' });
       const link = document.createElement('a');
@@ -700,10 +805,10 @@ function PropertyTransformer() {
       {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}</p>}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50"><Plus size={15} /> Nieuw project</button>
-        <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
+        <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -747,7 +852,7 @@ function PropertyTransformer() {
       <div className="space-y-6"><Card><CardHeader eyebrow="01 / beeld" title={result ? `${result.label} naast het origineel` : 'Start met één listingfoto'} detail="Selecteer een actie rechts. De vergelijking blijft lokaal beschikbaar zodat je keuzes kunt bespreken." action={result && <ConceptBadge />} /><div className="p-5 sm:p-6">{originalUrl ? <><BeforeAfter originalUrl={originalUrl} result={result} splitRatio={splitRatio} setSplitRatio={(value) => { const next = { ...form, splitRatio: value, updatedAt: new Date().toISOString() }; setSplitRatio(value); updateProject(next); void save(next); }} flipped={form.flipHorizontal} /><div className="mt-3 flex justify-end"><button onClick={() => { const next = { ...form, flipHorizontal: !form.flipHorizontal, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[10px] font-bold text-muted-foreground hover:bg-secondary" data-testid="button-flip-preview"><FlipHorizontal2 size={14} /> {form.flipHorizontal ? 'Spiegeling uit' : 'Spiegel voorbeeld'}</button></div></> : <button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="property-grid flex min-h-[330px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[#cfc8be] bg-[#f3f1ed] p-8 text-center transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-empty-upload"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-[#a95f39] shadow-sm"><ImagePlus size={22} /></div><p className="mt-4 text-sm font-bold">{isUploading ? 'Foto wordt lokaal voorbereid…' : 'Upload de huidige woningfoto'}</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">JPEG of PNG. We verkleinen de foto lokaal tot minder dan 620 KB voor de conceptactie.</p><span className="mt-5 rounded-lg bg-[#a95f39] px-3 py-2 text-[10px] font-bold text-[#fff8ef]">{isUploading ? 'Bezig…' : 'Foto kiezen'}</span></button>}</div></Card>
         <Card><CardHeader eyebrow="02 / stijl" title="Kies de richting" detail="De stijl stuurt alleen de makeover-actie. Het is geen bouwadvies of toezegging." /><div className="grid gap-3 p-5 sm:grid-cols-3 sm:p-6">{styles.map((style) => <button key={style.id} onClick={() => { updateForm('selectedStyle', style.id); void save({ ...form, selectedStyle: style.id, updatedAt: new Date().toISOString() }); }} className={`rounded-xl border p-4 text-left transition-colors ${form.selectedStyle === style.id ? 'border-[#a95f39] bg-[#fff8ef] ring-2 ring-[#a95f39]/10' : 'border-border bg-background hover:border-[#c79b7d]'}`} data-testid={`button-style-${style.id}`}><div className={`mb-6 h-2 w-14 rounded-full ${style.id === 'japandi' ? 'bg-[#b5a185]' : style.id === 'modern' ? 'bg-[#24324b]' : 'bg-[#7d756c]'}`} /><p className="text-xs font-bold">{style.name}</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">{style.note}</p></button>)}</div></Card>
       </div>
-      <div className="space-y-6"><Card><CardHeader eyebrow="03 / acties" title="Maak een concept" detail="Elke actie gebruikt dezelfde verkleinde bronfoto. Resultaten worden alleen lokaal opgeslagen." /><div className="space-y-2.5 p-5 sm:p-6">{actions.map((action) => <ActionButton key={action.id} action={action} disabled={!originalUrl || isUploading || activeMutation} pending={(action.id === 'declutter' && declutter.isPending) || (action.id === 'stage' && stage.isPending) || (action.id === 'makeover' && makeover.isPending) || (action.id === 'dusk' && dusk.isPending)} onClick={() => runAction(action.id)} />)}{[declutter, stage, makeover, dusk].some((mutation) => mutation.isError) && <p className="rounded-lg bg-[#fff1ee] px-3 py-2 text-[10px] font-semibold leading-4 text-[#9e4336]" role="alert" data-testid="status-transform-error">De conceptactie kon niet worden voltooid. Controleer je verbinding en probeer opnieuw. Er is niets op de server opgeslagen.</p>}</div></Card>
+      <div className="space-y-6"><Card><CardHeader eyebrow="03 / acties" title="Maak een concept" detail="Elke actie gebruikt dezelfde verkleinde bronfoto. Resultaten worden alleen lokaal opgeslagen." /><div className="space-y-2.5 p-5 sm:p-6">{actions.map((action) => <ActionButton key={action.id} action={action} disabled={!originalUrl || isUploading || activeMutation} pending={(action.id === 'declutter' && declutter.isPending) || (action.id === 'stage' && stage.isPending) || (action.id === 'makeover' && makeover.isPending) || (action.id === 'dusk' && dusk.isPending)} onClick={() => runAction(action.id)} />)}{[declutter, stage, makeover, dusk].some((mutation) => mutation.isError && !isHttpStatus(mutation.error, 402)) && <p className="rounded-lg bg-[#fff1ee] px-3 py-2 text-[10px] font-semibold leading-4 text-[#9e4336]" role="alert" data-testid="status-transform-error">De conceptactie kon niet worden voltooid. Controleer je verbinding en probeer opnieuw. Er is niets op de server opgeslagen.</p>}</div></Card>
         <Card className="overflow-hidden border-[#d7e6e0]"><div className="bg-[#eef8f4] p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#d4ece4] text-[#287b6a]"><Info size={17} /></div><div><p className="text-xs font-bold text-[#287b6a]">Eerlijk over AI-concepten</p><p className="mt-1.5 text-xs leading-5 text-[#47736b]">Deze beelden zijn richtinggevende visualisaties. Ze tonen geen feitelijke materialen, maatvoering, kosten, vergunningen of gegarandeerde marktwaarde.</p></div></div></div><div className="grid grid-cols-2 divide-x divide-border border-t border-border px-5 py-4 sm:px-6"><div><p className="mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Resultaten lokaal</p><p className="mt-1 text-sm font-bold">{Object.keys(results).length} / 4</p></div><div className="pl-5"><p className="mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Actieve stijl</p><p className="mt-1 text-sm font-bold capitalize">{form.selectedStyle}</p></div></div></Card>
         <Card><CardHeader eyebrow="04 / project" title="Context voor het dossier" action={<Pencil size={15} className="text-muted-foreground" />} /><div className="space-y-4 p-5 sm:p-6"><Field label="Projectnaam" value={form.projectName} onChange={(value) => updateForm('projectName', value)} placeholder="Nieuwe transformatiescan" /><div className="grid gap-4 sm:grid-cols-2"><Field label="Adres" value={form.address} onChange={(value) => updateForm('address', value)} placeholder="Wibautstraat 12" /><Field label="Plaats" value={form.municipality} onChange={(value) => updateForm('municipality', value)} placeholder="Amsterdam" /></div><label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">Notitie</span><textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} rows={3} placeholder="Wat wil je met de client bespreken?" className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-project-notes" /></label><button onClick={() => void save()} disabled={isSaving} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.12em] text-[#a95f39] disabled:opacity-50" data-testid="button-save-project">{isSaving ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} {isSaving ? 'Opslaan…' : 'Wijzigingen lokaal bewaren'}</button></div></Card>
       </div>
@@ -756,8 +861,8 @@ function PropertyTransformer() {
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-      {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
-  </div></AppShell>;
+    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+  </div>{proBetaDialogOpen && <ProBetaWaitlistDialog initialEmail={userEmail} onClose={() => setProBetaDialogOpen(false)} />}</AppShell>;
 }
 
 function formatProjectUpdatedAt(value: string): string {
@@ -779,7 +884,11 @@ function projectPhotoHealthLabel(health: PropertyProjectPhotoHealth): { label: s
   };
 }
 
-export function ProjectManager({ projects, photoHealthByProject, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
+export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, onClaimLegacy, projects, photoHealthByProject, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
+  accountId: string;
+  legacyClaimStatus: LegacyProjectClaimStatus;
+  legacyClaimBusy: boolean;
+  onClaimLegacy: () => void;
   projects: PropertyProject[];
   photoHealthByProject: Record<string, PropertyProjectPhotoHealth>;
   loading: boolean;
@@ -797,10 +906,10 @@ export function ProjectManager({ projects, photoHealthByProject, loading, busy, 
   onImportPortfolio: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<PropertyProjectSortOrder>(loadPropertyProjectSortOrderPreference);
+  const [sortOrder, setSortOrder] = useState<PropertyProjectSortOrder>(() => loadPropertyProjectSortOrderPreference(accountId));
   const updateSortOrder = (order: PropertyProjectSortOrder) => {
     setSortOrder(order);
-    savePropertyProjectSortOrderPreference(order);
+    savePropertyProjectSortOrderPreference(order, accountId);
   };
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
   const matchingProjects = sortPropertyProjects(projects.filter((item) => {
@@ -820,6 +929,16 @@ export function ProjectManager({ projects, photoHealthByProject, loading, busy, 
       </div>
       <div className="space-y-3 p-5 sm:p-7">
         <button onClick={onCreate} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] transition-colors hover:bg-[#34435b] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw vastgoedproject</button>
+        {legacyClaimStatus.status === 'available' && <section className="rounded-xl border border-[#d8bea0] bg-[#fff8ef] px-4 py-4" aria-labelledby="legacy-project-claim-title" data-testid="legacy-project-claim">
+          <h3 id="legacy-project-claim-title" className="text-xs font-bold">Oudere projecten in deze browser</h3>
+          <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">{legacyClaimStatus.projectCount} {legacyClaimStatus.projectCount === 1 ? 'project is' : 'projecten zijn'} nog niet aan een account gekoppeld. Ze zijn niet zichtbaar in de lijst. Koppel ze alleen als dit jouw projectgegevens zijn; daarna zijn ze alleen beschikbaar in deze account.</p>
+          <button onClick={onClaimLegacy} disabled={busy || legacyClaimBusy} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#a95f39]/50 bg-card px-3 py-2.5 text-[10px] font-bold text-[#8c4d2d] hover:border-[#a95f39] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-claim-legacy-projects">
+            {legacyClaimBusy ? <LoaderCircle size={13} className="animate-spin" /> : <Layers3 size={13} />}
+            {legacyClaimBusy ? 'Oudere projecten koppelen…' : 'Oudere projecten aan deze account koppelen'}
+          </button>
+        </section>}
+        {legacyClaimStatus.status === 'in-progress' && <p className="rounded-xl border border-border bg-secondary px-4 py-3 text-[10px] leading-4 text-muted-foreground" role="status" data-testid="status-legacy-project-claim">Het koppelen van oudere browserprojecten is al bezig in een ander tabblad.</p>}
+        {legacyClaimStatus.status === 'error' && <p className="rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-[10px] leading-4 text-[#9e4336]" role="alert" data-testid="status-legacy-project-claim-error">Oudere browserprojecten konden niet veilig worden gecontroleerd. Sluit oudere RealEstateX-tabbladen en open deze lijst opnieuw; er is niets gekoppeld.</p>}
         <button onClick={onImport} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#a95f39]/40 bg-[#fff8ef] px-4 py-3 text-xs font-bold text-[#8c4d2d] transition-colors hover:border-[#a95f39] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-import-project"><Upload size={15} /> Projectbestand importeren</button>
         <div className="grid gap-2 sm:grid-cols-2">
           <button onClick={onExportPortfolio} disabled={busy || projects.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-export-portfolio"><Download size={15} /> Portfolio-back-up downloaden</button>

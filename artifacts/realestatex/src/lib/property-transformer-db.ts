@@ -75,37 +75,93 @@ export type PropertyPortfolioArchive = {
 };
 
 const DB_NAME = 'realestatex-property-transformer';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const PROJECTS = 'projects';
 const IMAGES = 'images';
+const METADATA = 'metadata';
+const LEGACY_CLAIM_KEY = 'legacy-projects-claim';
+const ACCOUNT_LEGACY_IMPORT_KEY = 'imported-legacy-projects';
 const PROJECT_SORT_ORDER_PREFERENCE_KEY = 'realestatex.property-project-sort-order';
 const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'dusk'];
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
 const PROPERTY_STORAGE_CHANNEL_NAME = 'realestatex-property-storage-changes';
+const LEGACY_CLAIM_STALE_AFTER_MS = 5 * 60 * 1000;
 
-const propertyStorageSubscribers = new Set<() => void>();
-let propertyStorageChannel: BroadcastChannel | null = null;
+type StorageScope = string | null;
+type LegacyClaimRecord = {
+  key: string;
+  accountId: string;
+  status: 'claiming' | 'claimed';
+  token: string;
+  updatedAt: number;
+  importedCount?: number;
+};
+export type LegacyProjectClaimStatus = {
+  status: 'none' | 'available' | 'claimed' | 'unavailable' | 'in-progress' | 'error';
+  projectCount: number;
+};
 
-function getPropertyStorageChannel(): BroadcastChannel | null {
+const propertyStorageSubscribers = new Map<string, Set<() => void>>();
+const propertyStorageChannels = new Map<string, BroadcastChannel>();
+const legacyClaimSubscribers = new Set<() => void>();
+let legacyClaimChannel: BroadcastChannel | null = null;
+
+function getLegacyClaimChannel(): BroadcastChannel | null {
   if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
-  if (!propertyStorageChannel) {
-    propertyStorageChannel = new BroadcastChannel(PROPERTY_STORAGE_CHANNEL_NAME);
-    propertyStorageChannel.addEventListener('message', (event: MessageEvent) => {
-      if (event.data?.type !== 'changed') return;
-      for (const subscriber of propertyStorageSubscribers) subscriber();
+  if (!legacyClaimChannel) {
+    legacyClaimChannel = new BroadcastChannel(`${PROPERTY_STORAGE_CHANNEL_NAME}:legacy-claim`);
+    legacyClaimChannel.addEventListener('message', (event: MessageEvent) => {
+      if (event.data?.type !== 'claim-changed') return;
+      for (const subscriber of legacyClaimSubscribers) subscriber();
     });
   }
-  return propertyStorageChannel;
+  return legacyClaimChannel;
 }
 
-export function subscribePropertyStorageChanges(subscriber: () => void): () => void {
-  if (!getPropertyStorageChannel()) return () => {};
-  propertyStorageSubscribers.add(subscriber);
-  return () => propertyStorageSubscribers.delete(subscriber);
+export function subscribeLegacyProjectClaimChanges(subscriber: () => void): () => void {
+  if (!getLegacyClaimChannel()) return () => {};
+  legacyClaimSubscribers.add(subscriber);
+  return () => legacyClaimSubscribers.delete(subscriber);
 }
 
-function notifyPropertyStorageChanged(): void {
-  getPropertyStorageChannel()?.postMessage({ type: 'changed' });
+function notifyLegacyProjectClaimChanged(): void {
+  for (const subscriber of legacyClaimSubscribers) subscriber();
+  getLegacyClaimChannel()?.postMessage({ type: 'claim-changed' });
+}
+
+function storageScopeKey(scope: StorageScope): string {
+  return scope === null ? 'legacy' : `account:${encodeURIComponent(scope)}`;
+}
+
+function getPropertyStorageChannel(scope: StorageScope): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
+  const key = storageScopeKey(scope);
+  let channel = propertyStorageChannels.get(key);
+  if (!channel) {
+    channel = new BroadcastChannel(`${PROPERTY_STORAGE_CHANNEL_NAME}:${key}`);
+    channel.addEventListener('message', (event: MessageEvent) => {
+      if (event.data?.type !== 'changed') return;
+      for (const subscriber of propertyStorageSubscribers.get(key) ?? []) subscriber();
+    });
+    propertyStorageChannels.set(key, channel);
+  }
+  return channel;
+}
+
+export function subscribePropertyStorageChanges(subscriber: () => void, scope: StorageScope = null): () => void {
+  if (!getPropertyStorageChannel(scope)) return () => {};
+  const key = storageScopeKey(scope);
+  const subscribers = propertyStorageSubscribers.get(key) ?? new Set<() => void>();
+  subscribers.add(subscriber);
+  propertyStorageSubscribers.set(key, subscribers);
+  return () => {
+    subscribers.delete(subscriber);
+    if (subscribers.size === 0) propertyStorageSubscribers.delete(key);
+  };
+}
+
+function notifyPropertyStorageChanged(scope: StorageScope = null): void {
+  getPropertyStorageChannel(scope)?.postMessage({ type: 'changed' });
 }
 
 function compareProjectText(leftValue: string, rightValue: string): number {
@@ -141,11 +197,17 @@ export function sortPropertyProjects(
   });
 }
 
-export function loadPropertyProjectSortOrderPreference(): PropertyProjectSortOrder {
+function sortOrderPreferenceKey(scope: StorageScope): string {
+  return scope === null
+    ? PROJECT_SORT_ORDER_PREFERENCE_KEY
+    : `${PROJECT_SORT_ORDER_PREFERENCE_KEY}:${encodeURIComponent(scope)}`;
+}
+
+export function loadPropertyProjectSortOrderPreference(scope: StorageScope = null): PropertyProjectSortOrder {
   if (typeof window === 'undefined') return 'recent';
 
   try {
-    const preference = window.localStorage.getItem(PROJECT_SORT_ORDER_PREFERENCE_KEY);
+    const preference = window.localStorage.getItem(sortOrderPreferenceKey(scope));
     if (preference === 'recent' || preference === 'name' || preference === 'municipality') {
       return preference;
     }
@@ -156,11 +218,11 @@ export function loadPropertyProjectSortOrderPreference(): PropertyProjectSortOrd
   return 'recent';
 }
 
-export function savePropertyProjectSortOrderPreference(order: PropertyProjectSortOrder): void {
+export function savePropertyProjectSortOrderPreference(order: PropertyProjectSortOrder, scope: StorageScope = null): void {
   if (typeof window === 'undefined') return;
 
   try {
-    window.localStorage.setItem(PROJECT_SORT_ORDER_PREFERENCE_KEY, order);
+    window.localStorage.setItem(sortOrderPreferenceKey(scope), order);
   } catch {
     // Sorting still works for this session if browser preference storage is blocked.
   }
@@ -330,21 +392,30 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
   return new Blob([bytes], { type: mimeType });
 }
 
-function openDb(): Promise<IDBDatabase> {
+function databaseName(scope: StorageScope): string {
+  return scope === null ? DB_NAME : `${DB_NAME}:account:${encodeURIComponent(scope)}`;
+}
+
+function openDb(scope: StorageScope = null): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(databaseName(scope), DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(PROJECTS)) db.createObjectStore(PROJECTS, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(IMAGES)) db.createObjectStore(IMAGES, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(METADATA)) db.createObjectStore(METADATA, { keyPath: 'key' });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('Lokale projectopslag wordt nog gebruikt in een ander tabblad. Sluit dat tabblad en probeer opnieuw.'));
   });
 }
 
-async function put<T>(storeName: string, value: T): Promise<void> {
-  const db = await openDb();
+async function put<T>(storeName: string, value: T, scope: StorageScope = null): Promise<void> {
+  const db = await openDb(scope);
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
@@ -356,11 +427,11 @@ async function put<T>(storeName: string, value: T): Promise<void> {
   } finally {
     db.close();
   }
-  notifyPropertyStorageChanged();
+  notifyPropertyStorageChanged(scope);
 }
 
-async function get<T>(storeName: string, key: string): Promise<T | undefined> {
-  const db = await openDb();
+async function get<T>(storeName: string, key: string, scope: StorageScope = null): Promise<T | undefined> {
+  const db = await openDb(scope);
   const value = await new Promise<T | undefined>((resolve, reject) => {
     const transaction = db.transaction(storeName, 'readonly');
     const request = transaction.objectStore(storeName).get(key);
@@ -371,12 +442,12 @@ async function get<T>(storeName: string, key: string): Promise<T | undefined> {
   return value;
 }
 
-export async function savePropertyProject(project: PropertyProject): Promise<void> {
-  await put(PROJECTS, project);
+export async function savePropertyProject(project: PropertyProject, scope: StorageScope = null): Promise<void> {
+  await put(PROJECTS, project, scope);
 }
 
-export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord): Promise<void> {
-  const db = await openDb();
+export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
+  const db = await openDb(scope);
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
@@ -386,14 +457,14 @@ export async function savePropertyProjectWithImage(project: PropertyProject, ima
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-    notifyPropertyStorageChanged();
+    notifyPropertyStorageChanged(scope);
   } finally {
     db.close();
   }
 }
 
-export async function loadPropertyProjects(): Promise<PropertyProject[]> {
-  const db = await openDb();
+export async function loadPropertyProjects(scope: StorageScope = null): Promise<PropertyProject[]> {
+  const db = await openDb(scope);
   try {
     const projects = await new Promise<PropertyProject[]>((resolve, reject) => {
       const request = db.transaction(PROJECTS, 'readonly').objectStore(PROJECTS).getAll();
@@ -441,7 +512,7 @@ function duplicateProjectFingerprint(project: PropertyProject, imageFingerprints
   });
 }
 
-export async function findMatchingSavedPropertyProject(archiveInput: unknown): Promise<PropertyProject | undefined> {
+export async function findMatchingSavedPropertyProject(archiveInput: unknown, scope: StorageScope = null): Promise<PropertyProject | undefined> {
   validateArchive(archiveInput);
   const archive = archiveInput;
   const archivedDetails = duplicateProjectDetails(archive.project);
@@ -451,7 +522,7 @@ export async function findMatchingSavedPropertyProject(archiveInput: unknown): P
   ]));
   const archivedFingerprint = duplicateProjectFingerprint(archive.project, archiveImageFingerprints);
 
-  const db = await openDb();
+  const db = await openDb(scope);
   try {
     const { candidates, imageRecords } = await new Promise<{
       candidates: PropertyProject[];
@@ -505,11 +576,11 @@ export async function findMatchingSavedPropertyProject(archiveInput: unknown): P
   }
 }
 
-export async function loadPropertyProjectsWithPhotoHealth(): Promise<{
+export async function loadPropertyProjectsWithPhotoHealth(scope: StorageScope = null): Promise<{
   projects: PropertyProject[];
   photoHealthById: Record<string, PropertyProjectPhotoHealth>;
 }> {
-  const db = await openDb();
+  const db = await openDb(scope);
   try {
     const { projects, imageKeys } = await new Promise<{ projects: PropertyProject[]; imageKeys: IDBValidKey[] }>((resolve, reject) => {
       const transaction = db.transaction([PROJECTS, IMAGES], 'readonly');
@@ -551,16 +622,16 @@ export async function loadPropertyProjectsWithPhotoHealth(): Promise<{
   }
 }
 
-export async function loadPropertyProject(id: string): Promise<PropertyProject | undefined> {
-  return get<PropertyProject>(PROJECTS, id);
+export async function loadPropertyProject(id: string, scope: StorageScope = null): Promise<PropertyProject | undefined> {
+  return get<PropertyProject>(PROJECTS, id, scope);
 }
 
-export async function loadLatestPropertyProject(): Promise<PropertyProject | undefined> {
-  return (await loadPropertyProjects())[0];
+export async function loadLatestPropertyProject(scope: StorageScope = null): Promise<PropertyProject | undefined> {
+  return (await loadPropertyProjects(scope))[0];
 }
 
-export async function deletePropertyProject(project: Pick<PropertyProject, 'id' | 'originalKey' | 'resultKeys'>): Promise<void> {
-  const db = await openDb();
+export async function deletePropertyProject(project: Pick<PropertyProject, 'id' | 'originalKey' | 'resultKeys'>, scope: StorageScope = null): Promise<void> {
+  const db = await openDb(scope);
   const imageKeys = new Set([project.originalKey, ...Object.values(project.resultKeys)].filter((key): key is string => Boolean(key)));
   try {
     await new Promise<void>((resolve, reject) => {
@@ -572,18 +643,18 @@ export async function deletePropertyProject(project: Pick<PropertyProject, 'id' 
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-    notifyPropertyStorageChanged();
+    notifyPropertyStorageChanged(scope);
   } finally {
     db.close();
   }
 }
 
-export async function savePropertyImage(record: PropertyImageRecord): Promise<void> {
-  await put(IMAGES, record);
+export async function savePropertyImage(record: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
+  await put(IMAGES, record, scope);
 }
 
-export async function deletePropertyImage(key: string): Promise<void> {
-  const db = await openDb();
+export async function deletePropertyImage(key: string, scope: StorageScope = null): Promise<void> {
+  const db = await openDb(scope);
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(IMAGES, 'readwrite');
@@ -592,28 +663,28 @@ export async function deletePropertyImage(key: string): Promise<void> {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-    notifyPropertyStorageChanged();
+    notifyPropertyStorageChanged(scope);
   } finally {
     db.close();
   }
 }
 
-export async function loadPropertyImage(key: string): Promise<PropertyImageRecord | undefined> {
-  return get<PropertyImageRecord>(IMAGES, key);
+export async function loadPropertyImage(key: string, scope: StorageScope = null): Promise<PropertyImageRecord | undefined> {
+  return get<PropertyImageRecord>(IMAGES, key, scope);
 }
 
-export async function loadPropertyProjectImages(project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>): Promise<{
+export async function loadPropertyProjectImages(project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>, scope: StorageScope = null): Promise<{
   original?: PropertyImageRecord;
   results: Partial<Record<PropertyAction, PropertyImageRecord>>;
   missingOriginal: boolean;
   missingConcepts: PropertyAction[];
 }> {
-  const original = project.originalKey ? await loadPropertyImage(project.originalKey) : undefined;
+  const original = project.originalKey ? await loadPropertyImage(project.originalKey, scope) : undefined;
   const missingConcepts: PropertyAction[] = [];
   const results: Partial<Record<PropertyAction, PropertyImageRecord>> = {};
   for (const [action, key] of Object.entries(project.resultKeys)) {
     if (!key) continue;
-    const image = await loadPropertyImage(key);
+    const image = await loadPropertyImage(key, scope);
     if (image) results[action as PropertyAction] = image;
     else missingConcepts.push(action as PropertyAction);
   }
@@ -625,7 +696,7 @@ export async function loadPropertyProjectImages(project: Pick<PropertyProject, '
   };
 }
 
-export async function exportPropertyProject(project: PropertyProject): Promise<PropertyProjectArchive> {
+export async function exportPropertyProject(project: PropertyProject, scope: StorageScope = null): Promise<PropertyProjectArchive> {
   const imageKeys = [...new Set([
     ...(project.originalKey ? [project.originalKey] : []),
     ...Object.values(project.resultKeys).filter((key): key is string => Boolean(key)),
@@ -634,7 +705,7 @@ export async function exportPropertyProject(project: PropertyProject): Promise<P
     throw new Error('Dit project kan niet volledig worden geëxporteerd: de bronfoto ontbreekt.');
   }
 
-  const db = await openDb();
+  const db = await openDb(scope);
   let records: PropertyImageRecord[];
   try {
     records = await new Promise<PropertyImageRecord[]>((resolve, reject) => {
@@ -683,11 +754,11 @@ export async function exportPropertyProject(project: PropertyProject): Promise<P
   return archive;
 }
 
-export async function exportPropertyPortfolio(projects: PropertyProject[]): Promise<PropertyPortfolioArchive> {
+export async function exportPropertyPortfolio(projects: PropertyProject[], scope: StorageScope = null): Promise<PropertyPortfolioArchive> {
   if (projects.length === 0) {
     throw new Error('Er zijn geen opgeslagen projecten om in een portfolio-back-up te bewaren.');
   }
-  const archives = await Promise.all(projects.map((project) => exportPropertyProject(project)));
+  const archives = await Promise.all(projects.map((project) => exportPropertyProject(project, scope)));
   return {
     format: 'realestatex-property-portfolio',
     version: 1,
@@ -743,10 +814,10 @@ async function prepareImportedPropertyProject(archive: PropertyProjectArchive): 
   return { project, images };
 }
 
-async function writeImportedProjectsAtomically(preparedProjects: PreparedPropertyProject[]): Promise<void> {
+async function writeImportedProjectsAtomically(preparedProjects: PreparedPropertyProject[], scope: StorageScope = null): Promise<void> {
   let db: IDBDatabase;
   try {
-    db = await openDb();
+    db = await openDb(scope);
   } catch {
     throw new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Er is niets toegevoegd.');
   }
@@ -779,7 +850,7 @@ async function writeImportedProjectsAtomically(preparedProjects: PreparedPropert
       transaction.onerror = () => reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
       transaction.onabort = () => reject(new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
     });
-    notifyPropertyStorageChanged();
+    notifyPropertyStorageChanged(scope);
   } catch (error) {
     if (error instanceof Error && error.message.includes('er is niets toegevoegd')) throw error;
     throw new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.');
@@ -788,10 +859,10 @@ async function writeImportedProjectsAtomically(preparedProjects: PreparedPropert
   }
 }
 
-export async function importPropertyProject(archiveInput: unknown): Promise<PropertyProject> {
+export async function importPropertyProject(archiveInput: unknown, scope: StorageScope = null): Promise<PropertyProject> {
   validateArchive(archiveInput);
   const prepared = await prepareImportedPropertyProject(archiveInput);
-  const db = await openDb();
+  const db = await openDb(scope);
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
@@ -802,21 +873,308 @@ export async function importPropertyProject(archiveInput: unknown): Promise<Prop
       transaction.onerror = () => reject(transaction.error ?? new Error('Het project kon niet in deze browser worden opgeslagen.'));
       transaction.onabort = () => reject(transaction.error ?? new Error('Het project kon niet volledig in deze browser worden opgeslagen.'));
     });
-    notifyPropertyStorageChanged();
+    notifyPropertyStorageChanged(scope);
   } finally {
     db.close();
   }
   return prepared.project;
 }
 
-export async function importPropertyPortfolio(portfolioInput: unknown): Promise<PropertyProject[]> {
+export async function importPropertyPortfolio(portfolioInput: unknown, scope: StorageScope = null): Promise<PropertyProject[]> {
   validatePortfolioArchive(portfolioInput);
   const preparedProjects: PreparedPropertyProject[] = [];
   for (const archive of portfolioInput.projects) {
     preparedProjects.push(await prepareImportedPropertyProject(archive));
   }
-  await writeImportedProjectsAtomically(preparedProjects);
+  await writeImportedProjectsAtomically(preparedProjects, scope);
   return preparedProjects.map(({ project }) => project);
+}
+
+function requireAccountId(accountId: string): void {
+  if (!accountId.trim()) throw new Error('Meld je aan voordat je lokale vastgoedprojecten opent.');
+}
+
+export async function getLegacyProjectClaimStatus(accountId: string): Promise<LegacyProjectClaimStatus> {
+  requireAccountId(accountId);
+  const db = await openDb(null);
+  try {
+    return await new Promise<LegacyProjectClaimStatus>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, METADATA], 'readonly');
+      const countRequest = transaction.objectStore(PROJECTS).count();
+      const claimRequest = transaction.objectStore(METADATA).get(LEGACY_CLAIM_KEY);
+      let projectCount: number | undefined;
+      let claim: LegacyClaimRecord | undefined;
+      let claimLoaded = false;
+      countRequest.onsuccess = () => { projectCount = countRequest.result; };
+      claimRequest.onsuccess = () => {
+        claim = claimRequest.result as LegacyClaimRecord | undefined;
+        claimLoaded = true;
+      };
+      transaction.oncomplete = () => {
+        if (projectCount === undefined || !claimLoaded) {
+          reject(new Error('De oudere browserprojecten konden niet worden gecontroleerd.'));
+          return;
+        }
+        if (claim?.status === 'claimed') {
+          resolve({ status: claim.accountId === accountId ? 'claimed' : 'unavailable', projectCount: 0 });
+          return;
+        }
+        if (claim?.status === 'claiming') {
+          if (claim.accountId !== accountId) {
+            resolve({ status: 'unavailable', projectCount: 0 });
+            return;
+          }
+          const reservationIsStale = Date.now() - claim.updatedAt >= LEGACY_CLAIM_STALE_AFTER_MS;
+          resolve({
+            status: reservationIsStale ? (projectCount > 0 ? 'available' : 'none') : 'in-progress',
+            projectCount: reservationIsStale ? projectCount : 0,
+          });
+          return;
+        }
+        resolve(projectCount > 0
+          ? { status: 'available', projectCount }
+          : { status: 'none', projectCount: 0 });
+      };
+      transaction.onerror = () => reject(transaction.error ?? new Error('De oudere browserprojecten konden niet worden gecontroleerd.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('De oudere browserprojecten konden niet worden gecontroleerd.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+type LegacyClaimReservation = {
+  status: 'reserved' | 'none' | 'already-claimed' | 'unavailable' | 'in-progress';
+  token?: string;
+};
+
+async function reserveLegacyProjectClaim(accountId: string): Promise<LegacyClaimReservation> {
+  const db = await openDb(null);
+  try {
+    return await new Promise<LegacyClaimReservation>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, METADATA], 'readwrite');
+      const projectsStore = transaction.objectStore(PROJECTS);
+      const metadataStore = transaction.objectStore(METADATA);
+      const countRequest = projectsStore.count();
+      const claimRequest = metadataStore.get(LEGACY_CLAIM_KEY);
+      let projectCount: number | undefined;
+      let claim: LegacyClaimRecord | undefined;
+      let claimLoaded = false;
+      let result: LegacyClaimReservation = { status: 'none' };
+      let resultReady = false;
+      const decide = () => {
+        if (projectCount === undefined || !claimLoaded || resultReady) return;
+        resultReady = true;
+        if (projectCount === 0) {
+          result = { status: 'none' };
+          return;
+        }
+        if (claim?.status === 'claimed') {
+          result = { status: claim.accountId === accountId ? 'already-claimed' : 'unavailable' };
+          return;
+        }
+        const staleSameAccountReservation = claim?.status === 'claiming'
+          && claim.accountId === accountId
+          && Date.now() - claim.updatedAt >= LEGACY_CLAIM_STALE_AFTER_MS;
+        if (claim?.status === 'claiming' && !staleSameAccountReservation) {
+          result = { status: claim.accountId === accountId ? 'in-progress' : 'unavailable' };
+          return;
+        }
+        const token = crypto.randomUUID();
+        metadataStore.put({
+          key: LEGACY_CLAIM_KEY,
+          accountId,
+          status: 'claiming',
+          token,
+          updatedAt: Date.now(),
+        } satisfies LegacyClaimRecord);
+        result = { status: 'reserved', token };
+      };
+      countRequest.onsuccess = () => {
+        projectCount = countRequest.result;
+        decide();
+      };
+      claimRequest.onsuccess = () => {
+        claim = claimRequest.result as LegacyClaimRecord | undefined;
+        claimLoaded = true;
+        decide();
+      };
+      transaction.oncomplete = () => resolve(result);
+      transaction.onerror = () => reject(transaction.error ?? new Error('De oudere browserprojecten konden niet veilig worden geclaimd.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('De oudere browserprojecten konden niet veilig worden geclaimd.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function releaseLegacyProjectClaim(accountId: string, token: string): Promise<void> {
+  const db = await openDb(null);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(METADATA, 'readwrite');
+      const store = transaction.objectStore(METADATA);
+      const request = store.get(LEGACY_CLAIM_KEY);
+      request.onsuccess = () => {
+        const claim = request.result as LegacyClaimRecord | undefined;
+        if (claim?.accountId === accountId && claim.token === token && claim.status === 'claiming') {
+          store.delete(LEGACY_CLAIM_KEY);
+        }
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function writeLegacyProjectsAtomically(
+  preparedProjects: PreparedPropertyProject[],
+  accountId: string,
+): Promise<number> {
+  const db = await openDb(accountId);
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES, METADATA], 'readwrite');
+      const projectStore = transaction.objectStore(PROJECTS);
+      const imageStore = transaction.objectStore(IMAGES);
+      const metadataStore = transaction.objectStore(METADATA);
+      const markerRequest = metadataStore.get(ACCOUNT_LEGACY_IMPORT_KEY);
+      let importedCount = preparedProjects.length;
+      let markerRead = false;
+      markerRequest.onsuccess = () => {
+        markerRead = true;
+        const marker = markerRequest.result as { key: string; importedCount: number } | undefined;
+        if (marker) {
+          importedCount = marker.importedCount;
+          return;
+        }
+        try {
+          for (const { project, images } of preparedProjects) {
+            projectStore.add(project);
+            for (const image of images) imageStore.add(image);
+          }
+          metadataStore.add({ key: ACCOUNT_LEGACY_IMPORT_KEY, importedCount });
+        } catch {
+          try {
+            transaction.abort();
+          } catch {
+            // The transaction may already have stopped.
+          }
+        }
+      };
+      transaction.oncomplete = () => {
+        if (!markerRead) {
+          reject(new Error('Oude browserprojecten konden niet veilig worden overgezet.'));
+          return;
+        }
+        resolve(importedCount);
+      };
+      transaction.onerror = () => reject(new Error('Oude browserprojecten konden niet veilig worden overgezet. Er is niets gewijzigd.'));
+      transaction.onabort = () => reject(new Error('Oude browserprojecten konden niet veilig worden overgezet. Er is niets gewijzigd.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function completeLegacyProjectClaim(accountId: string, token: string, importedCount: number): Promise<void> {
+  const db = await openDb(null);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(METADATA, 'readwrite');
+      const store = transaction.objectStore(METADATA);
+      const request = store.get(LEGACY_CLAIM_KEY);
+      let claimMismatch = false;
+      request.onsuccess = () => {
+        const claim = request.result as LegacyClaimRecord | undefined;
+        if (claim?.accountId !== accountId || claim.token !== token || claim.status !== 'claiming') {
+          claimMismatch = true;
+          try {
+            transaction.abort();
+          } catch {
+            // The transaction may already have stopped.
+          }
+          return;
+        }
+        store.put({ ...claim, status: 'claimed', importedCount, updatedAt: Date.now() } satisfies LegacyClaimRecord);
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error('De claim van oude browserprojecten kon niet worden bevestigd.'));
+      transaction.onabort = () => reject(claimMismatch
+        ? new Error('De claimstatus is gewijzigd. Vernieuw de projectlijst voordat je opnieuw probeert.')
+        : transaction.error ?? new Error('De claim van oude browserprojecten kon niet worden bevestigd.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function claimLegacyPropertyProjects(accountId: string): Promise<{
+  status: 'claimed' | 'already-claimed' | 'none' | 'unavailable' | 'in-progress';
+  importedCount: number;
+}> {
+  requireAccountId(accountId);
+  const reservation = await reserveLegacyProjectClaim(accountId);
+  if (reservation.status !== 'reserved') {
+    return {
+      status: reservation.status,
+      importedCount: reservation.status === 'already-claimed' ? (await getLegacyProjectClaimStatus(accountId)).projectCount : 0,
+    };
+  }
+  if (!reservation.token) throw new Error('De claim van oudere browserprojecten kon niet worden gestart.');
+
+  let targetCopyCommitted = false;
+  try {
+    const legacyProjects = await loadPropertyProjects(null);
+    if (legacyProjects.length === 0) {
+      await releaseLegacyProjectClaim(accountId, reservation.token);
+      return { status: 'none', importedCount: 0 };
+    }
+    const archives = await Promise.all(legacyProjects.map((project) => exportPropertyProject(project, null)));
+    const preparedProjects: PreparedPropertyProject[] = [];
+    for (const archive of archives) preparedProjects.push(await prepareImportedPropertyProject(archive));
+    const importedCount = await writeLegacyProjectsAtomically(preparedProjects, accountId);
+    targetCopyCommitted = true;
+    await completeLegacyProjectClaim(accountId, reservation.token, importedCount);
+    notifyPropertyStorageChanged(accountId);
+    notifyLegacyProjectClaimChanged();
+    return { status: 'claimed', importedCount };
+  } catch (error) {
+    if (!targetCopyCommitted) {
+      await releaseLegacyProjectClaim(accountId, reservation.token).catch(() => undefined);
+    }
+    throw error;
+  }
+}
+
+export function createPropertyProjectStorage(accountId: string) {
+  requireAccountId(accountId);
+  return {
+    subscribePropertyStorageChanges: (subscriber: () => void) => subscribePropertyStorageChanges(subscriber, accountId),
+    loadPropertyProjectSortOrderPreference: () => loadPropertyProjectSortOrderPreference(accountId),
+    savePropertyProjectSortOrderPreference: (order: PropertyProjectSortOrder) => savePropertyProjectSortOrderPreference(order, accountId),
+    savePropertyProject: (project: PropertyProject) => savePropertyProject(project, accountId),
+    savePropertyProjectWithImage: (project: PropertyProject, image: PropertyImageRecord) => savePropertyProjectWithImage(project, image, accountId),
+    loadPropertyProjects: () => loadPropertyProjects(accountId),
+    findMatchingSavedPropertyProject: (archive: unknown) => findMatchingSavedPropertyProject(archive, accountId),
+    loadPropertyProjectsWithPhotoHealth: () => loadPropertyProjectsWithPhotoHealth(accountId),
+    loadPropertyProject: (id: string) => loadPropertyProject(id, accountId),
+    loadLatestPropertyProject: () => loadLatestPropertyProject(accountId),
+    deletePropertyProject: (project: Pick<PropertyProject, 'id' | 'originalKey' | 'resultKeys'>) => deletePropertyProject(project, accountId),
+    savePropertyImage: (record: PropertyImageRecord) => savePropertyImage(record, accountId),
+    deletePropertyImage: (key: string) => deletePropertyImage(key, accountId),
+    loadPropertyImage: (key: string) => loadPropertyImage(key, accountId),
+    loadPropertyProjectImages: (project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>) => loadPropertyProjectImages(project, accountId),
+    exportPropertyProject: (project: PropertyProject) => exportPropertyProject(project, accountId),
+    exportPropertyPortfolio: (projects: PropertyProject[]) => exportPropertyPortfolio(projects, accountId),
+    importPropertyProject: (archive: unknown) => importPropertyProject(archive, accountId),
+    importPropertyPortfolio: (portfolio: unknown) => importPropertyPortfolio(portfolio, accountId),
+    getLegacyProjectClaimStatus: () => getLegacyProjectClaimStatus(accountId),
+    claimLegacyPropertyProjects: () => claimLegacyPropertyProjects(accountId),
+  };
 }
 
 export function blobToObjectUrl(blob: Blob): string {

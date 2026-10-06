@@ -1,10 +1,15 @@
-import {
+import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
+import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
+
+const {
   deletePropertyProject,
   loadPropertyImage,
   loadPropertyProject,
   loadPropertyProjects,
+  loadPropertyProjectImages,
   savePropertyProject,
-} from '../src/lib/property-transformer-db.ts';
+} = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
+const recoveryFixtureSessionKey = 'realestatex-photo-recovery-fixture-ready';
 
 const result = document.querySelector('#test-result');
 const project = {
@@ -66,16 +71,19 @@ const projectOrderFixtures = [
 ];
 
 async function prepareFixture() {
-  for (const previousProject of await loadPropertyProjects()) {
-    await deletePropertyProject(previousProject);
+  const fixtureAlreadyPrepared = sessionStorage.getItem(recoveryFixtureSessionKey) === 'true';
+  if (!fixtureAlreadyPrepared) {
+    for (const previousProject of await loadPropertyProjects()) {
+      await deletePropertyProject(previousProject);
+    }
+    await savePropertyProject(project);
+    for (const orderFixture of projectOrderFixtures) {
+      await savePropertyProject(orderFixture);
+    }
+    sessionStorage.setItem(recoveryFixtureSessionKey, 'true');
   }
-  await savePropertyProject(project);
-  for (const orderFixture of projectOrderFixtures) {
-    await savePropertyProject(orderFixture);
-  }
-  const missingPhotos = await import('../src/lib/property-transformer-db.ts')
-    .then(({ loadPropertyProjectImages }) => loadPropertyProjectImages(project));
-  if (!missingPhotos.missingOriginal || !missingPhotos.missingConcepts.includes('stage')) {
+  const missingPhotos = fixtureAlreadyPrepared ? null : await loadPropertyProjectImages(project);
+  if (missingPhotos && (!missingPhotos.missingOriginal || !missingPhotos.missingConcepts.includes('stage'))) {
     throw new Error('Recovery fixture did not start with both referenced photos missing.');
   }
 
@@ -83,6 +91,7 @@ async function prepareFixture() {
     initialProject: project,
     failNextConceptRequest: false,
     lastConceptRequestUrl: '',
+    successfulConceptDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL+WQAAAABJRU5ErkJggg==',
     async readProject() {
       return loadPropertyProject(project.id);
     },
@@ -90,9 +99,13 @@ async function prepareFixture() {
       const image = await loadPropertyImage(key);
       return image ? { type: image.blob.type, size: image.blob.size, isConcept: image.isConcept } : null;
     },
+    async readConceptImage(key) {
+      const image = await loadPropertyImage(key);
+      return image ? { type: image.blob.type, size: image.blob.size, isConcept: image.isConcept } : null;
+    },
     async readImageKeys() {
       const database = await new Promise((resolve, reject) => {
-        const request = indexedDB.open('realestatex-property-transformer');
+        const request = indexedDB.open(`realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error ?? new Error('Could not open the property image store.'));
       });
@@ -115,6 +128,15 @@ async function prepareFixture() {
       window.__propertyRecoveryTest.failNextConceptRequest = false;
       window.__propertyRecoveryTest.lastConceptRequestUrl = url;
       return Promise.reject(new TypeError('Failed to fetch'));
+    }
+    if (url.includes('/api/property-transformations/virtual-staging')) {
+      window.__propertyRecoveryTest.lastConceptRequestUrl = url;
+      return Promise.resolve(new Response(JSON.stringify({
+        imageDataUrl: window.__propertyRecoveryTest.successfulConceptDataUrl,
+        mimeType: 'image/png',
+        isConcept: true,
+        disclaimer: 'AI-concept, not a factual representation.',
+      }), { status: 200, headers: { 'content-type': 'application/json' } }));
     }
     return nativeFetch(input, ...init);
   };

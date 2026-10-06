@@ -930,6 +930,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Three free property analyses have been used; Pro beta registration is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisLimitResponse"
+        "503":
+          description: The account allowance could not be verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: Image transformation provider failed
           content:
@@ -970,6 +982,18 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "429":
           description: Per-user transformation limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Three free property analyses have been used; Pro beta registration is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisLimitResponse"
+        "503":
+          description: The account allowance could not be verified
           content:
             application/json:
               schema:
@@ -1018,6 +1042,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Three free property analyses have been used; Pro beta registration is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisLimitResponse"
+        "503":
+          description: The account allowance could not be verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: Image transformation provider failed
           content:
@@ -1062,8 +1098,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Three free property analyses have been used; Pro beta registration is available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisLimitResponse"
+        "503":
+          description: The account allowance could not be verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "502":
           description: Image transformation provider failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /property-transformations/pro-beta-waitlist:
+    post:
+      operationId: joinPropertyProBetaWaitlist
+      tags: [property-transformations]
+      summary: Register the authenticated account for the RealEstateX Pro beta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyBetaWaitlistInput"
+      responses:
+        "201":
+          description: Lead saved with explicit consent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyBetaWaitlistReceipt"
+        "400":
+          description: Invalid email or missing explicit consent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Waitlist registration rate limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The lead could not be saved
           content:
             application/json:
               schema:
@@ -1324,6 +1410,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BillingReadiness"
+  /saas/billing/checkout:
+    post:
+      operationId: createSaasBillingCheckout
+      tags: [enterprise]
+      summary: Payment checkout is unavailable during the RealEstateX beta
+      responses:
+        "410":
+          description: Payments are paused while RealEstateX Pro is in beta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHoldResponse"
+  /saas/billing/portal:
+    post:
+      operationId: createSaasBillingPortal
+      tags: [enterprise]
+      summary: Payment management is unavailable during the RealEstateX beta
+      responses:
+        "410":
+          description: Payments are paused while RealEstateX Pro is in beta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHoldResponse"
+  /stripe/checkout:
+    post:
+      operationId: createStripeCheckout
+      tags: [enterprise]
+      summary: Stripe checkout is unavailable during the RealEstateX beta
+      responses:
+        "410":
+          description: Payments are paused while RealEstateX Pro is in beta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHoldResponse"
   /account:
     get:
       tags: [Account]
@@ -1453,6 +1575,52 @@ components:
           type: boolean
           const: true
         disclaimer:
+          type: string
+    AnalysisLimitResponse:
+      type: object
+      required: [code, error, analysisLimit, analysesUsed]
+      properties:
+        code:
+          type: string
+          const: PRO_BETA_REQUIRED
+        error:
+          type: string
+        analysisLimit:
+          type: integer
+          const: 3
+        analysesUsed:
+          type: integer
+          minimum: 3
+    PropertyBetaWaitlistInput:
+      type: object
+      additionalProperties: false
+      required: [email, consent]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        consent:
+          type: boolean
+          enum: [true]
+    PropertyBetaWaitlistReceipt:
+      type: object
+      required: [registered, consentedAt]
+      properties:
+        registered:
+          type: boolean
+          const: true
+        consentedAt:
+          type: string
+          format: date-time
+    PaymentHoldResponse:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          const: PAYMENTS_ON_HOLD
+        error:
           type: string
     DealInput:
       type: object

@@ -1,7 +1,11 @@
 import React from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import {
+import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
+import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
+import { ProjectManager } from '../src/pages/property-transformer.tsx';
+
+const {
   deletePropertyProject,
   deletePropertyImage,
   exportPropertyPortfolio,
@@ -18,9 +22,7 @@ import {
   savePropertyProject,
   savePropertyProjectWithImage,
   subscribePropertyStorageChanges,
-} from '../src/lib/property-transformer-db.ts';
-import { ProjectManager } from '../src/pages/property-transformer.tsx';
-
+} = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 const result = document.querySelector('#test-result');
 const phaseKey = 'property-storage-browser-test-phase';
 result.textContent = 'Test module loaded; preparing IndexedDB…';
@@ -204,6 +206,10 @@ function runSavedProjectSearchUiChecks() {
     'search-no-road': { sourcePhoto: 'available', missingConcepts: [] },
   };
   const renderProjectManager = () => root.render(React.createElement(ProjectManager, {
+    accountId: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
+    legacyClaimStatus: { status: 'none', projectCount: 0 },
+    legacyClaimBusy: false,
+    onClaimLegacy() {},
     projects: displayedProjects,
     photoHealthByProject,
     loading: false,
@@ -359,6 +365,10 @@ async function runCrossTabPhotoHealthChecks() {
   let photoHealthByProject = {};
   let refreshError;
   const render = () => flushSync(() => root.render(React.createElement(ProjectManager, {
+    accountId: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
+    legacyClaimStatus: { status: 'none', projectCount: 0 },
+    legacyClaimBusy: false,
+    onClaimLegacy() {},
     projects: displayedProjects,
     photoHealthByProject,
     loading: false,

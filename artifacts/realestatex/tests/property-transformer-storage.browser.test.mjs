@@ -413,13 +413,17 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
       throw new Error('Changing the project-list order modified the saved project record or timestamp.');
     }
 
-    await devTools.send('Page.reload');
+    await devTools.send('Page.navigate', { url });
     const reloadedStudio = await waitFor(
-      `Boolean(document.querySelector('[data-testid="button-open-projects"]'))`,
-      (value) => value === true,
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixtureReady: typeof window.__propertyRecoveryTest?.readProject === 'function',
+        studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixtureReady && value.studioReady,
       'the authenticated studio after reloading the page',
     );
-    if (!reloadedStudio) throw new Error('The authenticated studio did not return after reloading.');
+    if (!reloadedStudio.studioReady) throw new Error('The authenticated studio did not return after reloading.');
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
     const reloadedPortfolio = await waitFor(
       projectListState,
@@ -428,7 +432,63 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
     );
     if (!reloadedPortfolio.open) throw new Error('The portfolio did not open after the page reload.');
 
-    return 'Passed: unreadable and unsupported replacement photos showed clear retryable errors without changing saved project or image records; a valid replacement preserved the selected scenario; portfolio controls worked; and project-name order persisted after close, reopen, and reload.';
+    await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
+    const beforeSuccessfulRepair = await evaluate('window.__propertyRecoveryTest.readProject()', true);
+    if (!beforeSuccessfulRepair?.resultKeys?.stage) throw new Error('The missing Virtual stage result reference was not available before repair.');
+    await evaluate(`document.querySelector('[data-testid="button-repair-concept-stage"]')?.click()`);
+    const successfulRepair = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        const image = project?.resultKeys?.stage
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+          : null;
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
+        return {
+          project,
+          image,
+          missingConcept: notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
+        };
+      })()`,
+      (value) => value?.project?.resultKeys?.stage
+        && value.project.resultKeys.stage !== beforeSuccessfulRepair.resultKeys.stage
+        && value.image?.isConcept
+        && value.image?.size > 0
+        && !value.missingConcept,
+      'the repaired Virtual stage concept to be saved',
+    );
+    if (!successfulRepair.project || successfulRepair.project.selectedResult !== 'stage') {
+      throw new Error('The successful concept repair did not keep Virtual stage selected.');
+    }
+    await devTools.send('Page.navigate', { url });
+    const repairedStudio = await waitFor(
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixtureReady: typeof window.__propertyRecoveryTest?.readProject === 'function',
+        studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixtureReady && value.studioReady,
+      'the studio after refreshing the successfully repaired project',
+    );
+    if (!repairedStudio.studioReady) throw new Error('The studio did not return after refreshing the repaired project.');
+    const persistedRepair = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        const image = project?.resultKeys?.stage
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+          : null;
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
+        return { project, image, notice };
+      })()`,
+      (value) => value?.project?.selectedResult === 'stage'
+        && value.project.resultKeys?.stage === successfulRepair.project.resultKeys.stage
+        && value.image?.isConcept
+        && value.image?.size > 0
+        && !value.notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
+      'the repaired concept and selected scenario to persist after refresh',
+    );
+    if (!persistedRepair.project) throw new Error('The repaired concept was not available after refresh.');
+
+    return 'Passed: unsupported replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; and the selected project-list order survived close, reopen, and reload.';
   } finally {
     devTools.close();
   }
@@ -470,6 +530,7 @@ const chromiumPath = process.env.CHROMIUM_PATH || process.env.CHROME_BIN || '/re
 const port = await getFreePort();
 const debugPort = await getFreePort();
 const storageUrl = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
+const accountIsolationUrl = `http://127.0.0.1:${port}/tests/property-transformer-account-isolation.html`;
 const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
 const duplicateImportUrl = `http://127.0.0.1:${port}/tests/property-transformer-duplicate-import.html`;
 const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
@@ -516,10 +577,11 @@ try {
     if (process.env.PROPERTY_STORAGE_ONLY === '1') {
       console.log(storageResult);
     } else {
+      const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, unreadableImagePath, unsupportedImagePath, browser);
       const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
       const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
-      console.log(`${storageResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}`);
+      console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}`);
     }
   } finally {
     clearTimeout(timeout);

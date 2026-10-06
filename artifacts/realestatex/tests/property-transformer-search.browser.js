@@ -1,10 +1,13 @@
 import { flushSync } from 'react-dom';
-import {
+import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
+import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
+
+const {
   deletePropertyProject,
   loadPropertyProjects,
   savePropertyProject,
   savePropertyProjectSortOrderPreference,
-} from '../src/lib/property-transformer-db.ts';
+} = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 
 const result = document.querySelector('#test-result');
 const projects = [

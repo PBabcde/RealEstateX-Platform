@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, SignUp, Show, useAuth, useClerk } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, useAuth, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { ApiError, getGetAccountQueryKey, useGetAccount } from '@workspace/api-client-react';
@@ -144,6 +144,12 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
 }
 
+function AccountScopedPropertyTransformer() {
+  const { isLoaded, user } = useUser();
+  if (!isLoaded || !user) return <Loading />;
+  return <PropertyTransformer key={user.id} accountId={user.id} userEmail={user.primaryEmailAddress?.emailAddress ?? ''} />;
+}
+
 function Router() {
   return <RoutedErrorBoundary><Switch>
     <Route path="/" component={HomeRedirect} />
@@ -156,7 +162,7 @@ function Router() {
     <Route path="/suite"><ProtectedPage><Suite /></ProtectedPage></Route>
     <Route path="/dealing-room"><ProtectedPage><DealingRoom /></ProtectedPage></Route>
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
-    <Route path="/property-transformer"><ProtectedPage><PropertyTransformer /></ProtectedPage></Route>
+    <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }

@@ -70,6 +70,30 @@ export interface PropertyImageTransformResult {
   disclaimer: string;
 }
 
+export interface AnalysisLimitResponse {
+  code: 'PRO_BETA_REQUIRED';
+  error: string;
+  analysisLimit: 3;
+  /** @minimum 3 */
+  analysesUsed: number;
+}
+
+export interface PropertyBetaWaitlistInput {
+  /** @maxLength 254 */
+  email: string;
+  consent: true;
+}
+
+export interface PropertyBetaWaitlistReceipt {
+  registered: true;
+  consentedAt: string;
+}
+
+export interface PaymentHoldResponse {
+  code: 'PAYMENTS_ON_HOLD';
+  error: string;
+}
+
 export interface DealInput {
   /** @minLength 1 */
   propertyId: string;
