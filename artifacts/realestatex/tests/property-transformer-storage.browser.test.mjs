@@ -129,9 +129,31 @@ async function runBrowserTest(debugPort, url, browser) {
   await devTools.send('Page.navigate', { url });
 
   const deadline = Date.now() + 45_000;
+  let lastKeyboardRequestId = 0;
   let lastState;
   while (Date.now() < deadline) {
     if (browser.exitCode !== null) throw new Error(`Chromium exited during the browser test (code ${browser.exitCode}).`);
+    const keyboardRequestEvaluation = await devTools.send('Runtime.evaluate', {
+      expression: 'window.__browserTestKeyboardRequest ?? null',
+      returnByValue: true,
+    });
+    const keyboardRequest = keyboardRequestEvaluation.result?.value;
+    if (keyboardRequest && keyboardRequest.id > lastKeyboardRequestId) {
+      const keyData = keyboardRequest.key === 'Tab'
+        ? { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 }
+        : keyboardRequest.key === 'Escape'
+          ? { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }
+          : null;
+      if (!keyData) throw new Error(`The browser test requested an unsupported keyboard key: ${keyboardRequest.key}`);
+      const modifiers = keyboardRequest.shift ? 8 : 0;
+      await devTools.send('Input.dispatchKeyEvent', { type: 'keyDown', ...keyData, modifiers });
+      await devTools.send('Input.dispatchKeyEvent', { type: 'keyUp', ...keyData, modifiers });
+      lastKeyboardRequestId = keyboardRequest.id;
+      await devTools.send('Runtime.evaluate', {
+        expression: `window.__browserTestKeyboardRequest = null; window.__browserTestKeyboardResponse = ${keyboardRequest.id};`,
+        returnByValue: true,
+      });
+    }
     const evaluation = await devTools.send('Runtime.evaluate', {
       expression: `(() => {
         const element = document.querySelector('#test-result');
@@ -962,7 +984,10 @@ try {
   ], { stdio: 'ignore' });
   const timeout = setTimeout(() => browser.kill('SIGKILL'), 180_000);
   try {
-    if (process.env.PROPERTY_RECOVERY_ONLY === '1') {
+    if (process.env.PROPERTY_DUPLICATE_IMPORT_ONLY === '1') {
+      const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
+      console.log(duplicateImportResult);
+    } else if (process.env.PROPERTY_RECOVERY_ONLY === '1') {
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
       console.log(recoveryResult);
     } else {

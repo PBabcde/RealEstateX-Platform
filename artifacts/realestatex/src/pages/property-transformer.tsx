@@ -192,6 +192,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
   const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
+  const duplicateImportDialogRef = useRef<HTMLElement>(null);
+  const duplicateImportReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectRef = useRef<PropertyProject | null>(project);
   const originalPreviewRef = useRef(originalUrl);
   const resultPreviewsRef = useRef(results);
@@ -462,6 +464,75 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setProjectManagerOpen(true);
     void refreshProjects().catch(() => setUploadError('De projectlijst kon niet uit de lokale browseropslag worden geladen.'));
   };
+  const openProjectImport = () => {
+    duplicateImportReturnFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    transferFileRef.current?.click();
+  };
+  const closeDuplicateImport = () => {
+    setPendingDuplicateImport(null);
+    setProjectTransferError('');
+  };
+
+  useEffect(() => {
+    if (!pendingDuplicateImport) return;
+
+    const dialog = duplicateImportDialogRef.current;
+    const getFocusableButtons = () => Array.from(
+      dialog?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+    );
+    const initialFocus = getFocusableButtons()[0] ?? dialog;
+    initialFocus?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!dialog) return;
+      if (event.key === 'Escape') {
+        if (dialog.querySelector<HTMLButtonElement>('[data-testid="button-cancel-duplicate-import"]')?.disabled) return;
+        event.preventDefault();
+        closeDuplicateImport();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusableButtons = getFocusableButtons();
+      if (focusableButtons.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusableButtons[0];
+      const last = focusableButtons[focusableButtons.length - 1];
+      const focusIsOutsideDialog = !dialog.contains(document.activeElement);
+      if ((event.shiftKey && (document.activeElement === first || focusIsOutsideDialog))
+        || (!event.shiftKey && (document.activeElement === last || focusIsOutsideDialog))) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      const preferredReturnTarget = duplicateImportReturnFocusRef.current;
+      window.requestAnimationFrame(() => {
+        if (document.querySelector('[data-testid="dialog-duplicate-import"]')) return;
+        const candidates = [
+          preferredReturnTarget,
+          document.querySelector<HTMLElement>('[data-testid="button-import-project"]'),
+          document.querySelector<HTMLElement>('[data-testid="button-open-projects"]'),
+        ];
+        const returnTarget = candidates.find((candidate) => candidate?.isConnected
+          && !(candidate instanceof HTMLButtonElement && candidate.disabled));
+        if (returnTarget) {
+          returnTarget.focus();
+        }
+        if (duplicateImportReturnFocusRef.current === preferredReturnTarget) {
+          duplicateImportReturnFocusRef.current = null;
+        }
+      });
+    };
+  }, [pendingDuplicateImport]);
   const openSavedProject = async (id: string) => {
     setIsProjectSwitching(true);
     setUploadError('');
@@ -698,8 +769,12 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const openExistingDuplicate = async () => {
     if (!pendingDuplicateImport) return;
     const existingId = pendingDuplicateImport.existing.id;
+    duplicateImportReturnFocusRef.current = document.querySelector<HTMLElement>('[data-testid="button-open-projects"]');
     setPendingDuplicateImport(null);
     await openSavedProject(existingId);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('[data-testid="button-open-projects"]')?.focus();
+    });
   };
 
   const importAnotherCopy = async () => {
@@ -904,7 +979,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -931,13 +1006,13 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
     {notice && <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-transform-success"><Check size={15} />{notice}</div>}
     {pendingDuplicateImport && <div className="fixed inset-0 z-[100] grid place-items-center bg-[#172033]/50 p-4" data-testid="dialog-duplicate-import">
-      <section role="dialog" aria-modal="true" aria-labelledby="duplicate-import-title" aria-describedby="duplicate-import-description" className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+      <section ref={duplicateImportDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="duplicate-import-title" aria-describedby="duplicate-import-description" className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <p className="mono text-[9px] uppercase tracking-[.16em] text-[#a95f39]">Projectbestand importeren</p>
         <h2 id="duplicate-import-title" className="display mt-2 text-2xl font-bold tracking-[-.05em]">Dit project staat al in deze browser</h2>
         <p id="duplicate-import-description" className="mt-3 text-sm leading-6 text-muted-foreground">“{pendingDuplicateImport.existing.projectName || 'Transformatiescan'}” komt overeen met een opgeslagen project. Open het bestaande project, of importeer bewust nog een kopie.</p>
         {projectTransferError && <p role="alert" className="mt-4 rounded-lg bg-[#fff1ee] px-3 py-2 text-xs text-[#9e4336]" data-testid="status-duplicate-import-error">{projectTransferError}</p>}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button onClick={() => { setPendingDuplicateImport(null); setProjectTransferError(''); }} disabled={isProjectTransferring} className="rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary disabled:opacity-50" data-testid="button-cancel-duplicate-import">Annuleren</button>
+          <button onClick={closeDuplicateImport} disabled={isProjectTransferring} className="rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary disabled:opacity-50" data-testid="button-cancel-duplicate-import">Annuleren</button>
           <button onClick={() => void importAnotherCopy()} disabled={isProjectTransferring} className="rounded-xl border border-[#a95f39]/50 px-4 py-3 text-xs font-bold text-[#8c4d2d] hover:bg-[#fff8ef] disabled:opacity-50" data-testid="button-import-another-copy">{isProjectTransferring ? 'Importeren…' : 'Toch een extra kopie importeren'}</button>
           <button onClick={() => void openExistingDuplicate()} disabled={isProjectTransferring} className="rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] hover:bg-[#30425f] disabled:opacity-50" data-testid="button-open-existing-duplicate">Bestaand project openen</button>
         </div>
@@ -957,7 +1032,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div>{proBetaDialogOpen && <ProBetaWaitlistDialog initialEmail={userEmail} onClose={() => setProBetaDialogOpen(false)} />}</AppShell>;
 }
 

@@ -61,6 +61,8 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+let browserKeyboardRequestId = 0;
+
 async function waitFor(predicate, description, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -68,6 +70,21 @@ async function waitFor(predicate, description, timeoutMs = 20_000) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`Timed out waiting for ${description}.`);
+}
+
+async function pressKeyboardKey(key, expectedFocusSelector, shift = false) {
+  const requestId = ++browserKeyboardRequestId;
+  window.__browserTestKeyboardRequest = { id: requestId, key, shift };
+  await waitFor(
+    () => window.__browserTestKeyboardResponse === requestId,
+    `the browser to send the ${shift ? 'Shift+' : ''}${key} key`,
+  );
+  if (expectedFocusSelector) {
+    await waitFor(
+      () => document.activeElement === document.querySelector(expectedFocusSelector),
+      `keyboard focus to move to ${expectedFocusSelector}`,
+    );
+  }
 }
 
 function projectIds() {
@@ -105,7 +122,10 @@ function setImportFile(archive) {
 async function importMatchingBackup(archive) {
   const importButton = document.querySelector('[data-testid="button-import-project"]');
   assert(importButton instanceof HTMLButtonElement && !importButton.disabled, 'The project import control was not enabled.');
-  flushSync(() => importButton.click());
+  flushSync(() => {
+    importButton.focus();
+    importButton.click();
+  });
   setImportFile(archive);
   await waitFor(
     () => Boolean(document.querySelector('[data-testid="dialog-duplicate-import"]')),
@@ -164,6 +184,10 @@ async function prepareFixture() {
       && !document.querySelector('[data-testid="dialog-project-manager"]'),
     'the matching saved project to open',
   );
+  await waitFor(
+    () => document.activeElement === document.querySelector('[data-testid="button-open-projects"]'),
+    'focus to return to the project-list control after opening the saved project',
+  );
   await openProjectManager();
   await waitFor(
     () => projectIds().length === 2 && activeProjectId() === matchingProject.id,
@@ -184,6 +208,10 @@ async function prepareFixture() {
       && !document.querySelector('[data-testid="dialog-duplicate-import"]')
       && !document.querySelector('[data-testid="dialog-project-manager"]'),
     'a distinct extra copy to be saved and opened',
+  );
+  await waitFor(
+    () => document.activeElement === document.querySelector('[data-testid="button-open-projects"]'),
+    'focus to return to the project-list control after importing an extra copy',
   );
   const projectsAfterCopy = await loadPropertyProjects();
   const extraCopies = projectsAfterCopy.filter((project) => project.projectName === matchingProject.projectName);
@@ -214,6 +242,28 @@ async function prepareFixture() {
   assert(
     activeProjectId() === importedCopy.id,
     'Canceling the duplicate import changed which project is open.',
+  );
+
+  await importMatchingBackup(archive);
+  const keyboardDialog = document.querySelector('[data-testid="dialog-duplicate-import"]');
+  const cancelChoice = keyboardDialog?.querySelector('[data-testid="button-cancel-duplicate-import"]');
+  assert(document.activeElement === cancelChoice, 'Opening the duplicate dialog did not move keyboard focus inside it.');
+  const beforeKeyboardCancel = JSON.stringify(await loadPropertyProjects());
+  await pressKeyboardKey('Tab', '[data-testid="button-import-another-copy"]');
+  await pressKeyboardKey('Tab', '[data-testid="button-open-existing-duplicate"]');
+  await pressKeyboardKey('Tab', '[data-testid="button-cancel-duplicate-import"]');
+  await pressKeyboardKey('Tab', '[data-testid="button-open-existing-duplicate"]', true);
+  await pressKeyboardKey('Escape');
+  await waitFor(
+    () => !document.querySelector('[data-testid="dialog-duplicate-import"]'),
+    'the duplicate dialog to close after Escape',
+  );
+  const afterKeyboardCancel = JSON.stringify(await loadPropertyProjects());
+  assert(beforeKeyboardCancel === afterKeyboardCancel, 'Canceling the duplicate import with Escape changed the saved projects in IndexedDB.');
+  assert(activeProjectId() === importedCopy.id, 'Canceling the duplicate import with Escape changed which project is open.');
+  await waitFor(
+    () => document.activeElement === document.querySelector('[data-testid="button-import-project"]'),
+    'focus to return to the project import control after Escape',
   );
 
   const countBeforeConcurrentImport = (await loadPropertyProjects()).length;
