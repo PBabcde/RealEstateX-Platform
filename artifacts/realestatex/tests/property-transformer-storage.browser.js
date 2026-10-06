@@ -385,6 +385,13 @@ function runSavedProjectSearchUiChecks(transferError = '') {
 }
 
 async function runCrossTabPhotoHealthChecks() {
+  const originalVisibilityDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+  let simulatedVisibilityState = document.visibilityState;
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => simulatedVisibilityState,
+  });
+
   const project = {
     ...expectedProjects.alpha,
     id: 'browser-cross-tab-photo-health',
@@ -460,6 +467,7 @@ async function runCrossTabPhotoHealthChecks() {
 
   const statusSelector = `[data-testid="status-project-photo-health-${project.id}"]`;
   const readStatus = () => rootElement.querySelector(statusSelector)?.textContent ?? '';
+  const readOpenProjectListStatus = () => editorRootElement.querySelector(statusSelector)?.textContent ?? '';
   const waitForStatus = async (predicate, description) => {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
@@ -501,6 +509,13 @@ async function runCrossTabPhotoHealthChecks() {
       () => getEditorProjectName()?.value === project.projectName
         && editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Virtual stage'),
       'the editor to open the cross-tab photo fixture with its missing-concept warning',
+    );
+    const openProjectListButton = editorRootElement.querySelector('[data-testid="button-open-projects"]');
+    assert(openProjectListButton instanceof HTMLButtonElement, 'The project list could not be opened in the editor tab.');
+    flushSync(() => openProjectListButton.click());
+    await waitForEditor(
+      () => readOpenProjectListStatus().includes('Conceptfoto ontbreken: Virtual stage'),
+      'the open project list to show the cross-tab fixture photo warning',
     );
     assert(
       readStatus().includes('Conceptfoto ontbreken: Virtual stage'),
@@ -551,6 +566,10 @@ async function runCrossTabPhotoHealthChecks() {
       const previews = await readEditorPreviewContents();
       return previews.source === 'cross-tab original' && previews.concept === 'cross-tab concept';
     }, 'the open editor to show the added source and concept previews');
+    await waitForEditor(
+      () => readOpenProjectListStatus() === 'Geen ontbrekende foto’s',
+      'the open project list to show the recovered concept photo',
+    );
     assert(
       editorRootElement.textContent.includes('Virtual stage naast het origineel'),
       'The open editor did not retain the selected scenario after the concept was added in another tab.',
@@ -615,6 +634,37 @@ async function runCrossTabPhotoHealthChecks() {
       !recoveredStatus.includes('Bronfoto ontbreekt'),
       'The open project list kept showing a missing-source warning after recovery.',
     );
+    await waitForEditor(
+      () => readOpenProjectListStatus() === 'Geen ontbrekende foto’s',
+      'the open project list to show healthy photo status before the tab sleeps',
+    );
+
+    window.__simulateSleepingPhotoListTab = true;
+    simulatedVisibilityState = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await runWriterCommand('remove-image-without-notification', { key: project.resultKeys.stage });
+    const sleepingTabPhotoHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(
+      sleepingTabPhotoHealth.photoHealthById[project.id]?.missingConcepts.includes('stage'),
+      'The other tab did not remove the concept photo from IndexedDB while the project list was sleeping.',
+    );
+    assert(
+      readOpenProjectListStatus() === 'Geen ontbrekende foto’s',
+      `The sleeping project list did not retain its stale status after the cross-tab notification was missed: ${readOpenProjectListStatus()}`,
+    );
+    window.__simulateSleepingPhotoListTab = false;
+    simulatedVisibilityState = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitForEditor(
+      () => readOpenProjectListStatus().includes('Conceptfoto ontbreken: Virtual stage'),
+      'the project list to refresh its photo warning when the sleeping tab becomes active',
+    );
+    await runWriterCommand('add-concept', { key: project.resultKeys.stage });
+    await waitForEditor(
+      () => readOpenProjectListStatus() === 'Geen ontbrekende foto’s',
+      'the active project list to clear the warning after the concept photo is restored',
+    );
+
     await waitForEditor(async () => {
       const previews = await readEditorPreviewContents();
       return previews.source === 'cross-tab replacement source'
@@ -632,6 +682,12 @@ async function runCrossTabPhotoHealthChecks() {
     );
     assert(savedProject.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
   } finally {
+    window.__simulateSleepingPhotoListTab = false;
+    if (originalVisibilityDescriptor) {
+      Object.defineProperty(document, 'visibilityState', originalVisibilityDescriptor);
+    } else {
+      delete document.visibilityState;
+    }
     unsubscribe();
     writer?.close();
     root.unmount();

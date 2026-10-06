@@ -443,12 +443,17 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         if (active) setProjectTransferError('De foto-status in de projectlijst kon niet uit de lokale browseropslag worden bijgewerkt.');
       });
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
     const unsubscribe = storage.subscribePropertyStorageChanges(refresh);
     const unsubscribeLegacyClaim = subscribeLegacyProjectClaimChanges(refresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       active = false;
       unsubscribe();
       unsubscribeLegacyClaim();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [projectManagerOpen, refreshProjects, storage]);
   const openProjectManager = () => {

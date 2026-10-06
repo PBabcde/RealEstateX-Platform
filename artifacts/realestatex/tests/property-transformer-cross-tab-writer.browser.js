@@ -6,6 +6,26 @@ const { deletePropertyImage, savePropertyImage, savePropertyProjectWithImage } =
 
 const result = document.querySelector('#test-result');
 
+async function deleteImageWithoutNotification(key) {
+  const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const database = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, 2);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction('images', 'readwrite');
+      transaction.objectStore('images').delete(key);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    database.close();
+  }
+}
+
 function makeImage(key, label, isConcept, content) {
   return {
     key,
@@ -26,6 +46,8 @@ window.addEventListener('message', async (event) => {
       await savePropertyImage(makeImage(key, 'Virtual stage', true, 'cross-tab concept'));
     } else if (operation === 'remove-image') {
       await deletePropertyImage(key);
+    } else if (operation === 'remove-image-without-notification') {
+      await deleteImageWithoutNotification(key);
     } else if (operation === 'recover-source') {
       await savePropertyProjectWithImage(
         project,
