@@ -7,6 +7,7 @@ const {
   exportPropertyProject,
   loadPropertyProjects,
   savePropertyProject,
+  savePropertyImage,
   savePropertyProjectSortOrderPreference,
 } = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 
@@ -56,6 +57,14 @@ const concurrentImportProject = {
   municipality: 'Rotterdam',
   projectName: 'Concurrent import fixture',
   notes: 'This backup is imported from two tabs at the same time.',
+};
+const rejectedImportProject = {
+  ...matchingProject,
+  id: 'browser-rejected-import-fixture',
+  address: '31 Damaged Archive Road',
+  projectName: 'Rejected archive fixture',
+  notes: 'This project is only used to create rejected backup files.',
+  originalKey: 'browser-rejected-import-source',
 };
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -108,11 +117,11 @@ async function openProjectManager() {
   );
 }
 
-function setImportFile(archive) {
+function setImportFile(archive, name = 'duplicate-project.realestatex.json') {
   const input = document.querySelector('[data-testid="input-import-project"]');
   assert(input instanceof HTMLInputElement, 'The project import input was not rendered.');
   const transfer = new DataTransfer();
-  transfer.items.add(new File([JSON.stringify(archive)], 'duplicate-project.realestatex.json', {
+  transfer.items.add(new File([JSON.stringify(archive)], name, {
     type: 'application/json',
   }));
   input.files = transfer.files;
@@ -141,6 +150,22 @@ async function prepareFixture() {
   await savePropertyProject(matchingProject);
   await savePropertyProject(initiallyOpenProject);
   const archive = await exportPropertyProject(matchingProject);
+  await savePropertyImage({
+    key: rejectedImportProject.originalKey,
+    blob: new Blob(['source bytes for rejected archive'], { type: 'image/png' }),
+    label: 'Originele foto',
+    mimeType: 'image/png',
+    isConcept: false,
+    disclaimer: 'Test source photo.',
+    createdAt: '2026-10-06T12:00:00.000Z',
+  });
+  const rejectedArchive = await exportPropertyProject(rejectedImportProject);
+  const incompleteArchive = structuredClone(rejectedArchive);
+  incompleteArchive.images = incompleteArchive.images.filter(
+    (image) => image.key !== rejectedImportProject.originalKey,
+  );
+  const damagedArchive = structuredClone(rejectedArchive);
+  damagedArchive.images[0].blobBase64 = btoa('modified source bytes');
   const concurrentArchive = await exportPropertyProject(concurrentImportProject);
 
   history.replaceState(null, '', '/property-transformer');
@@ -167,6 +192,40 @@ async function prepareFixture() {
     () => projectIds().length === 2 && activeProjectId() === initiallyOpenProject.id,
     'the different project to be active before importing',
   );
+
+  const assertRejectedBackup = async (rejected, expectedReason, label) => {
+    const beforeProjects = await loadPropertyProjects();
+    const beforeActiveProjectId = activeProjectId();
+    setImportFile(rejected, `${label}.realestatex.json`);
+    await waitFor(
+      () => {
+        const error = document.querySelector('[data-testid="status-project-transfer-error"]');
+        const importButton = document.querySelector('[data-testid="button-import-project"]');
+        return Boolean(error?.textContent && importButton && !importButton.disabled);
+      },
+      `the ${label} backup to be rejected with a recoverable message`,
+    );
+    const error = document.querySelector('[data-testid="status-project-transfer-error"]');
+    assert(error?.getAttribute('role') === 'alert', `The ${label} backup error was not announced as an alert.`);
+    assert(error.textContent.includes(expectedReason), `The ${label} backup error did not explain the problem: ${error.textContent}`);
+    assert(error.textContent.includes('Er is niets toegevoegd'), `The ${label} backup error did not confirm that nothing was added: ${error.textContent}`);
+    assert(error.textContent.includes('opgeslagen projecten zijn ongewijzigd'), `The ${label} backup error did not reassure the user that saved projects are unchanged: ${error.textContent}`);
+    assert(error.textContent.includes('probeer het opnieuw'), `The ${label} backup error did not explain how to recover: ${error.textContent}`);
+    assert(document.querySelector('[data-testid="dialog-project-manager"]'), `The project manager closed after rejecting the ${label} backup.`);
+    assert(
+      JSON.stringify(await loadPropertyProjects()) === JSON.stringify(beforeProjects),
+      `Rejecting the ${label} backup added or changed a saved project.`,
+    );
+    assert(
+      JSON.stringify(projectIds().sort()) === JSON.stringify(beforeProjects.map((project) => project.id).sort()),
+      `The project manager list changed after rejecting the ${label} backup.`,
+    );
+    assert(activeProjectId() === beforeActiveProjectId, `Rejecting the ${label} backup changed which project was open.`);
+  };
+
+  await assertRejectedBackup(incompleteArchive, 'bronfoto ontbreekt', 'incomplete');
+  await assertRejectedBackup(damagedArchive, 'beschadigd', 'checksum-damaged');
+
   await importMatchingBackup(archive);
   const duplicateDialog = document.querySelector('[data-testid="dialog-duplicate-import"]');
   assert(duplicateDialog?.textContent?.includes(matchingProject.projectName), 'The duplicate dialog did not identify the matching saved project.');
@@ -309,7 +368,7 @@ async function prepareFixture() {
   }
 
   result.dataset.status = 'passed';
-  result.textContent = 'Passed: the signed-in studio identified a matching backup; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
+  result.textContent = 'Passed: the signed-in studio showed recoverable errors for incomplete and checksum-damaged project backups without changing saved projects; a valid import remained available; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
 }
 
 prepareFixture().catch((error) => {

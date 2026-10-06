@@ -729,7 +729,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       }
       await restoreImportedProject(archive);
     } catch (error) {
-      setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
+      const reason = error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.';
+      setProjectTransferError(reason.startsWith('Import afgewezen:')
+        ? `${reason} Er is niets toegevoegd; je opgeslagen projecten zijn ongewijzigd. Controleer het bestand en probeer het opnieuw.`
+        : reason);
     } finally {
       setIsProjectTransferring(false);
     }
