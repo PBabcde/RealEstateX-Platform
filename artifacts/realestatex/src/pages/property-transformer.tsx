@@ -760,8 +760,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         setProjectTransferError('De portfolio-back-up is wel hersteld, maar de projectlijst kon niet opnieuw worden geladen. Sluit en open deze lijst opnieuw.');
       }
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Controleer het bestand en de browseropslag.';
-      setProjectTransferError(reason.includes('er is niets toegevoegd')
+      const reason = error instanceof Error ? error.message : 'Controleer het bestand en of browseropslag beschikbaar is.';
+      setProjectTransferError(/er is niets toegevoegd/i.test(reason)
         ? reason
         : `De portfolio-back-up is niet hersteld; er is niets toegevoegd. ${reason}`);
     } finally {

@@ -846,46 +846,72 @@ async function prepareImportedPropertyProject(archive: PropertyProjectArchive): 
   return { project, images };
 }
 
+function portfolioRestoreStorageError(cause: unknown): Error {
+  const error = typeof cause === 'object' && cause !== null ? cause as { name?: unknown; message?: unknown } : null;
+  const name = typeof error?.name === 'string' ? error.name : '';
+  const message = typeof error?.message === 'string' ? error.message : '';
+
+  if (name === 'QuotaExceededError') {
+    return new Error('De portfolio-back-up is niet hersteld: er is onvoldoende browseropslagruimte. Verwijder ongebruikte projecten of maak ruimte vrij en probeer opnieuw. Er is niets toegevoegd.');
+  }
+  if (name === 'SecurityError' || name === 'NotAllowedError') {
+    return new Error('De portfolio-back-up is niet hersteld: RealEstateX heeft geen toegang tot browseropslag. Sta siteopslag toe in je browserinstellingen en probeer opnieuw. Er is niets toegevoegd.');
+  }
+  if (name === 'InvalidStateError' || name === 'UnknownError') {
+    return new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Sluit andere RealEstateX-tabbladen, controleer of siteopslag is toegestaan en probeer opnieuw. Er is niets toegevoegd.');
+  }
+  if (message.startsWith('Lokale projectopslag wordt nog gebruikt')) {
+    return new Error(`${message} Er is niets toegevoegd.`);
+  }
+  return new Error('De portfolio-back-up is niet hersteld door een fout bij het opslaan in browseropslag. Controleer of browseropslag beschikbaar is en probeer opnieuw. Er is niets toegevoegd.');
+}
+
 async function writeImportedProjectsAtomically(preparedProjects: PreparedPropertyProject[], scope: StorageScope = null): Promise<void> {
   let db: IDBDatabase;
   try {
     db = await openDb(scope);
-  } catch {
-    throw new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Er is niets toegevoegd.');
+  } catch (error) {
+    throw portfolioRestoreStorageError(error);
   }
   try {
     await new Promise<void>((resolve, reject) => {
       let transaction: IDBTransaction;
       try {
         transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
-      } catch {
-        reject(new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Er is niets toegevoegd.'));
+      } catch (error) {
+        reject(portfolioRestoreStorageError(error));
         return;
       }
-      const projectStore = transaction.objectStore(PROJECTS);
-      const imageStore = transaction.objectStore(IMAGES);
+      let failureCause: unknown;
+      transaction.addEventListener('error', (event) => {
+        const failedRequest = event.target as IDBRequest | null;
+        failureCause ??= failedRequest?.error ?? transaction.error;
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => {
+        failureCause ??= transaction.error;
+      };
+      transaction.onabort = () => reject(portfolioRestoreStorageError(failureCause ?? transaction.error));
       try {
+        const projectStore = transaction.objectStore(PROJECTS);
+        const imageStore = transaction.objectStore(IMAGES);
         for (const { project, images } of preparedProjects) {
           projectStore.add(project);
           for (const image of images) imageStore.add(image);
         }
-      } catch {
+      } catch (error) {
+        failureCause ??= error;
         try {
           transaction.abort();
         } catch {
-          // If the transaction has already stopped, the operation has still failed.
+          reject(portfolioRestoreStorageError(failureCause));
         }
-        reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de browseropslag; er is niets toegevoegd.'));
-        return;
       }
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
-      transaction.onabort = () => reject(new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
     });
     notifyPropertyStorageChanged(scope);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('er is niets toegevoegd')) throw error;
-    throw new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.');
+    if (error instanceof Error && /er is niets toegevoegd/i.test(error.message)) throw error;
+    throw portfolioRestoreStorageError(error);
   } finally {
     db.close();
   }

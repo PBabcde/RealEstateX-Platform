@@ -206,6 +206,60 @@ async function assertFailedProjectDeletePreservesData(project) {
   await assertProjectList(Object.values(expectedProjects).map((expected) => expected.id));
 }
 
+async function simulatePortfolioWriteFailure(portfolioArchive, errorName) {
+  const projectsBeforeFailure = await loadPropertyProjects();
+  const attemptedProjectIds = [];
+  const attemptedImageKeys = [];
+  const writeSequence = [];
+  const imageStorePrototype = IDBObjectStore.prototype;
+  const originalAdd = imageStorePrototype.add;
+  let failureInjected = false;
+  let restoreError = '';
+
+  imageStorePrototype.add = function (value) {
+    if (this.name === 'projects') {
+      attemptedProjectIds.push(value.id);
+      writeSequence.push('projects');
+    } else if (this.name === 'images') {
+      attemptedImageKeys.push(value.key);
+      writeSequence.push('images');
+    }
+
+    if (writeSequence.length === 6 && this.name === 'images') {
+      failureInjected = true;
+      if (errorName === 'ConstraintError') {
+        return originalAdd.call(this, { ...value, key: expectedProjects.beta.originalKey });
+      }
+      throw new DOMException(`Simulated IndexedDB ${errorName}`, errorName);
+    }
+    return originalAdd.call(this, value);
+  };
+  try {
+    await importPropertyPortfolio(portfolioArchive);
+  } catch (error) {
+    restoreError = error instanceof Error ? error.message : String(error);
+  } finally {
+    imageStorePrototype.add = originalAdd;
+  }
+
+  assert(failureInjected, `The simulated ${errorName} failure was not reached.`);
+  assert(
+    JSON.stringify(writeSequence) === JSON.stringify(['projects', 'images', 'images', 'projects', 'images', 'images']),
+    `The ${errorName} failure did not occur after multiple projects and images were queued: ${writeSequence.join(', ')}.`,
+  );
+  assert(attemptedProjectIds.length === 2, `The ${errorName} failure happened before both imported projects were queued.`);
+  assert(attemptedImageKeys.length === 4, `The ${errorName} failure happened before all imported images were attempted.`);
+  assert(/er is niets toegevoegd/i.test(restoreError), `The ${errorName} failure did not explain that nothing was added: ${restoreError}`);
+  await assertProjectList(projectsBeforeFailure.map((project) => project.id));
+  for (const id of attemptedProjectIds) {
+    assert(!(await loadPropertyProject(id)), `${errorName} failure left imported project ${id} behind.`);
+  }
+  for (const key of attemptedImageKeys) {
+    assert(!(await loadPropertyImage(key)), `${errorName} failure left imported image ${key} behind.`);
+  }
+  return restoreError;
+}
+
 function assertVisibleProjectOrder(expectedIds, message) {
   const actualIds = [...document.querySelectorAll('#project-search-test-root [data-testid^="project-row-"]')]
     .map((row) => row.getAttribute('data-testid').replace('project-row-', ''));
@@ -765,55 +819,28 @@ async function run() {
     assert(invalidPortfolioError.includes('bronfoto ontbreekt'), 'A portfolio with one invalid project was not rejected with a clear error.');
     await assertProjectList([expectedProjects.beta.id]);
 
-    const writesBeforeFailure = await loadPropertyProjects();
-    const attemptedProjectIds = [];
-    const attemptedImageKeys = [];
-    const writeSequence = [];
-    const imageStorePrototype = IDBObjectStore.prototype;
-    const originalAdd = imageStorePrototype.add;
-    let failedPortfolioRestoreError = '';
-    imageStorePrototype.add = function (value) {
-      if (this.name === 'projects') {
-        attemptedProjectIds.push(value.id);
-        writeSequence.push('projects');
-      } else if (this.name === 'images') {
-        attemptedImageKeys.push(value.key);
-        writeSequence.push('images');
-      }
-
-      if (writeSequence.length === 6 && this.name === 'images') {
-        // Reuse a stored image key to make IndexedDB fail this queued request with ConstraintError.
-        return originalAdd.call(this, { ...value, key: expectedProjects.beta.originalKey });
-      }
-
-      return originalAdd.call(this, value);
+    const portfolioRestoreFailureErrors = {
+      QuotaExceededError: await simulatePortfolioWriteFailure(portfolioArchive, 'QuotaExceededError'),
+      SecurityError: await simulatePortfolioWriteFailure(portfolioArchive, 'SecurityError'),
+      ConstraintError: await simulatePortfolioWriteFailure(portfolioArchive, 'ConstraintError'),
     };
-    try {
-      await importPropertyPortfolio(portfolioArchive);
-    } catch (error) {
-      failedPortfolioRestoreError = error instanceof Error ? error.message : String(error);
-    } finally {
-      imageStorePrototype.add = originalAdd;
-    }
     assert(
-      JSON.stringify(writeSequence) === JSON.stringify(['projects', 'images', 'images', 'projects', 'images', 'images']),
-      `The simulated storage failure did not happen after multiple projects and images were queued: ${writeSequence.join(', ')}.`,
+      portfolioRestoreFailureErrors.QuotaExceededError.includes('onvoldoende browseropslagruimte')
+        && portfolioRestoreFailureErrors.QuotaExceededError.includes('Verwijder ongebruikte projecten'),
+      `A quota failure did not give practical space-saving guidance: ${portfolioRestoreFailureErrors.QuotaExceededError}`,
     );
-    assert(attemptedProjectIds.length === 2, 'The storage failure happened before both imported projects were queued.');
-    assert(attemptedImageKeys.length === 4, 'The storage failure happened before all imported images were attempted.');
     assert(
-      failedPortfolioRestoreError.includes('beschikbare opslagruimte en browserrechten')
-        && failedPortfolioRestoreError.includes('er is niets toegevoegd'),
-      `A failed portfolio write did not produce a clear storage error: ${failedPortfolioRestoreError}`,
+      portfolioRestoreFailureErrors.SecurityError.includes('geen toegang tot browseropslag')
+        && portfolioRestoreFailureErrors.SecurityError.includes('Sta siteopslag toe in je browserinstellingen'),
+      `A permission failure did not explain how to restore browser-storage access: ${portfolioRestoreFailureErrors.SecurityError}`,
     );
-    await assertProjectList(writesBeforeFailure.map((project) => project.id));
-    for (const id of attemptedProjectIds) {
-      assert(!(await loadPropertyProject(id)), `Failed portfolio restore left imported project ${id} behind.`);
-    }
-    for (const key of attemptedImageKeys) {
-      assert(!(await loadPropertyImage(key)), `Failed portfolio restore left imported image ${key} behind.`);
-    }
-    sessionStorage.setItem('property-portfolio-write-failure-error', failedPortfolioRestoreError);
+    assert(
+      portfolioRestoreFailureErrors.ConstraintError.includes('fout bij het opslaan in browseropslag')
+        && !portfolioRestoreFailureErrors.ConstraintError.includes('onvoldoende browseropslagruimte')
+        && !portfolioRestoreFailureErrors.ConstraintError.includes('geen toegang tot browseropslag'),
+      `An unrelated IndexedDB error was incorrectly identified as a quota or permission problem: ${portfolioRestoreFailureErrors.ConstraintError}`,
+    );
+    sessionStorage.setItem('property-portfolio-write-failure-errors', JSON.stringify(portfolioRestoreFailureErrors));
 
     const portfolioImports = await importPropertyPortfolio(portfolioArchive);
     assert(portfolioImports.length === 2, 'Portfolio restore did not add every saved project.');
@@ -897,11 +924,12 @@ async function run() {
   }
 
   if (phase === 'imported') {
-    const storageFailureError = sessionStorage.getItem('property-portfolio-write-failure-error') ?? '';
+    const portfolioRestoreFailureErrors = JSON.parse(sessionStorage.getItem('property-portfolio-write-failure-errors') ?? '{}');
     assert(
-      storageFailureError.includes('beschikbare opslagruimte en browserrechten')
-        && storageFailureError.includes('er is niets toegevoegd'),
-      'The failed portfolio restore storage error was not retained for the user-interface check.',
+      portfolioRestoreFailureErrors.QuotaExceededError?.includes('onvoldoende browseropslagruimte')
+        && portfolioRestoreFailureErrors.SecurityError?.includes('geen toegang tot browseropslag')
+        && /er is niets toegevoegd/i.test(portfolioRestoreFailureErrors.ConstraintError ?? ''),
+      'The portfolio restore failure messages were not retained for the user-interface check.',
     );
     const importedId = sessionStorage.getItem('property-transfer-imported-id');
     const secondCopyId = sessionStorage.getItem('property-transfer-second-copy-id');
@@ -930,7 +958,9 @@ async function run() {
     assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
     assert((await loadPropertyProject(secondCopyId)), 'The intentional extra copy was not available after reload.');
     await assertProjectList([expectedProjects.beta.id, importedId, secondCopyId, ...portfolioImportedIds]);
-    runSavedProjectSearchUiChecks(storageFailureError);
+    for (const error of Object.values(portfolioRestoreFailureErrors)) {
+      runSavedProjectSearchUiChecks(error);
+    }
 
     const recoveryProject = makeProject({
       id: 'project-recovery',
@@ -1012,7 +1042,7 @@ async function run() {
     await deletePropertyImage('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: the open editor and saved-project list refresh source and concept photo previews and warnings after cross-tab additions, removals, and recovery, while the editor keeps its in-progress form edits, settings, and selected scenario. Portfolio restore rolled back queued projects and images after a failed IndexedDB write and showed a clear storage error. Saved-project search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: the open editor and saved-project list refresh source and concept photo previews and warnings after cross-tab additions, removals, and recovery, while the editor keeps its in-progress form edits, settings, and selected scenario. Portfolio restore rolled back queued projects and images after quota, browser-access, and other IndexedDB failures, with cause-specific guidance shown in the UI. Saved-project search, ordering, export, and import checks also passed.';
     return;
   }
 
