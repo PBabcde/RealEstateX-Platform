@@ -148,7 +148,7 @@ async function runBrowserTest(debugPort, url, browser) {
   throw new Error('Browser storage test timed out waiting for IndexedDB and reload checks to finish.');
 }
 
-async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser) {
+async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadableImagePath, unsupportedImagePath, browser) {
   const socketUrl = await getPageTarget(debugPort, browser);
   const devTools = await connectDevTools(socketUrl);
   await devTools.send('Runtime.enable');
@@ -223,17 +223,57 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
       throw new Error('The expected saved project was not opened in the studio.');
     }
     const originalProjectSettings = JSON.stringify(initialProject);
+    const originalImageKeys = await evaluate('window.__propertyRecoveryTest.readImageKeys()', true);
 
-    const documentRoot = await devTools.send('DOM.getDocument');
-    const input = await devTools.send('DOM.querySelector', {
-      nodeId: documentRoot.root.nodeId,
-      selector: '[data-testid="input-property-image"]',
-    });
-    if (!input.nodeId) throw new Error('The source-photo upload input was not rendered.');
-    await devTools.send('DOM.setFileInputFiles', {
-      files: [uploadPath],
-      nodeId: input.nodeId,
-    });
+    const uploadReplacement = async (filePath) => {
+      const documentRoot = await devTools.send('DOM.getDocument');
+      const input = await devTools.send('DOM.querySelector', {
+        nodeId: documentRoot.root.nodeId,
+        selector: '[data-testid="input-property-image"]',
+      });
+      if (!input.nodeId) throw new Error('The source-photo upload input was not rendered.');
+      await devTools.send('DOM.setFileInputFiles', {
+        files: [filePath],
+        nodeId: input.nodeId,
+      });
+    };
+    const assertRejectedReplacement = async (filePath, expectedError, description) => {
+      await uploadReplacement(filePath);
+      const rejected = await waitFor(
+        `(() => {
+          const error = document.querySelector('[data-testid="status-upload-error"]');
+          const retryButton = document.querySelector('[data-testid="button-restore-source-photo"]');
+          const notice = document.querySelector('[data-testid="status-missing-project-images"]');
+          return {
+            error: error?.textContent ?? '',
+            retryEnabled: Boolean(retryButton && !retryButton.disabled),
+            sourceStillMissing: notice?.textContent.includes('De bronfoto ontbreekt.') ?? false,
+          };
+        })()`,
+        (value) => value?.error && value.retryEnabled && value.sourceStillMissing,
+        `${description} to fail while leaving source-photo recovery available`,
+      );
+      if (!rejected.error.includes(expectedError)) {
+        throw new Error(`The ${description} produced an unclear upload error: ${rejected.error}`);
+      }
+      const afterFailure = await evaluate(
+        `(async () => ({
+          project: await window.__propertyRecoveryTest.readProject(),
+          imageKeys: await window.__propertyRecoveryTest.readImageKeys(),
+        }))()`,
+        true,
+      );
+      if (JSON.stringify(afterFailure.project) !== originalProjectSettings) {
+        throw new Error(`The ${description} changed the saved project, selected scenario, or image references.`);
+      }
+      if (JSON.stringify(afterFailure.imageKeys) !== JSON.stringify(originalImageKeys)) {
+        throw new Error(`The ${description} left a partial image record in browser storage.`);
+      }
+    };
+
+    await assertRejectedReplacement(unreadableImagePath, 'kan niet worden gelezen', 'an unreadable replacement image');
+    await assertRejectedReplacement(unsupportedImagePath, 'Alleen JPEG- en PNG-afbeeldingen', 'an unsupported replacement image');
+    await uploadReplacement(uploadPath);
 
     await waitFor(
       `(() => {
@@ -249,7 +289,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
           error: error?.textContent ?? '',
         };
       })()`,
-      (value) => value?.sourceReady && value.notice && !value.notice.includes('De bronfoto ontbreekt.'),
+      (value) => value?.sourceReady && value.notice && !value.notice.includes('De bronfoto ontbreekt.') && !value.error,
       'the replacement source photo to be saved and displayed',
     );
 
@@ -388,7 +428,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
     );
     if (!reloadedPortfolio.open) throw new Error('The portfolio did not open after the page reload.');
 
-    return 'Passed: authenticated photo recovery preserved saved assumptions and the selected Virtual stage scenario; portfolio controls worked; and project-name order persisted after close, reopen, and reload without changing the project record.';
+    return 'Passed: unreadable and unsupported replacement photos showed clear retryable errors without changing saved project or image records; a valid replacement preserved the selected scenario; portfolio controls worked; and project-name order persisted after close, reopen, and reload.';
   } finally {
     devTools.close();
   }
@@ -434,10 +474,14 @@ const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recover
 const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
 const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
+const unreadableImagePath = path.join(userDataDir, 'unreadable-source.png');
+const unsupportedImagePath = path.join(userDataDir, 'unsupported-source.gif');
 await writeFile(
   recoveryImagePath,
   makeTestPng(),
 );
+await writeFile(unreadableImagePath, Buffer.from('This is not a readable PNG image.'));
+await writeFile(unsupportedImagePath, Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=', 'base64'));
 const server = spawn('pnpm', ['exec', 'vite', '--config', 'tests/vite.authenticated.config.ts', '--host', '127.0.0.1'], {
   cwd: packageDir,
   env: { ...process.env, PORT: String(port), BASE_PATH: '/' },
@@ -471,7 +515,7 @@ try {
     if (process.env.PROPERTY_STORAGE_ONLY === '1') {
       console.log(storageResult);
     } else {
-      const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, browser);
+      const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, unreadableImagePath, unsupportedImagePath, browser);
       const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
       console.log(`${storageResult}\n${recoveryResult}\n${searchResult}`);
     }

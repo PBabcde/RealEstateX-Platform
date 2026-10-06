@@ -32,7 +32,16 @@ function makeProject(originalKey = ''): PropertyProject {
 }
 
 async function compressImage(file: File): Promise<{ dataUrl: string; blob: Blob }> {
-  const bitmap = await createImageBitmap(file);
+  if (file.type !== 'image/jpeg' && file.type !== 'image/png') {
+    throw new Error('Alleen JPEG- en PNG-afbeeldingen worden ondersteund.');
+  }
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error('Deze afbeelding kan niet worden gelezen. Kies een geldige JPEG- of PNG-afbeelding.');
+  }
   const maxDimension = 1600;
   const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');

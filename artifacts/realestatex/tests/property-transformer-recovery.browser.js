@@ -90,6 +90,22 @@ async function prepareFixture() {
       const image = await loadPropertyImage(key);
       return image ? { type: image.blob.type, size: image.blob.size, isConcept: image.isConcept } : null;
     },
+    async readImageKeys() {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('realestatex-property-transformer');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('Could not open the property image store.'));
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('images', 'readonly').objectStore('images').getAllKeys();
+          request.onsuccess = () => resolve(request.result.map(String).sort());
+          request.onerror = () => reject(request.error ?? new Error('Could not read property image keys.'));
+        });
+      } finally {
+        database.close();
+      }
+    },
   };
 
   const nativeFetch = window.fetch.bind(window);
