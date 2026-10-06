@@ -361,6 +361,7 @@ const port = await getFreePort();
 const debugPort = await getFreePort();
 const storageUrl = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
 const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
+const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
 const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
 await writeFile(
@@ -397,7 +398,8 @@ try {
   try {
     const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
     const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, browser);
-    console.log(`${storageResult}\n${recoveryResult}`);
+    const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
+    console.log(`${storageResult}\n${recoveryResult}\n${searchResult}`);
   } finally {
     clearTimeout(timeout);
     await stopProcess(browser);
