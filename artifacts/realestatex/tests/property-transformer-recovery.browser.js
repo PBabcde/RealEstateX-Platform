@@ -42,11 +42,37 @@ const project = {
   updatedAt: '2026-10-05T12:00:00.000Z',
 };
 
+const projectOrderFixtures = [
+  {
+    ...project,
+    id: 'browser-photo-recovery-sort-alpha',
+    projectName: 'Alpha order fixture',
+    municipality: 'Utrecht',
+    originalKey: '',
+    resultKeys: {},
+    selectedResult: null,
+    updatedAt: '2026-10-04T12:00:00.000Z',
+  },
+  {
+    ...project,
+    id: 'browser-photo-recovery-sort-zulu',
+    projectName: 'Zulu order fixture',
+    municipality: 'Aalsmeer',
+    originalKey: '',
+    resultKeys: {},
+    selectedResult: null,
+    updatedAt: '2026-10-03T12:00:00.000Z',
+  },
+];
+
 async function prepareFixture() {
   for (const previousProject of await loadPropertyProjects()) {
     await deletePropertyProject(previousProject);
   }
   await savePropertyProject(project);
+  for (const orderFixture of projectOrderFixtures) {
+    await savePropertyProject(orderFixture);
+  }
   const missingPhotos = await import('../src/lib/property-transformer-db.ts')
     .then(({ loadPropertyProjectImages }) => loadPropertyProjectImages(project));
   if (!missingPhotos.missingOriginal || !missingPhotos.missingConcepts.includes('stage')) {

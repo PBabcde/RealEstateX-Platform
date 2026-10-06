@@ -305,20 +305,59 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
       throw new Error('The signed-in project manager did not explain that the portfolio backup stays in this browser.');
     }
 
+    const projectBeforeSorting = JSON.stringify(await evaluate('window.__propertyRecoveryTest.readProject()', true));
+    const expectedNameOrder = [
+      'browser-photo-recovery-sort-alpha',
+      'browser-photo-recovery-project',
+      'browser-photo-recovery-sort-zulu',
+    ];
+    const projectListState = `(() => {
+      const dialog = document.querySelector('[data-testid="dialog-project-manager"]');
+      const select = dialog?.querySelector('[data-testid="select-project-sort-order"]');
+      const projectIds = Array.from(dialog?.querySelectorAll('li[data-testid^="project-row-"]') ?? [])
+        .map((row) => row.getAttribute('data-testid')?.replace('project-row-', ''));
+      return { open: Boolean(dialog), order: select?.value, projectIds };
+    })()`;
     await evaluate(`(() => {
-      const result = document.querySelector('#test-result');
-      result.dataset.status = 'passed';
-      result.textContent = 'Passed: the authenticated studio showed both missing-photo notices, accepted a replacement source photo, preserved saved assumptions and the selected Virtual stage scenario, and exposed portfolio backup and restore controls.';
+      const select = document.querySelector('[data-testid="select-project-sort-order"]');
+      select.value = 'name';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
     })()`);
-    const passed = await waitFor(
-      `(() => {
-        const result = document.querySelector('#test-result');
-        return { status: result?.dataset.status, text: result?.textContent ?? '' };
-      })()`,
-      (value) => value?.status === 'passed',
-      'the authenticated photo recovery assertions',
+    const sortedPortfolio = await waitFor(
+      projectListState,
+      (value) => value?.order === 'name' && value.projectIds?.join(',') === expectedNameOrder.join(','),
+      'the project-name sort order to be applied',
     );
-    return passed.text;
+    if (!sortedPortfolio.open) throw new Error('The project list closed while applying its sort order.');
+
+    await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const reopenedPortfolio = await waitFor(
+      projectListState,
+      (value) => value?.open && value.order === 'name' && value.projectIds?.join(',') === expectedNameOrder.join(','),
+      'the selected sort order after closing and reopening the project list',
+    );
+    if (!reopenedPortfolio.open) throw new Error('The project list did not reopen.');
+    if (JSON.stringify(await evaluate('window.__propertyRecoveryTest.readProject()', true)) !== projectBeforeSorting) {
+      throw new Error('Changing the project-list order modified the saved project record or timestamp.');
+    }
+
+    await devTools.send('Page.reload');
+    const reloadedStudio = await waitFor(
+      `Boolean(document.querySelector('[data-testid="button-open-projects"]'))`,
+      (value) => value === true,
+      'the authenticated studio after reloading the page',
+    );
+    if (!reloadedStudio) throw new Error('The authenticated studio did not return after reloading.');
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const reloadedPortfolio = await waitFor(
+      projectListState,
+      (value) => value?.open && value.order === 'name' && value.projectIds?.join(',') === expectedNameOrder.join(','),
+      'the selected sort order after reloading the page',
+    );
+    if (!reloadedPortfolio.open) throw new Error('The portfolio did not open after the page reload.');
+
+    return 'Passed: authenticated photo recovery preserved saved assumptions and the selected Virtual stage scenario; portfolio controls worked; and project-name order persisted after closing, reopening, and reloading without changing the project record.';
   } finally {
     devTools.close();
   }

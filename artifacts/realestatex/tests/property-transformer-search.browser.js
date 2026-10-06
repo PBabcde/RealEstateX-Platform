@@ -3,6 +3,7 @@ import {
   deletePropertyProject,
   loadPropertyProjects,
   savePropertyProject,
+  savePropertyProjectSortOrderPreference,
 } from '../src/lib/property-transformer-db.ts';
 
 const result = document.querySelector('#test-result');
@@ -86,6 +87,7 @@ async function waitFor(predicate, description, timeoutMs = 20_000) {
 }
 
 async function prepareFixture() {
+  savePropertyProjectSortOrderPreference('recent');
   for (const previousProject of await loadPropertyProjects()) {
     await deletePropertyProject(previousProject);
   }

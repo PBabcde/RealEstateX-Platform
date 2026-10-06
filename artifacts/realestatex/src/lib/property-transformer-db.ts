@@ -78,6 +78,7 @@ const DB_NAME = 'realestatex-property-transformer';
 const DB_VERSION = 1;
 const PROJECTS = 'projects';
 const IMAGES = 'images';
+const PROJECT_SORT_ORDER_PREFERENCE_KEY = 'realestatex.property-project-sort-order';
 const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'dusk'];
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
 
@@ -112,6 +113,31 @@ export function sortPropertyProjects(
       : compareProjectText(leftName, rightName);
     return secondaryOrder || recentFirst(left, right);
   });
+}
+
+export function loadPropertyProjectSortOrderPreference(): PropertyProjectSortOrder {
+  if (typeof window === 'undefined') return 'recent';
+
+  try {
+    const preference = window.localStorage.getItem(PROJECT_SORT_ORDER_PREFERENCE_KEY);
+    if (preference === 'recent' || preference === 'name' || preference === 'municipality') {
+      return preference;
+    }
+  } catch {
+    // Keep the project list available when browser preference storage is blocked.
+  }
+
+  return 'recent';
+}
+
+export function savePropertyProjectSortOrderPreference(order: PropertyProjectSortOrder): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(PROJECT_SORT_ORDER_PREFERENCE_KEY, order);
+  } catch {
+    // Sorting still works for this session if browser preference storage is blocked.
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
