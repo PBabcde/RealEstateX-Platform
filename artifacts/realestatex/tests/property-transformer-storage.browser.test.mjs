@@ -455,6 +455,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
         return {
           project,
           image,
+          request: window.__propertyRecoveryTest.lastConceptRequestUrl,
           missingConcept: notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
         };
       })()`,
@@ -467,6 +468,19 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
     );
     if (!successfulRepair.project || successfulRepair.project.selectedResult !== 'stage') {
       throw new Error('The successful concept repair did not keep Virtual stage selected.');
+    }
+    if (!successfulRepair.request.includes('/api/property-transformations/virtual-staging')) {
+      throw new Error(`The successful repair started the wrong concept action: ${successfulRepair.request}`);
+    }
+    const omitRepairFields = ({ resultKeys, selectedResult, updatedAt, ...settings }) => settings;
+    if (JSON.stringify(omitRepairFields(successfulRepair.project)) !== JSON.stringify(omitRepairFields(beforeSuccessfulRepair))) {
+      throw new Error('The successful concept repair changed the saved project settings.');
+    }
+    const otherResultKeys = (resultKeys) => Object.fromEntries(
+      Object.entries(resultKeys ?? {}).filter(([action]) => action !== 'stage'),
+    );
+    if (JSON.stringify(otherResultKeys(successfulRepair.project.resultKeys)) !== JSON.stringify(otherResultKeys(beforeSuccessfulRepair.resultKeys))) {
+      throw new Error('The successful concept repair changed unrelated concept references.');
     }
     await devTools.send('Page.navigate', { url });
     const repairedStudio = await waitFor(
@@ -486,16 +500,33 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
           ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
           : null;
         const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
-        return { project, image, notice };
+        const preview = document.querySelector('img[alt="Virtual stage concept"]');
+        const scenarioHeading = Array.from(document.querySelectorAll('h2'))
+          .find((heading) => heading.textContent?.includes('Virtual stage naast het origineel'));
+        return {
+          project,
+          image,
+          notice,
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0),
+          scenarioVisible: Boolean(scenarioHeading),
+        };
       })()`,
       (value) => value?.project?.selectedResult === 'stage'
         && value.project.resultKeys?.stage === successfulRepair.project.resultKeys.stage
         && value.image?.isConcept
         && value.image?.size > 0
+        && value.previewLoaded
+        && value.scenarioVisible
         && !value.notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
       'the repaired concept and selected scenario to persist after refresh',
     );
     if (!persistedRepair.project) throw new Error('The repaired concept was not available after refresh.');
+    if (JSON.stringify(omitRepairFields(persistedRepair.project)) !== JSON.stringify(omitRepairFields(successfulRepair.project))) {
+      throw new Error('The project settings changed after reloading the successfully repaired concept.');
+    }
+    if (JSON.stringify(persistedRepair.project.resultKeys) !== JSON.stringify(successfulRepair.project.resultKeys)) {
+      throw new Error('The repaired concept references changed after reloading the studio.');
+    }
 
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
     const projectListBeforeFailedDelete = await waitFor(
