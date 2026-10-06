@@ -58,8 +58,8 @@ function waitForServer(server, url, timeoutMs = 30_000) {
   });
 }
 
-async function getPageTarget(debugPort, browser, targetId) {
-  const deadline = Date.now() + 30_000;
+async function getPageTarget(debugPort, browser, targetId, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (browser.exitCode !== null) throw new Error(`Chromium exited before opening a page (code ${browser.exitCode}).`);
     try {
@@ -74,7 +74,7 @@ async function getPageTarget(debugPort, browser, targetId) {
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  throw new Error('Chromium did not expose its browser debugging endpoint.');
+  throw new Error(`Chromium did not expose its browser debugging endpoint within ${timeoutMs}ms.`);
 }
 
 function connectDevTools(webSocketUrl) {
@@ -842,7 +842,7 @@ try {
     `--user-data-dir=${userDataDir}`,
     'about:blank',
   ], { stdio: 'ignore' });
-  const timeout = setTimeout(() => browser.kill('SIGKILL'), 120_000);
+  const timeout = setTimeout(() => browser.kill('SIGKILL'), 180_000);
   try {
     const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
     if (process.env.PROPERTY_STORAGE_ONLY === '1') {
@@ -865,5 +865,5 @@ try {
   process.exitCode = 1;
 } finally {
   await stopProcess(server);
-  await rm(userDataDir, { recursive: true, force: true });
+  await rm(userDataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
 }

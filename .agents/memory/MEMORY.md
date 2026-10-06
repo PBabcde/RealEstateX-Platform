@@ -10,6 +10,7 @@
 - [Contabo VPS validation](contabo-vps-validation.md) — remote security and recovery readiness requires pinned SSH evidence; missing VPS configuration stays UNVERIFIED.
 - [tsx test module mode](tsx-test-module-mode.md) — root JavaScript integration tests need CommonJS-compatible setup and careful workspace alias resolution.
 - [Browser IndexedDB testing](browser-indexeddb-testing.md) — headless browser storage tests must wait via DevTools; dump-dom can finish before IndexedDB callbacks.
+- [Post-merge setup timing](post-merge-setup-timing.md) — leave enough time for dependency installation and the configured database schema push to finish.
 - [RealEstateX authenticated UI tests](realestatex-authenticated-ui-tests.md) — fresh headless browsers hit the auth gate; IndexedDB-only tests do not validate protected routes.
 - [Vite React upgrade cache](vite-react-cache.md) — matching installed React versions can still crash when Vite retains an older optimized react-dom bundle.
 - [RealEstateX photo health](realestatex-photo-health.md) — derive missing-photo status from current IndexedDB references instead of persisting a cache that can go stale.
