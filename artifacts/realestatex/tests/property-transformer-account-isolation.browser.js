@@ -141,7 +141,7 @@ async function run() {
   assert(activeObjectUrls.every((url) => objectUrlsCreated.includes(url)), 'The displayed project images were not tracked as active object URLs.');
 
   assert(typeof window.__setPropertyTestUser === 'function', 'The test auth fixture could not switch accounts.');
-  window.__setPropertyTestUser(secondAccountId);
+  window.__setPropertyTestUser(secondAccountId, null);
   await waitFor(async () => {
     const projects = await accountB.loadPropertyProjects();
     return projects.length > 0 && document.body.textContent.includes('Start met één listingfoto');

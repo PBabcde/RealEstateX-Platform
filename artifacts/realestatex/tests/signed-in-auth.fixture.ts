@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account';
 
 const testUser = {
-  id: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
-  externalId: null,
+  id: `${PROPERTY_STORAGE_TEST_ACCOUNT_ID}-clerk-user`,
+  externalId: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
   primaryEmailAddress: { emailAddress: 'photo-recovery@example.invalid' },
   firstName: 'Studio',
   lastName: 'Test',
@@ -12,13 +12,13 @@ let activeTestUser = testUser;
 
 declare global {
   interface Window {
-    __setPropertyTestUser?: (userId: string) => void;
+    __setPropertyTestUser?: (userId: string, externalId?: string | null) => void;
   }
 }
 
 if (typeof window !== 'undefined') {
-  window.__setPropertyTestUser = (userId: string) => {
-    activeTestUser = { ...testUser, id: userId };
+  window.__setPropertyTestUser = (userId: string, externalId: string | null = userId) => {
+    activeTestUser = { ...testUser, id: userId, externalId };
     window.dispatchEvent(new Event('property-test-user-changed'));
   };
 }

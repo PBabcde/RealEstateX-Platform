@@ -147,7 +147,8 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 function AccountScopedPropertyTransformer() {
   const { isLoaded, user } = useUser();
   if (!isLoaded || !user) return <Loading />;
-  return <PropertyTransformer key={user.id} accountId={user.id} userEmail={user.primaryEmailAddress?.emailAddress ?? ''} />;
+  const accountId = user.externalId ?? user.id;
+  return <PropertyTransformer key={accountId} accountId={accountId} userEmail={user.primaryEmailAddress?.emailAddress ?? ''} />;
 }
 
 function Router() {
