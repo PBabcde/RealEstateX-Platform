@@ -520,8 +520,16 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
   };
 
-  const restoreImportedProject = async (archive: unknown) => {
-    const restored = await storage.importPropertyProject(archive);
+  const restoreImportedProject = async (archive: unknown, allowDuplicate = false) => {
+    const result = allowDuplicate
+      ? { status: 'imported' as const, project: await storage.importPropertyProject(archive) }
+      : await storage.importPropertyProjectUnlessDuplicate(archive);
+    if (result.status === 'duplicate') {
+      setPendingDuplicateImport({ archive, existing: result.existing });
+      setProjectTransferError('');
+      return;
+    }
+    const restored = result.project;
     const loaded = await loadProjectPreviews(restored);
     revokeAllObjectUrls();
     projectRef.current = restored;
@@ -554,11 +562,6 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         archive = JSON.parse(await file.text());
       } catch {
         throw new Error('Import afgewezen: dit bestand bevat geen geldige JSON-projectexport.');
-      }
-      const existing = await storage.findMatchingSavedPropertyProject(archive);
-      if (existing) {
-        setPendingDuplicateImport({ archive, existing });
-        return;
       }
       await restoreImportedProject(archive);
     } catch (error) {
@@ -611,7 +614,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setIsProjectTransferring(true);
     setProjectTransferError('');
     try {
-      await restoreImportedProject(pendingDuplicateImport.archive);
+      await restoreImportedProject(pendingDuplicateImport.archive, true);
     } catch (error) {
       setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
     } finally {

@@ -49,6 +49,14 @@ const initiallyOpenProject = {
   updatedAt: '2026-10-06T12:00:00.000Z',
 };
 
+const concurrentImportProject = {
+  ...matchingProject,
+  id: 'browser-concurrent-import-project',
+  address: '14 Cross-tab Street',
+  municipality: 'Rotterdam',
+  projectName: 'Concurrent import fixture',
+  notes: 'This backup is imported from two tabs at the same time.',
+};
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -113,6 +121,7 @@ async function prepareFixture() {
   await savePropertyProject(matchingProject);
   await savePropertyProject(initiallyOpenProject);
   const archive = await exportPropertyProject(matchingProject);
+  const concurrentArchive = await exportPropertyProject(concurrentImportProject);
 
   history.replaceState(null, '', '/property-transformer');
   await import('../src/main.tsx');
@@ -207,8 +216,50 @@ async function prepareFixture() {
     'Canceling the duplicate import changed which project is open.',
   );
 
+  const countBeforeConcurrentImport = (await loadPropertyProjects()).length;
+  const racePopup = window.open('/tests/property-transformer-cross-tab-import.html', '_blank');
+  assert(racePopup, 'Chromium did not open a second tab for the concurrent-import test.');
+  try {
+    await waitFor(
+      () => racePopup.document.querySelector('#test-result')?.dataset.status === 'ready',
+      'the second tab to load the authenticated project-import interface',
+    );
+    const secondTabImport = racePopup.__startCrossTabImport(concurrentArchive);
+    setImportFile(concurrentArchive);
+    const [secondTabOutcome] = await Promise.all([
+      secondTabImport,
+      waitFor(
+        () => {
+          const duplicateDialog = document.querySelector('[data-testid="dialog-duplicate-import"]');
+          const managerOpen = Boolean(document.querySelector('[data-testid="dialog-project-manager"]'));
+          return duplicateDialog ? 'duplicate' : managerOpen ? null : 'imported';
+        },
+        'this tab to either save the backup or show the duplicate choice',
+      ),
+    ]);
+    const firstTabOutcome = document.querySelector('[data-testid="dialog-duplicate-import"]')
+      ? 'duplicate'
+      : 'imported';
+    assert(
+      [firstTabOutcome, secondTabOutcome].filter((outcome) => outcome === 'duplicate').length === 1
+        && [firstTabOutcome, secondTabOutcome].filter((outcome) => outcome === 'imported').length === 1,
+      `The two tabs did not resolve the competing imports consistently (this tab: ${firstTabOutcome}; second tab: ${secondTabOutcome}).`,
+    );
+    const projectsAfterConcurrentImport = await loadPropertyProjects();
+    assert(
+      projectsAfterConcurrentImport.length === countBeforeConcurrentImport + 1,
+      'Concurrent imports from two tabs created more than one new project.',
+    );
+    assert(
+      projectsAfterConcurrentImport.filter((project) => project.projectName === concurrentImportProject.projectName).length === 1,
+      'The matching backup was not saved exactly once across both tabs.',
+    );
+  } finally {
+    racePopup.close();
+  }
+
   result.dataset.status = 'passed';
-  result.textContent = 'Passed: the signed-in studio identified a matching backup; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged.';
+  result.textContent = 'Passed: the signed-in studio identified a matching backup; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
 }
 
 prepareFixture().catch((error) => {

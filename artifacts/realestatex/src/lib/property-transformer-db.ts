@@ -85,6 +85,7 @@ const PROJECT_SORT_ORDER_PREFERENCE_KEY = 'realestatex.property-project-sort-ord
 const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'dusk'];
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
 const PROPERTY_STORAGE_CHANNEL_NAME = 'realestatex-property-storage-changes';
+const PROPERTY_PROJECT_IMPORT_LOCK_NAME = 'realestatex-property-project-import';
 const LEGACY_CLAIM_STALE_AFTER_MS = 5 * 60 * 1000;
 
 type StorageScope = string | null;
@@ -861,6 +862,35 @@ async function writeImportedProjectsAtomically(preparedProjects: PreparedPropert
 
 export async function importPropertyProject(archiveInput: unknown, scope: StorageScope = null): Promise<PropertyProject> {
   validateArchive(archiveInput);
+  return withPropertyProjectImportLock(scope, () => importPropertyProjectUnlocked(archiveInput, scope));
+}
+
+export async function importPropertyProjectUnlessDuplicate(
+  archiveInput: unknown,
+  scope: StorageScope = null,
+): Promise<{ status: 'imported'; project: PropertyProject } | { status: 'duplicate'; existing: PropertyProject }> {
+  validateArchive(archiveInput);
+  return withPropertyProjectImportLock(scope, async () => {
+    const existing = await findMatchingSavedPropertyProject(archiveInput, scope);
+    if (existing) return { status: 'duplicate', existing };
+    return {
+      status: 'imported',
+      project: await importPropertyProjectUnlocked(archiveInput, scope),
+    };
+  });
+}
+
+function withPropertyProjectImportLock<T>(scope: StorageScope, operation: () => Promise<T>): Promise<T> {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    return Promise.reject(new Error('Deze browser ondersteunt geen veilige gelijktijdige projectimport. Open de back-up in een browser die vergrendelde opslag ondersteunt.'));
+  }
+  return navigator.locks
+    .request<Promise<T>>(`${PROPERTY_PROJECT_IMPORT_LOCK_NAME}:${storageScopeKey(scope)}`, { mode: 'exclusive' }, operation)
+    .then((result) => result);
+}
+
+async function importPropertyProjectUnlocked(archiveInput: unknown, scope: StorageScope): Promise<PropertyProject> {
+  validateArchive(archiveInput);
   const prepared = await prepareImportedPropertyProject(archiveInput);
   const db = await openDb(scope);
   try {
@@ -1171,6 +1201,7 @@ export function createPropertyProjectStorage(accountId: string) {
     exportPropertyProject: (project: PropertyProject) => exportPropertyProject(project, accountId),
     exportPropertyPortfolio: (projects: PropertyProject[]) => exportPropertyPortfolio(projects, accountId),
     importPropertyProject: (archive: unknown) => importPropertyProject(archive, accountId),
+    importPropertyProjectUnlessDuplicate: (archive: unknown) => importPropertyProjectUnlessDuplicate(archive, accountId),
     importPropertyPortfolio: (portfolio: unknown) => importPropertyPortfolio(portfolio, accountId),
     getLegacyProjectClaimStatus: () => getLegacyProjectClaimStatus(accountId),
     claimLegacyPropertyProjects: () => claimLegacyPropertyProjects(accountId),
