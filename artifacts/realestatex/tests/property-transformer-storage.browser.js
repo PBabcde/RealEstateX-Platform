@@ -185,7 +185,7 @@ function setProjectSortOrder(value) {
   flushSync(() => select.dispatchEvent(new Event('change', { bubbles: true })));
 }
 
-function runSavedProjectSearchUiChecks() {
+function runSavedProjectSearchUiChecks(transferError = '') {
   const projects = [
     { id: 'search-newest', projectName: 'Café Loft', address: '12 Rue Road', municipality: 'Haarlem', updatedAt: '2026-09-28T00:00:00.000Z' },
     { id: 'search-middle', projectName: 'Canal House', address: '42 Canal Road', municipality: 'Amsterdam', updatedAt: '2026-08-28T00:00:00.000Z' },
@@ -215,7 +215,7 @@ function runSavedProjectSearchUiChecks() {
     loading: false,
     busy: false,
     activeProjectId: null,
-    transferError: '',
+    transferError,
     transferNotice: '',
     onClose() {},
     onCreate() {},
@@ -239,6 +239,11 @@ function runSavedProjectSearchUiChecks() {
     importPortfolioButton.click();
   });
   assert(JSON.stringify(clickedPortfolioActions) === JSON.stringify(['export', 'import']), 'Portfolio backup actions did not invoke their handlers.');
+  if (transferError) {
+    const errorNotice = document.querySelector('#project-search-test-root [data-testid="status-project-transfer-error"]');
+    assert(errorNotice?.getAttribute('role') === 'alert', 'A failed portfolio restore was not shown as an alert.');
+    assert(errorNotice.textContent === transferError, 'The portfolio restore storage error was not shown clearly to the user.');
+  }
   assert(
     document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-newest"]')?.textContent.includes('Bronfoto ontbreekt · Conceptfoto ontbreken: Virtual stage'),
     'A saved project with a missing source photo and concept was not flagged in the list.',
@@ -571,6 +576,56 @@ async function run() {
     assert(invalidPortfolioError.includes('bronfoto ontbreekt'), 'A portfolio with one invalid project was not rejected with a clear error.');
     await assertProjectList([expectedProjects.beta.id]);
 
+    const writesBeforeFailure = await loadPropertyProjects();
+    const attemptedProjectIds = [];
+    const attemptedImageKeys = [];
+    const writeSequence = [];
+    const imageStorePrototype = IDBObjectStore.prototype;
+    const originalAdd = imageStorePrototype.add;
+    let failedPortfolioRestoreError = '';
+    imageStorePrototype.add = function (value) {
+      if (this.name === 'projects') {
+        attemptedProjectIds.push(value.id);
+        writeSequence.push('projects');
+      } else if (this.name === 'images') {
+        attemptedImageKeys.push(value.key);
+        writeSequence.push('images');
+      }
+
+      if (writeSequence.length === 6 && this.name === 'images') {
+        // Reuse a stored image key to make IndexedDB fail this queued request with ConstraintError.
+        return originalAdd.call(this, { ...value, key: expectedProjects.beta.originalKey });
+      }
+
+      return originalAdd.call(this, value);
+    };
+    try {
+      await importPropertyPortfolio(portfolioArchive);
+    } catch (error) {
+      failedPortfolioRestoreError = error instanceof Error ? error.message : String(error);
+    } finally {
+      imageStorePrototype.add = originalAdd;
+    }
+    assert(
+      JSON.stringify(writeSequence) === JSON.stringify(['projects', 'images', 'images', 'projects', 'images', 'images']),
+      `The simulated storage failure did not happen after multiple projects and images were queued: ${writeSequence.join(', ')}.`,
+    );
+    assert(attemptedProjectIds.length === 2, 'The storage failure happened before both imported projects were queued.');
+    assert(attemptedImageKeys.length === 4, 'The storage failure happened before all imported images were attempted.');
+    assert(
+      failedPortfolioRestoreError.includes('beschikbare opslagruimte en browserrechten')
+        && failedPortfolioRestoreError.includes('er is niets toegevoegd'),
+      `A failed portfolio write did not produce a clear storage error: ${failedPortfolioRestoreError}`,
+    );
+    await assertProjectList(writesBeforeFailure.map((project) => project.id));
+    for (const id of attemptedProjectIds) {
+      assert(!(await loadPropertyProject(id)), `Failed portfolio restore left imported project ${id} behind.`);
+    }
+    for (const key of attemptedImageKeys) {
+      assert(!(await loadPropertyImage(key)), `Failed portfolio restore left imported image ${key} behind.`);
+    }
+    sessionStorage.setItem('property-portfolio-write-failure-error', failedPortfolioRestoreError);
+
     const portfolioImports = await importPropertyPortfolio(portfolioArchive);
     assert(portfolioImports.length === 2, 'Portfolio restore did not add every saved project.');
     assert(portfolioImports.every((project) => !Object.values(expectedProjects).some((expected) => expected.id === project.id)), 'Portfolio restore reused a source project ID.');
@@ -653,6 +708,12 @@ async function run() {
   }
 
   if (phase === 'imported') {
+    const storageFailureError = sessionStorage.getItem('property-portfolio-write-failure-error') ?? '';
+    assert(
+      storageFailureError.includes('beschikbare opslagruimte en browserrechten')
+        && storageFailureError.includes('er is niets toegevoegd'),
+      'The failed portfolio restore storage error was not retained for the user-interface check.',
+    );
     const importedId = sessionStorage.getItem('property-transfer-imported-id');
     const secondCopyId = sessionStorage.getItem('property-transfer-second-copy-id');
     assert(importedId, 'Imported project ID was not retained across the reload.');
@@ -680,7 +741,7 @@ async function run() {
     assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
     assert((await loadPropertyProject(secondCopyId)), 'The intentional extra copy was not available after reload.');
     await assertProjectList([expectedProjects.beta.id, importedId, secondCopyId, ...portfolioImportedIds]);
-    runSavedProjectSearchUiChecks();
+    runSavedProjectSearchUiChecks(storageFailureError);
 
     const recoveryProject = makeProject({
       id: 'project-recovery',
@@ -762,7 +823,7 @@ async function run() {
     await deletePropertyImage('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition in another tab, and preserves the selected scenario and project settings. Saved-project search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition in another tab, and preserves the selected scenario and project settings. Portfolio restore rolled back all queued projects and images after a failed IndexedDB write and showed a clear storage error. Saved-project search, ordering, export, and import checks also passed.';
     return;
   }
 
