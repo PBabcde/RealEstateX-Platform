@@ -488,7 +488,110 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
     );
     if (!persistedRepair.project) throw new Error('The repaired concept was not available after refresh.');
 
-    return 'Passed: unsupported replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; and the selected project-list order survived close, reopen, and reload.';
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const projectListBeforeFailedDelete = await waitFor(
+      projectListState,
+      (value) => value?.open && value.projectIds?.join(',') === expectedNameOrder.join(','),
+      'the saved-project list before the failed deletion check',
+    );
+    if (!projectListBeforeFailedDelete.open) throw new Error('The project list did not open for the deletion failure check.');
+
+    const projectBeforeFailedDeletion = await evaluate(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        return {
+          project,
+          imageKeys: await window.__propertyRecoveryTest.readImageKeys(),
+          source: project?.originalKey
+            ? await window.__propertyRecoveryTest.readSourceImage(project.originalKey)
+            : null,
+          concept: project?.resultKeys?.stage
+            ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+            : null,
+        };
+      })()`,
+      true,
+    );
+    if (!projectBeforeFailedDeletion.project || !projectBeforeFailedDeletion.source || !projectBeforeFailedDeletion.concept) {
+      throw new Error('The deletion-failure test did not start with a saved project and both referenced photos.');
+    }
+    await evaluate(`(async () => {
+      window.confirm = () => true;
+      const project = await window.__propertyRecoveryTest.readProject();
+      const prototype = IDBObjectStore.prototype;
+      const originalDelete = prototype.delete;
+      window.__propertyRecoveryTest.deletionFailureInjected = false;
+      window.__propertyRecoveryTest.restoreDeleteMethod = () => {
+        prototype.delete = originalDelete;
+        window.__propertyRecoveryTest.restoreDeleteMethod = null;
+      };
+      prototype.delete = function (key) {
+        const request = originalDelete.call(this, key);
+        if (this.name === 'images' && key === project.resultKeys.stage) {
+          window.__propertyRecoveryTest.deletionFailureInjected = true;
+          this.transaction.abort();
+        }
+        return request;
+      };
+      const deleteButton = document.querySelector(
+        '[data-testid="button-delete-project-browser-photo-recovery-project"]'
+      );
+      if (!deleteButton) throw new Error('The saved project deletion action was not rendered.');
+      deleteButton.click();
+    })()`, true);
+    try {
+      const failedDeletion = await waitFor(
+        `(() => {
+          const alert = document.querySelector('[data-testid="status-project-transfer-error"]');
+          const row = document.querySelector('[data-testid="project-row-browser-photo-recovery-project"]');
+          const deleteButton = document.querySelector('[data-testid="button-delete-project-browser-photo-recovery-project"]');
+          return {
+            alert: alert?.textContent ?? '',
+            alertRole: alert?.getAttribute('role') ?? '',
+            projectVisible: Boolean(row),
+            actionReady: Boolean(deleteButton && !deleteButton.disabled),
+            injected: window.__propertyRecoveryTest.deletionFailureInjected,
+          };
+        })()`,
+        (value) => value?.alert && value.projectVisible && value.actionReady && value.injected,
+        'the failed project deletion to leave the project visible and show an error',
+      );
+      if (failedDeletion.alertRole !== 'alert') {
+        throw new Error('The project deletion error was not announced as an alert.');
+      }
+      if (!failedDeletion.alert.includes('Er is niets verwijderd') || !failedDeletion.alert.includes('project blijft in de lijst')) {
+        throw new Error(`The project deletion error did not explain that the project was kept: ${failedDeletion.alert}`);
+      }
+      const dataAfterFailedDeletion = await evaluate(
+        `(async () => {
+          const project = await window.__propertyRecoveryTest.readProject();
+          return {
+            project,
+            imageKeys: await window.__propertyRecoveryTest.readImageKeys(),
+            source: project?.originalKey
+              ? await window.__propertyRecoveryTest.readSourceImage(project.originalKey)
+              : null,
+            concept: project?.resultKeys?.stage
+              ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+              : null,
+          };
+        })()`,
+        true,
+      );
+      if (JSON.stringify(dataAfterFailedDeletion.project) !== JSON.stringify(projectBeforeFailedDeletion.project)) {
+        throw new Error('The failed deletion removed or changed the saved project.');
+      }
+      if (JSON.stringify(dataAfterFailedDeletion.imageKeys) !== JSON.stringify(projectBeforeFailedDeletion.imageKeys)) {
+        throw new Error('The failed deletion partially removed or added photo records.');
+      }
+      if (!dataAfterFailedDeletion.source || !dataAfterFailedDeletion.concept) {
+        throw new Error('The failed deletion removed a photo referenced by the saved project.');
+      }
+    } finally {
+      await evaluate('window.__propertyRecoveryTest.restoreDeleteMethod?.()');
+    }
+
+    return 'Passed: unsupported replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
   } finally {
     devTools.close();
   }

@@ -165,6 +165,39 @@ async function assertProjectList(expectedIds) {
   assert(JSON.stringify(actualIds) === JSON.stringify([...expectedIds].sort()), `Expected project list ${expectedIds.join(', ')}, received ${actualIds.join(', ')}.`);
 }
 
+async function assertFailedProjectDeletePreservesData(project) {
+  const referencedImageKeys = [project.originalKey, ...Object.values(project.resultKeys)].filter(Boolean);
+  const failingImageKey = referencedImageKeys.at(-1);
+  const imageStorePrototype = IDBObjectStore.prototype;
+  const originalDelete = imageStorePrototype.delete;
+  let failureInjected = false;
+  let deletionError = '';
+
+  imageStorePrototype.delete = function (key) {
+    const request = originalDelete.call(this, key);
+    if (this.name === 'images' && key === failingImageKey) {
+      failureInjected = true;
+      this.transaction.abort();
+    }
+    return request;
+  };
+  try {
+    await deletePropertyProject(project);
+  } catch (error) {
+    deletionError = error instanceof Error ? error.message : String(error);
+  } finally {
+    imageStorePrototype.delete = originalDelete;
+  }
+
+  assert(failureInjected, 'The project deletion did not reach the forced IndexedDB transaction abort.');
+  assert(deletionError, 'The aborted project deletion did not report an error.');
+  const projectName = Object.values(expectedProjects).find((expected) => expected.id === project.id)?.projectName;
+  const expectedKey = Object.keys(expectedProjects).find((name) => expectedProjects[name].projectName === projectName);
+  assert(expectedKey, `No expected project fixture was found for ${project.id}.`);
+  await assertProjectAndPhotos(expectedKey);
+  await assertProjectList(Object.values(expectedProjects).map((expected) => expected.id));
+}
+
 function assertVisibleProjectOrder(expectedIds, message) {
   const actualIds = [...document.querySelectorAll('#project-search-test-root [data-testid^="project-row-"]')]
     .map((row) => row.getAttribute('data-testid').replace('project-row-', ''));
@@ -538,6 +571,7 @@ async function run() {
     assert(portfolioArchive.projects.length === 2, 'The portfolio export did not include every saved project.');
     assert(portfolioArchive.projects.every((projectArchive) => projectArchive.images.length === 2), 'The portfolio export omitted a source photo or generated concept.');
     sessionStorage.setItem('property-portfolio-archive', JSON.stringify(portfolioArchive));
+    await assertFailedProjectDeletePreservesData(expectedProjects.alpha);
     await deletePropertyProject(expectedProjects.alpha);
     assert(!(await loadPropertyProject(expectedProjects.alpha.id)), 'Deleted project A is still stored.');
     await assertProjectList([expectedProjects.beta.id]);
