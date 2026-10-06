@@ -87,11 +87,25 @@ async function prepareFixture() {
     throw new Error('Recovery fixture did not start with both referenced photos missing.');
   }
 
+  let abortNextImageWrite = false;
+  const nativePut = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (...args) {
+    const request = Reflect.apply(nativePut, this, args);
+    if (abortNextImageWrite && this.name === 'images') {
+      abortNextImageWrite = false;
+      this.transaction.abort();
+    }
+    return request;
+  };
+
   window.__propertyRecoveryTest = {
     initialProject: project,
     failNextConceptRequest: false,
     lastConceptRequestUrl: '',
     successfulConceptDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL+WQAAAABJRU5ErkJggg==',
+    failNextImageWrite() {
+      abortNextImageWrite = true;
+    },
     async readProject() {
       return loadPropertyProject(project.id);
     },
@@ -114,6 +128,31 @@ async function prepareFixture() {
           const request = database.transaction('images', 'readonly').objectStore('images').getAllKeys();
           request.onsuccess = () => resolve(request.result.map(String).sort());
           request.onerror = () => reject(request.error ?? new Error('Could not read property image keys.'));
+        });
+      } finally {
+        database.close();
+      }
+    },
+    async readImageRecords() {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(`realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('Could not open the property image store.'));
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('images', 'readonly').objectStore('images').getAll();
+          request.onsuccess = () => resolve(request.result.map((image) => ({
+            key: image.key,
+            label: image.label,
+            mimeType: image.mimeType,
+            isConcept: image.isConcept,
+            disclaimer: image.disclaimer,
+            createdAt: image.createdAt,
+            blobSize: image.blob.size,
+            blobType: image.blob.type,
+          })).sort((left, right) => String(left.key).localeCompare(String(right.key))));
+          request.onerror = () => reject(request.error ?? new Error('Could not read property image records.'));
         });
       } finally {
         database.close();

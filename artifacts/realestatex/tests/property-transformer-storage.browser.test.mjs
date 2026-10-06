@@ -631,7 +631,75 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
       await evaluate('window.__propertyRecoveryTest.restoreDeleteMethod?.()');
     }
 
-    return 'Passed: unsupported replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
+    const beforeFailedPhotoSave = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (!beforeFailedPhotoSave.project?.originalKey
+      || !beforeFailedPhotoSave.project?.resultKeys?.stage
+      || !beforeFailedPhotoSave.imageRecords.length) {
+      throw new Error('The IndexedDB failure test did not start with saved source and concept photos.');
+    }
+    await evaluate(`window.__propertyRecoveryTest.failNextImageWrite()`);
+    await uploadReplacement(uploadPath);
+
+    const failedPhotoSave = await waitFor(
+      `(() => ({
+        error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+        retryEnabled: Boolean(document.querySelector('[data-testid="button-upload-property"]') && !document.querySelector('[data-testid="button-upload-property"]').disabled),
+        actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
+        selectedScenarioVisible: Array.from(document.querySelectorAll('h2'))
+          .some((heading) => heading.textContent?.includes('Virtual stage naast het origineel')),
+      }))()`,
+      (value) => value?.error && value.retryEnabled && value.actionFinished && value.selectedScenarioVisible,
+      'the replacement photo save to fail while keeping the retry action available',
+    );
+    if (!failedPhotoSave.error.includes('kon niet worden opgeslagen')
+      || !failedPhotoSave.error.includes('ongewijzigd gebleven')
+      || !failedPhotoSave.error.includes('probeer opnieuw')) {
+      throw new Error(`The failed photo save did not explain that the project is unchanged and can be retried: ${failedPhotoSave.error}`);
+    }
+    const afterFailedPhotoSave = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (JSON.stringify(afterFailedPhotoSave.project) !== JSON.stringify(beforeFailedPhotoSave.project)) {
+      throw new Error('The failed replacement photo save changed the saved project or selected scenario.');
+    }
+    if (JSON.stringify(afterFailedPhotoSave.imageRecords) !== JSON.stringify(beforeFailedPhotoSave.imageRecords)) {
+      throw new Error('The failed replacement photo save changed or partially wrote existing image records.');
+    }
+
+    await uploadReplacement(uploadPath);
+    await waitFor(
+      `(() => ({
+        error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+        uploadEnabled: Boolean(document.querySelector('[data-testid="button-upload-property"]') && !document.querySelector('[data-testid="button-upload-property"]').disabled),
+        projectReady: document.querySelector('[data-testid="button-transform-stage"]') && !document.querySelector('[data-testid="button-transform-stage"]').disabled,
+      }))()`,
+      (value) => !value?.error && value?.uploadEnabled && value?.projectReady,
+      'the retry replacement photo to save successfully',
+    );
+    const afterRetriedPhotoSave = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (!afterRetriedPhotoSave.project?.originalKey
+      || afterRetriedPhotoSave.project.originalKey === beforeFailedPhotoSave.project.originalKey
+      || !afterRetriedPhotoSave.imageRecords.some((image) => image.key === afterRetriedPhotoSave.project.originalKey)) {
+      throw new Error('The retry did not save and reference the replacement source photo.');
+    }
+
+    return 'Passed: invalid and failed replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
   } finally {
     devTools.close();
   }

@@ -477,14 +477,18 @@ export async function savePropertyProject(project: PropertyProject, scope: Stora
 export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
   const db = await openDb(scope);
   try {
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
-      transaction.objectStore(PROJECTS).put(project);
-      transaction.objectStore(IMAGES).put(image);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error);
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+        transaction.objectStore(PROJECTS).put(project);
+        transaction.objectStore(IMAGES).put(image);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    } catch {
+      throw new Error('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.');
+    }
     notifyPropertyStorageChanged(scope);
   } finally {
     db.close();
