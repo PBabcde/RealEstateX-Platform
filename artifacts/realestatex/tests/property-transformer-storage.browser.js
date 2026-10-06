@@ -10,6 +10,7 @@ import {
   loadPropertyProject,
   loadPropertyProjectImages,
   loadPropertyProjects,
+  loadPropertyProjectsWithPhotoHealth,
   savePropertyImage,
   savePropertyProject,
   savePropertyProjectWithImage,
@@ -189,8 +190,16 @@ function runSavedProjectSearchUiChecks() {
   const sourceOrder = projects.map((project) => project.id);
   const originalProjects = JSON.stringify(projects);
   const root = createRoot(document.querySelector('#project-search-test-root'));
+  const photoHealthByProject = {
+    'search-newest': { sourcePhoto: 'missing', missingConcepts: ['stage'] },
+    'search-middle': { sourcePhoto: 'available', missingConcepts: [] },
+    'search-oldest': { sourcePhoto: 'not-added', missingConcepts: [] },
+    'search-alphabetical': { sourcePhoto: 'available', missingConcepts: ['dusk'] },
+    'search-no-road': { sourcePhoto: 'available', missingConcepts: [] },
+  };
   flushSync(() => root.render(React.createElement(ProjectManager, {
     projects,
+    photoHealthByProject,
     loading: false,
     busy: false,
     activeProjectId: null,
@@ -203,6 +212,22 @@ function runSavedProjectSearchUiChecks() {
     onExport() {},
     onImport() {},
   })));
+  assert(
+    document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-newest"]')?.textContent.includes('Bronfoto ontbreekt · Conceptfoto ontbreken: Virtual stage'),
+    'A saved project with a missing source photo and concept was not flagged in the list.',
+  );
+  assert(
+    document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-middle"]')?.textContent === 'Geen ontbrekende foto’s',
+    'A project with available photos did not show a healthy photo status.',
+  );
+  assert(
+    document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-oldest"]')?.textContent === 'Bronfoto niet toegevoegd',
+    'A project without an uploaded source photo was not identified.',
+  );
+  assert(
+    document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-alphabetical"]')?.textContent.includes('Conceptfoto ontbreken: Day to dusk'),
+    'A project with a missing concept photo was not flagged in the list.',
+  );
 
   const matchingCases = [
     ['canal house', ['search-middle'], 'project name'],
@@ -269,6 +294,9 @@ async function run() {
     await assertProjectList([expectedProjects.alpha.id, expectedProjects.beta.id]);
     await assertProjectAndPhotos('alpha');
     await assertProjectAndPhotos('beta');
+    const completePhotoHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(completePhotoHealth.photoHealthById[expectedProjects.alpha.id]?.sourcePhoto === 'available', 'A saved source photo was shown as missing in the list status.');
+    assert(completePhotoHealth.photoHealthById[expectedProjects.alpha.id]?.missingConcepts.length === 0, 'An available concept photo was shown as missing in the list status.');
 
     const archive = await exportPropertyProject(expectedProjects.alpha);
     sessionStorage.setItem('property-transfer-archive', JSON.stringify(archive));
@@ -390,13 +418,19 @@ async function run() {
       createdAt: '2026-09-28T00:00:00.000Z',
     });
     await saveImage('recovery-stage');
-    await deletePropertyImage('recovery-original');
     await deletePropertyImage('recovery-stage');
+    const missingConceptHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(missingConceptHealth.photoHealthById[recoveryProject.id]?.sourcePhoto === 'available', 'Removing a concept changed the source-photo status.');
+    assert(missingConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.includes('stage'), 'Removing a concept did not refresh the saved-project status.');
+    await deletePropertyImage('recovery-original');
     const missingImages = await loadPropertyProjectImages(recoveryProject);
     assert(missingImages.missingOriginal, 'A missing source image was not identified.');
     assert(missingImages.missingConcepts.includes('stage'), 'A missing concept image was not identified.');
     assert(!missingImages.results.stage, 'A missing concept was returned as if its image existed.');
     assert(recoveryProject.selectedResult === 'stage', 'The selected scenario changed when its image went missing.');
+    const missingPhotoHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(missingPhotoHealth.photoHealthById[recoveryProject.id]?.sourcePhoto === 'missing', 'Removing the source photo did not refresh the saved-project status.');
+    assert(missingPhotoHealth.photoHealthById[recoveryProject.id]?.missingConcepts.includes('stage'), 'The list status hid a missing concept when the source photo was also missing.');
 
     const restoredProject = { ...recoveryProject, originalKey: 'recovery-restored-original', updatedAt: '2026-09-28T00:01:00.000Z' };
     await savePropertyProjectWithImage(restoredProject, {
@@ -423,10 +457,16 @@ async function run() {
     assert(restoredImages.original?.key === 'recovery-restored-original', 'Replacement source photo could not be loaded.');
     assert(restoredImages.missingConcepts.includes('stage'), 'Restoring the source photo hid the still-missing concept image.');
     assert(storedRecovery.selectedResult === 'stage', 'Restoring the source photo changed the selected scenario.');
+    const recoveredPhotoHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(recoveredPhotoHealth.photoHealthById[recoveryProject.id]?.sourcePhoto === 'available', 'Restoring the source photo did not clear its missing status.');
+    assert(recoveredPhotoHealth.photoHealthById[recoveryProject.id]?.missingConcepts.includes('stage'), 'Restoring the source photo incorrectly cleared the missing concept status.');
 
+    await saveImage('recovery-stage');
+    const addedConceptHealth = await loadPropertyProjectsWithPhotoHealth();
+    assert(addedConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.length === 0, 'Adding the concept photo did not clear its missing status.');
     await deletePropertyImage('recovery-stage');
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: saved-project search matched name, address, and municipality (including case, accents, and multi-term queries); recent, project-name, and municipality ordering work with filtered results without changing project data or timestamps. Export/import and recovery checks also passed.';
+    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition, and preserves the selected scenario and project settings. Saved-project search, ordering, export, and import checks also passed.';
     return;
   }
 

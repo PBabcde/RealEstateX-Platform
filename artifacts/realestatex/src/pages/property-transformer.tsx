@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -101,6 +101,7 @@ function ActionButton({ action, disabled, pending, onClick }: { action: typeof a
 function PropertyTransformer() {
   const [project, setProject] = useState<PropertyProject | null>(null);
   const [projects, setProjects] = useState<PropertyProject[]>([]);
+  const [photoHealthByProject, setPhotoHealthByProject] = useState<Record<string, PropertyProjectPhotoHealth>>({});
   const [originalUrl, setOriginalUrl] = useState('');
   const [results, setResults] = useState<Partial<Record<PropertyAction, ResultMeta>>>({});
   const [loading, setLoading] = useState(true);
@@ -176,16 +177,18 @@ function PropertyTransformer() {
     let active = true;
     void (async () => {
       try {
-        const storedProjects = await loadPropertyProjects();
+        const storedList = await loadPropertyProjectsWithPhotoHealth();
         if (!active) return;
-        setProjects(storedProjects);
-        let existing = storedProjects[0];
+        let existing = storedList.projects[0];
+        let projectList = storedList;
         if (!existing) {
           existing = makeProject();
           await savePropertyProject(existing);
+          projectList = await loadPropertyProjectsWithPhotoHealth();
           if (!active) return;
-          setProjects([existing]);
         }
+        setProjects(projectList.projects);
+        setPhotoHealthByProject(projectList.photoHealthById);
         setProject(existing);
         setSplitRatio(existing.splitRatio);
         try {
@@ -244,7 +247,9 @@ function PropertyTransformer() {
   const refreshProjects = async () => {
     setProjectListLoading(true);
     try {
-      setProjects(await loadPropertyProjects());
+      const projectList = await loadPropertyProjectsWithPhotoHealth();
+      setProjects(projectList.projects);
+      setPhotoHealthByProject(projectList.photoHealthById);
     } finally {
       setProjectListLoading(false);
     }
@@ -298,7 +303,7 @@ function PropertyTransformer() {
       setTransferOpen(false);
       setProjectManagerOpen(false);
       setNotice('');
-      setProjects(await loadPropertyProjects());
+      await refreshProjects();
     } catch {
       setUploadError('Het nieuwe project kon niet in deze browser worden opgeslagen.');
     } finally {
@@ -322,7 +327,7 @@ function PropertyTransformer() {
         setSplitRatio(50);
         setTransferOpen(false);
       }
-      setProjects(await loadPropertyProjects());
+      await refreshProjects();
       setNotice('Project en bijbehorende foto’s verwijderd uit deze browser.');
     } catch {
       setUploadError('Het project of de bijbehorende foto’s konden niet volledig worden verwijderd.');
@@ -386,7 +391,7 @@ function PropertyTransformer() {
       setProjectTransferError('');
       setUploadError('');
       setNotice(`“${restored.projectName || 'Transformatiescan'}” is in deze browser hersteld, inclusief de aanwezige foto’s en concepten.`);
-      setProjects(await loadPropertyProjects());
+      await refreshProjects();
     } catch (error) {
       setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
     } finally {
@@ -437,6 +442,7 @@ function PropertyTransformer() {
       } catch {
         setUploadError('De nieuwe foto is opgeslagen, maar de oude bronfoto kon niet worden opgeruimd.');
       }
+      await refreshProjects().catch(() => setUploadError('De foto is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Probeer een andere afbeelding.');
     } finally {
@@ -479,6 +485,7 @@ function PropertyTransformer() {
                   setUploadError('Het concept is opgeslagen, maar een oude versie kon niet worden opgeruimd.');
                 }
               }
+              await refreshProjects().catch(() => setUploadError('Het concept is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
               setNotice(`${meta.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
             } catch {
@@ -570,7 +577,7 @@ function PropertyTransformer() {
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -600,7 +607,7 @@ function PropertyTransformer() {
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-     {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
+      {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
   </div></AppShell>;
 }
 
@@ -609,8 +616,23 @@ function formatProjectUpdatedAt(value: string): string {
   return Number.isNaN(date.getTime()) ? 'Bijwerktijd onbekend' : `Bijgewerkt ${new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}`;
 }
 
-export function ProjectManager({ projects, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
+function projectPhotoHealthLabel(health: PropertyProjectPhotoHealth): { label: string; missing: boolean; notAdded: boolean } {
+  const missingLabels = health.missingConcepts.map((action) => actions.find((item) => item.id === action)?.label ?? action);
+  const missing = health.sourcePhoto === 'missing' || missingLabels.length > 0;
+  const details = [
+    health.sourcePhoto === 'missing' ? 'Bronfoto ontbreekt' : health.sourcePhoto === 'not-added' ? 'Bronfoto niet toegevoegd' : '',
+    missingLabels.length ? `Conceptfoto${missingLabels.length > 1 ? '’s' : ''} ontbreken: ${missingLabels.join(', ')}` : '',
+  ].filter(Boolean);
+  return {
+    label: details.join(' · ') || 'Geen ontbrekende foto’s',
+    missing,
+    notAdded: health.sourcePhoto === 'not-added' && !missing,
+  };
+}
+
+export function ProjectManager({ projects, photoHealthByProject, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
   projects: PropertyProject[];
+  photoHealthByProject: Record<string, PropertyProjectPhotoHealth>;
   loading: boolean;
   busy: boolean;
   activeProjectId: string | null;
@@ -652,10 +674,14 @@ export function ProjectManager({ projects, loading, busy, activeProjectId, trans
           <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Volgorde</span><select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as PropertyProjectSortOrder)} aria-label="Sorteer opgeslagen projecten" className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition-shadow focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="select-project-sort-order"><option value="recent">Meest recent bijgewerkt</option><option value="name">Projectnaam A–Z</option><option value="municipality">Gemeente A–Z</option></select></label>
         </div>}
         {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : matchingProjects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center" role="status" data-testid="empty-project-search"><p className="text-sm font-bold">Geen opgeslagen projecten gevonden</p><p className="mt-1 text-xs text-muted-foreground">Geen projectnaam, adres of gemeente komt overeen met “{searchQuery.trim()}”. Pas je zoekopdracht aan of wis deze om alle projecten te zien.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
-          {matchingProjects.map((item) => <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toegevoegd'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p></div>
+           {matchingProjects.map((item) => {
+             const health = photoHealthByProject[item.id];
+             const photoLabel = health ? projectPhotoHealthLabel(health) : null;
+             return <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
+             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toevoegen'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p><p className={`mt-1 text-[10px] font-semibold ${photoLabel?.missing ? 'text-[#9e4336]' : photoLabel?.notAdded ? 'text-[#76551c]' : 'text-[#287b6a]'}`} role="status" data-testid={`status-project-photo-health-${item.id}`}>{photoLabel?.label ?? 'Foto status nog niet beschikbaar'}</p></div>
              <div className="flex shrink-0 flex-wrap gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onExport(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-export-project-${item.id}`}><Download size={13} /> Exporteren</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
-          </li>)}
+           </li>;
+           })}
         </ul>}
       </div>
     </div>

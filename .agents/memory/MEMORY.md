@@ -11,3 +11,4 @@
 - [tsx test module mode](tsx-test-module-mode.md) — root JavaScript integration tests need CommonJS-compatible setup and careful workspace alias resolution.
 - [Browser IndexedDB testing](browser-indexeddb-testing.md) — headless browser storage tests must wait via DevTools; dump-dom can finish before IndexedDB callbacks.
 - [RealEstateX authenticated UI tests](realestatex-authenticated-ui-tests.md) — fresh headless browsers hit the auth gate; IndexedDB-only tests do not validate protected routes.
+- [RealEstateX photo health](realestatex-photo-health.md) — derive missing-photo status from current IndexedDB references instead of persisting a cache that can go stale.

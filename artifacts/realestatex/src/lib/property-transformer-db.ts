@@ -43,6 +43,11 @@ export type PropertyProject = {
   updatedAt: string;
 };
 
+export type PropertyProjectPhotoHealth = {
+  sourcePhoto: 'available' | 'not-added' | 'missing';
+  missingConcepts: PropertyAction[];
+};
+
 type ExportedPropertyImage = {
   key: string;
   label: string;
@@ -307,6 +312,52 @@ export async function loadPropertyProjects(): Promise<PropertyProject[]> {
       request.onerror = () => reject(request.error);
     });
     return sortPropertyProjects(projects);
+  } finally {
+    db.close();
+  }
+}
+
+export async function loadPropertyProjectsWithPhotoHealth(): Promise<{
+  projects: PropertyProject[];
+  photoHealthById: Record<string, PropertyProjectPhotoHealth>;
+}> {
+  const db = await openDb();
+  try {
+    const { projects, imageKeys } = await new Promise<{ projects: PropertyProject[]; imageKeys: IDBValidKey[] }>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readonly');
+      const projectsRequest = transaction.objectStore(PROJECTS).getAll();
+      const imageKeysRequest = transaction.objectStore(IMAGES).getAllKeys();
+      let storedProjects: PropertyProject[] | undefined;
+      let storedImageKeys: IDBValidKey[] | undefined;
+
+      projectsRequest.onsuccess = () => { storedProjects = projectsRequest.result as PropertyProject[]; };
+      imageKeysRequest.onsuccess = () => { storedImageKeys = imageKeysRequest.result; };
+      transaction.oncomplete = () => {
+        if (storedProjects === undefined || storedImageKeys === undefined) {
+          reject(new Error('De foto-status van opgeslagen projecten kon niet worden gelezen.'));
+          return;
+        }
+        resolve({ projects: storedProjects, imageKeys: storedImageKeys });
+      };
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    const availableImageKeys = new Set(imageKeys);
+    const photoHealthById = Object.fromEntries(projects.map((project) => [
+      project.id,
+      {
+        sourcePhoto: !project.originalKey
+          ? 'not-added'
+          : availableImageKeys.has(project.originalKey)
+            ? 'available'
+            : 'missing',
+        missingConcepts: PROPERTY_ACTIONS.filter((action) => {
+          const key = project.resultKeys[action];
+          return Boolean(key) && !availableImageKeys.has(key!);
+        }),
+      } satisfies PropertyProjectPhotoHealth,
+    ]));
+    return { projects: sortPropertyProjects(projects), photoHealthById };
   } finally {
     db.close();
   }
