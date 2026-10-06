@@ -123,6 +123,83 @@ validates every tenant's audit sequence and hash chain, runs the append-only
 trigger test, logs the number of validated events, and drops the temporary
 database even when restore or validation fails.
 
+## Retiring legacy OIDC session rows
+
+The legacy `public.sessions` table is retained for schema and compatibility
+reasons, but the current API authenticates through Clerk. A repository review
+found no active API reader or writer for `public.sessions`; its current
+references are the schema and test fixtures. The local `users` table remains
+the application identity/role/tenant mapping and must not be removed. The
+separate `chat_sessions` table contains application chat history and is not an
+authentication session store.
+
+Retention policy: keep every legacy OIDC row until at least 30 days after its
+UTC `expire` timestamp. Keep all unexpired rows and rows inside that 30-day
+grace period. After migration approval and confirmation that no environment
+still runs an OIDC consumer, only rows beyond that cutoff may be removed.
+Token-field counts in the preview are informational; the cleanup selects rows
+by expiry, never prints token values or session IDs, and never removes token
+fields from an active row.
+
+The cleanup command changes data only; it does not create, drop, or alter
+tables, columns, indexes, or constraints. Its delete statement targets only
+`public.sessions`. It does not touch `users`, application/chat data, foreign
+keys, or any audit table. If the actual sessions table has an unexpected
+column shape, any foreign-key relationship, or any user-defined trigger, the
+command stops without changing it. These checks prevent cascading deletes or
+trigger side effects from reaching application or audit data.
+
+For each environment separately:
+
+1. Record approval of the Clerk migration and confirm no legacy OIDC process
+   or deployment still consumes these rows. Do not proceed if either is
+   uncertain.
+2. Configure that environment's `DATABASE_URL`,
+   `REALESTATEX_DEPLOYMENT_ENV` (`development`, `staging`, or `production`),
+   and an environment-specific `REALESTATEX_OFFSITE_BACKUP_DIR`. Create a new
+   offsite backup with `realestatex:backup`; then restore that exact dump to a
+   disposable database. Set `DUMP_PATH` to the created dump and
+   `RESTORE_DATABASE_URL` to the disposable target, then run:
+
+   ```bash
+   pnpm --filter @workspace/scripts run realestatex:restore-test -- "$DUMP_PATH"
+   ```
+
+   Never use the source database as the restore target. Do not continue if
+   backup or restore validation fails.
+
+3. Preview with the expected database name. The command also prints the
+   connected database identity and refuses a mismatch:
+
+   ```bash
+   pnpm --filter @workspace/scripts run realestatex:retire-legacy-sessions -- \
+     preview --environment production --database realestatex_production
+   ```
+
+4. Review the preview's eligible count and obtain explicit deletion approval
+   in the migration/change record. Apply only with that record's reference,
+   the exact preview count, and the environment/database confirmation. The
+   environment variable must match `--environment`, and the connected database
+   name must match `--database`:
+
+   ```bash
+   pnpm --filter @workspace/scripts run realestatex:retire-legacy-sessions -- \
+     apply --environment production --database realestatex_production \
+     --expected-rows 12 --approval-reference CHG-1234 \
+     --confirm production/realestatex_production
+   ```
+
+   Replace the sample environment, database name, row count, and reference
+   with the reviewed values. `apply` takes a table lock, rechecks the preview
+   count, and deletes in a transaction; any mismatch rolls the transaction
+   back. It requires `REALESTATEX_DEPLOYMENT_ENV` to be set to the selected
+   environment. Running `preview` alone never deletes data.
+
+5. Save the preview and apply output with the approval record, then run a new
+   preview to verify the eligible count is zero. Repeat separately for every
+   approved environment; never reuse one environment's preview or database
+   name for another.
+
 ## Enterprise Core recovery operations
 
 The Enterprise Core stores trust metadata, audit events, recovery points, and
