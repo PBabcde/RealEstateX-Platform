@@ -1,0 +1,60 @@
+To synchronize the chosen project order across already-open browser tabs, you can leverage the native browser storage event.
+When localStorage is updated in one tab, the browser broadcasts a storage event to all other open tabs on the same origin. By listening for this event in your React component or state management hook, the open tab can catch the change and re-render the list immediately without altering any backend records or database timestamps.
+Implementation Details
+1. Listen for Storage Changes in property-transformer.tsx
+Add a useEffect listener targeting the key where the portfolio order preference is stored (e.g., 'portfolio_project_order').
+// artifacts/realestatex/src/pages/property-transformer.tsx
+import { useEffect, useState } from 'react';
+
+const PORTFOLIO_ORDER_KEY = 'portfolio_project_order';
+
+export function PropertyTransformer() {
+  const [projectOrder, setProjectOrder] = useState<string[]>(() => {
+    // Read initial order from localStorage or default
+    const saved = localStorage.getItem(PORTFOLIO_ORDER_KEY);
+    return saved ? JSON.parse(saved) : defaultOrder;
+  });
+
+  // Handler to update order locally and persist to localStorage
+  const handleOrderChange = (newOrder: string[]) => {
+    setProjectOrder(newOrder);
+    localStorage.setItem(PORTFOLIO_ORDER_KEY, JSON.stringify(newOrder));
+  };
+
+  // Sync state across open browser tabs
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      // StorageEvent triggers across other tabs when localStorage changes
+      if (event.key === PORTFOLIO_ORDER_KEY && event.newValue) {
+        try {
+          const updatedOrder = JSON.parse(event.newValue);
+          setProjectOrder(updatedOrder);
+        } catch (e) {
+          console.error('Failed to parse updated project order from storage event:', e);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Sort/display projects according to `projectOrder`
+  const sortedProjects = useMemo(() => {
+    return sortProjects(projects, projectOrder);
+  }, [projects, projectOrder]);
+
+  return (
+    // Your UI layout rendering `sortedProjects`
+  );
+}
+
+2. Verify Database Logic in property-transformer-db.ts
+Ensure that helper functions in property-transformer-db.ts strictly treat the ordering as a local UI/browser preference rather than persisting it back to the database.
+ * Do: Write preferences to localStorage or local state.
+ * Don't: Trigger updates to database models (e.g., updated_at or projects table) on preference change, keeping database records untouched.
+Verification & Testing
+ * Open the application in two separate browser tabs.
+ * In Tab A, change the project display order.
+ * Switch focus back to Tab B (or keep them side-by-side) and verify the list re-orders instantly without refreshing.
+ * Confirm no API or database payload was sent that updates project records or timestamps.
