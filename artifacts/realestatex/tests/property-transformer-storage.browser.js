@@ -1,3 +1,6 @@
+import React from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import {
   deletePropertyProject,
   deletePropertyImage,
@@ -11,6 +14,7 @@ import {
   savePropertyProject,
   savePropertyProjectWithImage,
 } from '../src/lib/property-transformer-db.ts';
+import { ProjectManager } from '../src/pages/property-transformer.tsx';
 
 const result = document.querySelector('#test-result');
 const phaseKey = 'property-storage-browser-test-phase';
@@ -154,6 +158,73 @@ async function assertProjectList(expectedIds) {
   assert(JSON.stringify(actualIds) === JSON.stringify([...expectedIds].sort()), `Expected project list ${expectedIds.join(', ')}, received ${actualIds.join(', ')}.`);
 }
 
+function assertVisibleProjectOrder(expectedIds, message) {
+  const actualIds = [...document.querySelectorAll('#project-search-test-root [data-testid^="project-row-"]')]
+    .map((row) => row.getAttribute('data-testid').replace('project-row-', ''));
+  assert(JSON.stringify(actualIds) === JSON.stringify(expectedIds), `${message} Expected ${expectedIds.join(', ')}, received ${actualIds.join(', ')}.`);
+}
+
+function setSearchQuery(value) {
+  const input = document.querySelector('#project-search-test-root [data-testid="input-search-projects"]');
+  assert(input instanceof HTMLInputElement, 'The saved-project search field was not rendered.');
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+  flushSync(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+}
+
+function runSavedProjectSearchUiChecks() {
+  const projects = [
+    { id: 'search-newest', projectName: 'Café Loft', address: '12 Rue Road', municipality: 'Haarlem', updatedAt: '2026-09-28T00:00:00.000Z' },
+    { id: 'search-middle', projectName: 'Canal House', address: '42 Canal Road', municipality: 'Amsterdam', updatedAt: '2026-08-28T00:00:00.000Z' },
+    { id: 'search-oldest', projectName: 'Garden Apartment', address: '8 Oak Road', municipality: 'Amsterdam', updatedAt: '2026-07-28T00:00:00.000Z' },
+  ];
+  const sourceOrder = projects.map((project) => project.id);
+  const root = createRoot(document.querySelector('#project-search-test-root'));
+  flushSync(() => root.render(React.createElement(ProjectManager, {
+    projects,
+    loading: false,
+    busy: false,
+    activeProjectId: null,
+    transferError: '',
+    transferNotice: '',
+    onClose() {},
+    onCreate() {},
+    onOpen() {},
+    onDelete() {},
+    onExport() {},
+    onImport() {},
+  })));
+
+  const matchingCases = [
+    ['canal house', ['search-middle'], 'project name'],
+    ['42 canal', ['search-middle'], 'address'],
+    ['amsterdam', ['search-middle', 'search-oldest'], 'municipality'],
+    ['cafe', ['search-newest'], 'accent-insensitive matching'],
+    ['CAFÉ', ['search-newest'], 'case-insensitive matching'],
+    ['canal amsterdam', ['search-middle'], 'terms spread across searchable fields'],
+    ['road', sourceOrder, 'filtered newest-first order'],
+  ];
+
+  for (const [query, expectedIds, description] of matchingCases) {
+    setSearchQuery(query);
+    assertVisibleProjectOrder(expectedIds, `Search for "${query}" should match ${description}.`);
+    assert(JSON.stringify(projects.map((project) => project.id)) === JSON.stringify(sourceOrder), 'Searching changed the source projects list order.');
+  }
+
+  setSearchQuery('Atlantis');
+  const emptyState = document.querySelector('#project-search-test-root [data-testid="empty-project-search"]');
+  assert(emptyState?.textContent.includes('Geen opgeslagen projecten gevonden'), 'A query without matches did not show a clear empty state.');
+  assert(emptyState.textContent.includes('wis deze om alle projecten te zien'), 'The no-results explanation did not explain how to restore all projects.');
+  assertVisibleProjectOrder([], 'A query without matches should not show project rows.');
+
+  const clearButton = document.querySelector('#project-search-test-root [data-testid="button-clear-project-search"]');
+  assert(clearButton instanceof HTMLButtonElement, 'The clear-search button was not rendered for a non-empty query.');
+  flushSync(() => clearButton.click());
+  const input = document.querySelector('#project-search-test-root [data-testid="input-search-projects"]');
+  assert(input.value === '', 'Clearing the search did not clear the query.');
+  assertVisibleProjectOrder(sourceOrder, 'Clearing the query should restore every project in newest-first order.');
+  root.unmount();
+}
+
 async function run() {
   const phase = sessionStorage.getItem(phaseKey);
 
@@ -261,6 +332,7 @@ async function run() {
     assert((await importedPhotos.original?.blob.text()) === imagePayloads['alpha-original'].text, 'Imported source photo did not survive reload.');
     assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
     await assertProjectList([expectedProjects.beta.id, importedId]);
+    runSavedProjectSearchUiChecks();
 
     const recoveryProject = makeProject({
       id: 'project-recovery',
@@ -329,7 +401,7 @@ async function run() {
 
     await deletePropertyImage('recovery-stage');
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: export/import preserved project settings, checklist, source photo, and generated concept across reload; incomplete exports were rejected; existing recovery checks passed.';
+    result.textContent = 'Passed: saved-project search matched name, address, and municipality (including case, accents, and multi-term queries); empty results and clearing restored the source order. Export/import and recovery checks also passed.';
     return;
   }
 

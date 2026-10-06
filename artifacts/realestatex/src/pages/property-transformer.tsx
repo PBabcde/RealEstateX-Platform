@@ -609,7 +609,7 @@ function formatProjectUpdatedAt(value: string): string {
   return Number.isNaN(date.getTime()) ? 'Bijwerktijd onbekend' : `Bijgewerkt ${new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}`;
 }
 
-function ProjectManager({ projects, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
+export function ProjectManager({ projects, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
   projects: PropertyProject[];
   loading: boolean;
   busy: boolean;
