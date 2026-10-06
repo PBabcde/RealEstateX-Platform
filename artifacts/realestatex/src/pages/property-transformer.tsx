@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, subscribePropertyStorageChanges, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, subscribePropertyStorageChanges, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -246,6 +246,12 @@ function PropertyTransformer() {
   const roi = totalInvestment ? (valueCreation / totalInvestment) * 100 : 0;
   const yieldValue = totalInvestment > 0 ? ((form.monthlyRent * 12) / totalInvestment) * 100 : 0;
   const totalArea = form.units.reduce((sum, unit) => sum + unit.area, 0);
+  const isActionPending = (action: PropertyAction) => (
+    (action === 'declutter' && declutter.isPending)
+    || (action === 'stage' && stage.isPending)
+    || (action === 'makeover' && makeover.isPending)
+    || (action === 'dusk' && dusk.isPending)
+  );
 
   const refreshProjects = useCallback(async () => {
     const refreshSequence = ++projectListRefreshSequence.current;
@@ -558,7 +564,10 @@ function PropertyTransformer() {
   };
 
   const runAction = (action: PropertyAction) => {
-    if (!originalUrl || !project) return;
+    if (!originalUrl || !project) {
+      if (missingOriginalPhoto) setUploadError('Herstel eerst de bronfoto voordat je een ontbrekend concept opnieuw maakt.');
+      return;
+    }
     void (async () => {
       try {
         const image = await loadPropertyImage(project.originalKey);
@@ -574,11 +583,11 @@ function PropertyTransformer() {
             try {
               const key = `${project.id}-${action}-${crypto.randomUUID()}`;
               const blob = await dataUrlToBlob(response.imageDataUrl);
-              await savePropertyImage({ key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() });
+              const imageRecord: PropertyImageRecord = { key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() };
               const latestProject = projectRef.current ?? project;
               const next = { ...latestProject, resultKeys: { ...latestProject.resultKeys, [action]: key }, selectedResult: action, splitRatio, updatedAt: new Date().toISOString() };
               const previousKey = latestProject.resultKeys[action];
-              await savePropertyProject(next);
+              await savePropertyProjectWithImage(next, imageRecord);
               const previousResult = results[action];
               if (previousResult) revokeObjectUrl(previousResult.imageUrl);
               const meta = { key, label: actions.find((item) => item.id === action)?.label ?? action, imageUrl: createObjectUrl(blob), isConcept: response.isConcept, disclaimer: response.disclaimer };
@@ -696,9 +705,18 @@ function PropertyTransformer() {
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
       <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
       <input ref={portfolioTransferFileRef} type="file" accept=".json,application/json" onChange={importPortfolioFile} className="hidden" data-testid="input-import-portfolio" />
-     {(missingOriginalPhoto || missingConceptActions.length > 0) && <div className="mb-5 flex flex-col gap-2 rounded-xl border border-[#e7c98a] bg-[#fff8e7] px-4 py-3 text-xs text-[#76551c]" role="alert" data-testid="status-missing-project-images">
+      {(missingOriginalPhoto || missingConceptActions.length > 0) && <div className="mb-5 flex flex-col gap-2 rounded-xl border border-[#e7c98a] bg-[#fff8e7] px-4 py-3 text-xs text-[#76551c]" role="alert" data-testid="status-missing-project-images">
        {missingOriginalPhoto && <div className="flex flex-wrap items-center justify-between gap-2"><p><strong>De bronfoto ontbreekt.</strong> Je project, financiële aannames, units en checklist zijn behouden.</p><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="shrink-0 rounded-lg bg-[#8d6320] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-50" data-testid="button-restore-source-photo">{isUploading ? 'Foto voorbereiden…' : 'Bronfoto toevoegen'}</button></div>}
-       {missingConceptActions.length > 0 && <div><p><strong>Conceptfoto ontbreekt:</strong> {missingConceptActions.map((action) => actions.find((item) => item.id === action)?.label ?? action).join(', ')}.</p><p className="mt-1">Het gekozen scenario blijft {actions.find((item) => item.id === project.selectedResult)?.label ?? 'ongewijzigd'}; het is niet automatisch aangepast.</p></div>}
+        {missingConceptActions.length > 0 && <div>
+          <p><strong>Conceptfoto ontbreekt:</strong> {missingConceptActions.map((action) => actions.find((item) => item.id === action)?.label ?? action).join(', ')}.</p>
+          <p className="mt-1">Het gekozen scenario blijft {actions.find((item) => item.id === project.selectedResult)?.label ?? 'ongewijzigd'} zolang een vervangend concept niet succesvol is opgeslagen.</p>
+          {missingOriginalPhoto
+            ? <p className="mt-2 font-semibold" data-testid="status-restore-source-before-concept">Herstel eerst de bronfoto met ‘Bronfoto toevoegen’; daarna kun je elk ontbrekend concept hier opnieuw maken.</p>
+            : <div className="mt-2 flex flex-wrap gap-2">{missingConceptActions.map((action) => {
+              const label = actions.find((item) => item.id === action)?.label ?? action;
+              return <button key={action} onClick={() => { setActiveTab('studio'); setUploadError(''); runAction(action); }} disabled={isUploading || activeMutation || isProjectSwitching} className="rounded-lg border border-[#b78643] bg-white/70 px-3 py-2 text-[10px] font-bold text-[#76551c] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50" data-testid={`button-repair-concept-${action}`} aria-label={`${label} opnieuw maken`}>{isActionPending(action) ? `${label} maken…` : `${label} opnieuw maken`}</button>;
+            })}</div>}
+        </div>}
      </div>}
     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
     {notice && <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-transform-success"><Check size={15} />{notice}</div>}

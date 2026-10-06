@@ -195,6 +195,8 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
           signedIn: Boolean(document.querySelector('[data-testid="button-logout"]')) && !document.querySelector('[data-testid="button-login"]'),
           studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
           notice: notice?.textContent ?? '',
+          repairButton: Boolean(document.querySelector('[data-testid="button-repair-concept-stage"]')),
+          restoreFirst: Boolean(document.querySelector('[data-testid="status-restore-source-before-concept"]')),
         };
       })()`,
       (value) => value?.signedIn && value?.studioReady && value?.notice,
@@ -208,6 +210,9 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
     }
     if (!initial.notice.includes('Het gekozen scenario blijft Virtual stage')) {
       throw new Error(`The studio did not explain that the selected scenario remains unchanged: ${initial.notice}`);
+    }
+    if (initial.repairButton || !initial.restoreFirst) {
+      throw new Error('The studio did not direct the user to restore the missing source photo before concept generation.');
     }
 
     const initialProject = await evaluate(
@@ -283,6 +288,32 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
     }
     if (!finalNotice.includes('Het gekozen scenario blijft Virtual stage')) {
       throw new Error(`Recovering the source photo changed or hid the selected-scenario notice: ${finalNotice}`);
+    }
+    const repairAvailable = await evaluate(`Boolean(document.querySelector('[data-testid="button-repair-concept-stage"]'))`);
+    if (!repairAvailable) {
+      throw new Error('The missing Virtual stage concept did not offer a targeted repair action after source recovery.');
+    }
+
+    const projectBeforeFailedRepair = await evaluate(`window.__propertyRecoveryTest.readProject()`, true);
+    await evaluate(`(() => {
+      window.__propertyRecoveryTest.failNextConceptRequest = true;
+      document.querySelector('[data-testid="button-repair-concept-stage"]')?.click();
+    })()`);
+    const failedRepair = await waitFor(
+      `(() => ({
+        error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+        request: window.__propertyRecoveryTest.lastConceptRequestUrl,
+        actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
+      }))()`,
+      (value) => value?.error && value?.request && value.actionFinished,
+      'the targeted Virtual stage repair request to fail cleanly',
+    );
+    if (!failedRepair.request.includes('/api/property-transformations/virtual-staging')) {
+      throw new Error(`The repair notice started the wrong concept action: ${failedRepair.request}`);
+    }
+    const projectAfterFailedRepair = await evaluate(`window.__propertyRecoveryTest.readProject()`, true);
+    if (JSON.stringify(projectAfterFailedRepair) !== JSON.stringify(projectBeforeFailedRepair)) {
+      throw new Error('A failed concept repair changed the saved scenario or project settings.');
     }
 
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);

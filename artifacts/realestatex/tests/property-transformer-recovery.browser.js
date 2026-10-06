@@ -81,6 +81,8 @@ async function prepareFixture() {
 
   window.__propertyRecoveryTest = {
     initialProject: project,
+    failNextConceptRequest: false,
+    lastConceptRequestUrl: '',
     async readProject() {
       return loadPropertyProject(project.id);
     },
@@ -88,6 +90,17 @@ async function prepareFixture() {
       const image = await loadPropertyImage(key);
       return image ? { type: image.blob.type, size: image.blob.size, isConcept: image.isConcept } : null;
     },
+  };
+
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, ...init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (window.__propertyRecoveryTest.failNextConceptRequest && url.includes('/api/property-transformations/virtual-staging')) {
+      window.__propertyRecoveryTest.failNextConceptRequest = false;
+      window.__propertyRecoveryTest.lastConceptRequestUrl = url;
+      return Promise.reject(new TypeError('Failed to fetch'));
+    }
+    return nativeFetch(input, ...init);
   };
 
   result.dataset.status = 'fixture-ready';
