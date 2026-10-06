@@ -60,7 +60,7 @@ router.use(async (_req, _res, next): Promise<void> => {
 router.get("/properties", async (req, res): Promise<void> => {
   res.json(
     ListPropertiesResponse.parse(
-      Object.values(await loadProperties(isAdministrator(req) ? undefined : req.user!.id)),
+      Object.values(await loadProperties(isAdministrator(req) ? undefined : req.dbUser!.id)),
     ),
   );
 });
@@ -73,10 +73,10 @@ router.post("/properties", async (req, res): Promise<void> => {
   }
 
   const propertyId = `property-${randomUUID()}`;
-  const property: PropertyRecord = { propertyId, ownerId: req.user!.id, ...parsed.data };
+  const property: PropertyRecord = { propertyId, ownerId: req.dbUser!.id, ...parsed.data };
   const created = await createProperty(
     property,
-    req.user!.id,
+    req.dbUser!.id,
     req.enterpriseContext!.tenantId,
   );
   res.status(201).json(CreatePropertyResponse.parse(created));
@@ -125,8 +125,8 @@ router.patch("/properties/:propertyId", async (req, res): Promise<void> => {
   const updated = await updateProperty(
     params.data.propertyId,
     body.data,
-    req.user!.id,
-    isAdministrator(req) ? undefined : req.user!.id,
+    req.dbUser!.id,
+    isAdministrator(req) ? undefined : req.dbUser!.id,
     req.enterpriseContext!.tenantId,
   );
   if (!updated) {
@@ -154,8 +154,8 @@ router.delete("/properties/:propertyId", async (req, res): Promise<void> => {
   if (
     !(await deleteProperty(
       params.data.propertyId,
-      req.user!.id,
-      isAdministrator(req) ? undefined : req.user!.id,
+      req.dbUser!.id,
+      isAdministrator(req) ? undefined : req.dbUser!.id,
       req.enterpriseContext!.tenantId,
     ))
   ) {
@@ -226,7 +226,7 @@ router.get("/market/trends", async (req, res): Promise<void> => {
 
 router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const summary = buildDashboardSummary(
-    Object.values(await loadProperties(isAdministrator(req) ? undefined : req.user!.id)),
+    Object.values(await loadProperties(isAdministrator(req) ? undefined : req.dbUser!.id)),
   );
   res.json(GetDashboardSummaryResponse.parse(summary));
 });

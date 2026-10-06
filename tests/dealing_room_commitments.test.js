@@ -65,8 +65,7 @@ test("commitments are tenant-scoped, match-gated, and reject overcommitment", as
   app.use(express.json());
   app.use((req, _res, next) => {
     const user = principal.get(req.header("authorization"));
-    req.isAuthenticated = () => Boolean(user);
-    if (user) req.user = user;
+    if (user) req.dbUser = user;
     next();
   });
   app.use("/api", dealsRouter);

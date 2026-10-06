@@ -152,8 +152,7 @@ test("authenticated deal and CRM mutations remain inside the server-selected ten
   app.use(express.json());
   app.use((req, _res, next) => {
     const principal = principalByToken.get(req.header("authorization"));
-    req.isAuthenticated = () => Boolean(principal);
-    if (principal) req.user = principal;
+    if (principal) req.dbUser = principal;
     next();
   });
   app.use("/api", dealsRouter, investorsRouter, crmRouter, enterpriseRouter);

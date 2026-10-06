@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AuthUserRole = typeof AuthUserRole[keyof typeof AuthUserRole];
+export type ApplicationAccountRole = typeof ApplicationAccountRole[keyof typeof ApplicationAccountRole];
 
 
-export const AuthUserRole = {
+export const ApplicationAccountRole = {
   owner: 'owner',
   admin: 'admin',
   member: 'member',

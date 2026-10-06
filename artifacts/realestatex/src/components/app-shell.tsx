@@ -1,10 +1,11 @@
 import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
-import { useAuth } from '@workspace/replit-auth-web';
+import { useUser, useClerk } from '@clerk/react';
+import { useGetAccount } from '@workspace/api-client-react';
 
 const navItems = [
-  { href: '/', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
   { href: '/properties', label: 'Objecten', note: 'Je vastgoed', icon: ChevronRight },
   { href: '/calculators', label: 'Rekentools', note: 'Scenario’s', icon: Calculator },
   { href: '/market', label: 'Markt', note: 'Richting & tempo', icon: BarChart3 },
@@ -15,14 +16,18 @@ const navItems = [
 ];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {
-  const { user, logout } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const { data: account } = useGetAccount();
+  const email = user?.primaryEmailAddress?.emailAddress;
+  const logout = () => signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const current = navItems.find((item) => item.href === location) ?? navItems[0];
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col bg-sidebar px-5 py-6 text-sidebar-foreground transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[270px] flex-col overflow-y-auto bg-sidebar px-5 py-6 text-sidebar-foreground transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between px-2">
           <Link href="/" className="flex items-center gap-3" data-testid="link-brand">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
@@ -66,15 +71,15 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
         </div>
         <div className="mt-5 flex items-center gap-3 px-2">
           <div className="grid h-8 w-8 place-items-center rounded-full bg-[#37506b] text-xs font-bold text-white">
-            {(user?.firstName?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase()}
+            {(user?.firstName?.[0] ?? email?.[0] ?? 'U').toUpperCase()}
             {(user?.lastName?.[0] ?? '').toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-white">
-              {user?.firstName || user?.email || 'Gebruiker'}
+              {user?.firstName || email || 'Gebruiker'}
             </p>
             <p className="truncate text-[10px] text-sidebar-foreground/45">
-              {user?.role === 'admin' ? 'Beheerder' : user?.role === 'member' ? 'Lid' : 'Eigenaar'}
+              {account?.role === 'admin' ? 'Beheerder' : account?.role === 'member' ? 'Lid' : 'Eigenaar'}
             </p>
           </div>
           <button
@@ -105,8 +110,8 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
               <span className="mono rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground/60">⌘K</span>
             </div>
             {onAddProperty && <button onClick={onAddProperty} className="flex items-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0" data-testid="button-header-add-property"><Plus size={16} /> <span className="hidden sm:inline">Object toevoegen</span></button>}
-            <div className="grid h-9 w-9 place-items-center rounded-full border-2 border-card bg-[#37506b] text-[10px] font-bold text-white shadow-sm" title={user?.email ?? 'Gebruiker'}>
-              {(user?.firstName?.[0] ?? user?.email?.[0] ?? 'U').toUpperCase()}
+            <div className="grid h-9 w-9 place-items-center rounded-full border-2 border-card bg-[#37506b] text-[10px] font-bold text-white shadow-sm" title={email ?? 'Gebruiker'}>
+              {(user?.firstName?.[0] ?? email?.[0] ?? 'U').toUpperCase()}
               {(user?.lastName?.[0] ?? '').toUpperCase()}
             </div>
           </div>

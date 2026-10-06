@@ -38,7 +38,7 @@ export async function attachEnterpriseContext(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (!req.user) {
+  if (!req.dbUser) {
     res.status(401).json({
       error: "Unauthorized",
       message: "Geen geldige authenticatie gevonden.",
@@ -48,9 +48,9 @@ export async function attachEnterpriseContext(
 
   try {
     req.enterpriseContext = {
-      tenantId: req.user.tenantId,
-      actorId: req.user.id,
-      roles: [ROLE_MAP[req.user.role] ?? "Member"],
+      tenantId: req.dbUser.tenantId,
+      actorId: req.dbUser.id,
+      roles: [ROLE_MAP[req.dbUser.role] ?? "Member"],
       permissions: [],
       correlationId: getCorrelationId(req),
     };

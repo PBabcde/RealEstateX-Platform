@@ -34,6 +34,10 @@ RealEstateX is a responsive real-estate intelligence dashboard for managing prop
 
 ## Architecture decisions
 
+- Authentication uses Replit-managed Clerk with same-origin session cookies. Local users retain application roles and tenant membership. Verified `sessionClaims.userId` resolves the original users ID; Clerk-native IDs are only for Clerk API operations. Legacy sessions and users tables remain intact.
+- Clerk publishing supplies `VITE_CLERK_PROXY_URL` automatically; it is intentionally empty in development. Keep the canonical unconditional `proxyUrl` prop and hostname-derived publishable key. Do not add a hardcoded `/api/__clerk` fallback or production-only client branching. The backend proxy is mounted before body parsers. See `.local/skills/clerk-auth/references/setup-and-customization.md` and https://docs.replit.com/features/auth-and-identity/clerk-auth.
+- Clerk migration verification is documented in `artifacts/api-server/tests/clerk-migration-verification.md`; real cookie-based browser checks are separate from isolated bridge and photo/storage fixtures.
+
 - PostgreSQL is the production source of truth for the RealEstateX domain; JSON remains an explicit one-process local-development fallback and import source.
 - The Express API is the runnable service for the workspace; the Python modules mirror the requested domain architecture and remain independently testable.
 - OpenAPI is the contract boundary: frontend hooks and server validation are generated from the same specification.

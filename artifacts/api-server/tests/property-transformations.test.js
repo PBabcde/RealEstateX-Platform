@@ -46,8 +46,7 @@ test("property image transformations authenticate, validate, and return concept 
   app.use(express.json({ limit: "2mb" }));
   app.use((req, _res, next) => {
     const principal = principalByToken.get(req.header("authorization"));
-    req.isAuthenticated = () => Boolean(principal);
-    if (principal) req.user = principal;
+    if (principal) req.dbUser = principal;
     next();
   });
   app.use(

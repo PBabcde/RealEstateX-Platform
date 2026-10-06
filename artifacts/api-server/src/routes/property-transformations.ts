@@ -166,7 +166,7 @@ async function runTransform<T extends ImageInput>(
     return;
   }
 
-  const userId = req.user?.id;
+  const userId = req.dbUser?.id;
   if (!userId) {
     res.status(401).json({ error: "Authentication required." });
     return;

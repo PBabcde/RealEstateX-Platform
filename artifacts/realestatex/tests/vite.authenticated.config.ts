@@ -8,8 +8,9 @@ const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 export default mergeConfig(appConfig, defineConfig({
   resolve: {
-    alias: {
-      '@workspace/replit-auth-web': path.join(testDirectory, 'signed-in-auth.fixture.ts'),
-    },
+    alias: [
+      { find: /^@clerk\/react$/, replacement: path.join(testDirectory, 'signed-in-auth.fixture.ts') },
+      { find: /^@workspace\/api-client-react$/, replacement: path.join(testDirectory, 'application-account.fixture.ts') },
+    ],
   },
 }));

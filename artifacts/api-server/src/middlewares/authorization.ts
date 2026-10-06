@@ -5,7 +5,7 @@ export function requireAuthentication(
   res: Response,
   next: NextFunction,
 ): void {
-  if (!req.isAuthenticated()) {
+  if (!req.dbUser) {
     res.status(401).json({ error: "Authentication required" });
     return;
   }
@@ -13,17 +13,17 @@ export function requireAuthentication(
 }
 
 export function isAdministrator(req: Request): boolean {
-  return req.isAuthenticated() && req.user.role === "admin";
+  return req.dbUser?.role === "admin";
 }
 
 export function canAccessOwner(req: Request, ownerId: string): boolean {
-  return req.isAuthenticated() && (isAdministrator(req) || req.user.id === ownerId);
+  return Boolean(req.dbUser && (isAdministrator(req) || req.dbUser.id === ownerId));
 }
 
 export function canManageOwner(req: Request, ownerId: string): boolean {
   return (
-    req.isAuthenticated() &&
-    (isAdministrator(req) || (req.user.id === ownerId && req.user.role === "owner"))
+    Boolean(req.dbUser &&
+    (isAdministrator(req) || (req.dbUser.id === ownerId && req.dbUser.role === "owner")))
   );
 }
 

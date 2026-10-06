@@ -9,8 +9,10 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { enterpriseRecoveryGuard } from "./lib/enterprise-core-middleware";
-import cookieParser from "cookie-parser";
-import { authMiddleware } from "./middlewares/authMiddleware";
+import { clerkMiddleware } from "@clerk/express";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
+import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./middlewares/clerkProxyMiddleware";
+import { resolveLocalUser } from "./middlewares/localUser";
 import { attachEnterpriseContext } from "./lib/enterprise-core-access";
 
 const app: Express = express();
@@ -39,6 +41,7 @@ app.use(
   }),
 );
 app.disable("x-powered-by");
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -48,6 +51,7 @@ app.use((_req, res, next) => {
 });
 app.use(
   cors({
+    credentials: true,
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -61,10 +65,17 @@ app.use(
     },
   }),
 );
-app.use(cookieParser());
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
-app.use(authMiddleware);
+app.use(
+  clerkMiddleware((req) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(req) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })),
+);
+app.use(resolveLocalUser);
 app.use("/api/core", attachEnterpriseContext, enterpriseRecoveryGuard);
 
 app.use("/api", router);

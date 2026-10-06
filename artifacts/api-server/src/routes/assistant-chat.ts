@@ -147,7 +147,7 @@ router.post("/assistant/ask", async (req, res): Promise<void> => {
     return;
   }
   const passages = await retrieveDocuments(
-    req.user!.id,
+    req.dbUser!.id,
     body.data.question,
     req.enterpriseContext!.tenantId,
   );
@@ -158,7 +158,7 @@ router.post("/assistant/ask", async (req, res): Promise<void> => {
 
 router.get("/assistant/documents", async (req, res): Promise<void> => {
   const documents = await listDocuments(
-    req.user!.id,
+    req.dbUser!.id,
     req.enterpriseContext!.tenantId,
   );
   res.json(ListAssistantDocumentsResponse.parse({ status: "ok", documents }));
@@ -172,7 +172,7 @@ router.post("/assistant/documents", async (req, res): Promise<void> => {
   }
   try {
     const document = await ingestDocument({
-      ownerId: req.user!.id,
+      ownerId: req.dbUser!.id,
       tenantId: req.enterpriseContext!.tenantId,
       filename: body.data.filename,
       content: body.data.content,
@@ -201,7 +201,7 @@ router.delete(
       return;
     }
     const deleted = await deleteDocument(
-      req.user!.id,
+      req.dbUser!.id,
       params.data.documentId,
       req.enterpriseContext!.tenantId,
     );
@@ -220,7 +220,7 @@ router.post("/assistant/retrieve", async (req, res): Promise<void> => {
     return;
   }
   const passages = await retrieveDocuments(
-    req.user!.id,
+    req.dbUser!.id,
     body.data.query,
     req.enterpriseContext!.tenantId,
     body.data.topK,
@@ -244,7 +244,7 @@ router.post("/chat/start", async (req, res): Promise<void> => {
   const sessionId = `chat-${randomUUID()}`;
   const session: ChatSession = {
     sessionId,
-    userId: req.user!.id,
+    userId: req.dbUser!.id,
     createdAt: now(),
     messages: [],
   };
@@ -271,12 +271,12 @@ router.post("/chat/send", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
-  if (!isAdministrator(req) && session.userId !== req.user!.id) {
+  if (!isAdministrator(req) && session.userId !== req.dbUser!.id) {
     forbidden(res);
     return;
   }
   const passages = await retrieveDocuments(
-    req.user!.id,
+    req.dbUser!.id,
     body.data.message,
     req.enterpriseContext!.tenantId,
   );
@@ -287,7 +287,7 @@ router.post("/chat/send", async (req, res): Promise<void> => {
       { role: "user", content: body.data.message, at: now() },
       { role: "assistant", content: reply.answer, at: now() },
     ],
-    isAdministrator(req) ? undefined : req.user!.id,
+    isAdministrator(req) ? undefined : req.dbUser!.id,
     req.enterpriseContext!.tenantId,
   );
   if (!updated) {
@@ -319,7 +319,7 @@ router.get("/chat/history", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Chat session not found" });
     return;
   }
-  if (!isAdministrator(req) && session.userId !== req.user!.id) {
+  if (!isAdministrator(req) && session.userId !== req.dbUser!.id) {
     forbidden(res);
     return;
   }
