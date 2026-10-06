@@ -1,0 +1,63 @@
+Dat is alweer Taak #68 die klaarstaat! Het platform wordt echt ontzettend robuust tegen alle mogelijke randgevallen en beschadigde bestanden.
+Hier is de heldere specificatie en uitwerking voor deze taak:
+Opdracht & Specificatie: Taak #68
+Doel: Zorgen dat wanneer een gebruiker een onvolledige of beschadigde (checksum-fout) project-backup probeert te importeren in de studio:
+ * Er een duidelijke, herstelbare foutmelding getoond wordt in de projectmanager.
+ * De bestaande opgeslagen projecten in de database 100% ongewijzigd blijven (geen partiële imports of beschadigde records).
+1. UI Handling & Error Feedback (artifacts/realestatex/src/pages/property-transformer.tsx)
+Vang importfouten (zoals checksum-mismatches of ontbrekende vereiste velden) netjes op in de projectmanager en toon de juiste melding zonder de state/DB te muteren.
+// artifacts/realestatex/src/pages/property-transformer.tsx
+
+const handleProjectImport = async (file: File) => {
+  try {
+    const importResult = await importProjectBackup(file);
+    toast.success(`Project "${importResult.projectName}" succesvol geïmporteerd`);
+    await reloadProjectList();
+  } catch (error: any) {
+    // 1. Zorg dat er geen wijzigingen in de projectenlijst/DB worden doorgevoerd
+    
+    // 2. Toon heldere, specifieke foutmelding op basis van het type beschadiging
+    if (error.code === 'CHECKSUM_MISMATCH') {
+      setImportError(
+        'Import mislukt: Het back-upbestand is beschadigd of aangepast (ongeldige checksum). Kies een geldig back-upbestand.'
+      );
+    } else if (error.code === 'INVALID_SCHEMA' || error.code === 'INCOMPLETE_BACKUP') {
+      setImportError(
+        'Import mislukt: Het back-upbestand is onvolledig of heeft een onbekende structuur.'
+      );
+    } else {
+      setImportError('Import mislukt: Het bestand kon niet veilig worden geïmporteerd.');
+    }
+  }
+};
+
+2. Browser Tests (artifacts/realestatex/tests/property-transformer-storage.browser.js)
+Voeg browser-tests toe die zowel een onvolledig als een checksum-beschadigd bestand uploaden in een ingelogde sessie.
+// artifacts/realestatex/tests/property-transformer-storage.browser.js
+
+test('Taak #68: Toont duidelijke foutmelding bij beschadigde of onvolledige back-up en behoudt projecten', async ({ page }) => {
+  await loginAndOpenProjectManager(page);
+
+  // Bewaar het huidige aantal opgeslagen projecten
+  const initialProjectCount = await page.locator('[data-testid="project-card"]').count();
+
+  // 1. Test onvolledige back-up
+  await page.setInputFiles('[data-testid="import-project-input"]', 'tests/fixtures/incomplete-backup.json');
+  await expect(page.locator('[data-testid="import-error-banner"]')).toBeVisible();
+  await expect(page.locator('[data-testid="import-error-banner"]')).toContainText('onvolledig');
+
+  // Controleer dat het aantal projecten ongewijzigd is
+  let currentProjectCount = await page.locator('[data-testid="project-card"]').count();
+  expect(currentProjectCount).toBe(initialProjectCount);
+
+  // 2. Test back-up met beschadigde checksum
+  await page.setInputFiles('[data-testid="import-project-input"]', 'tests/fixtures/damaged-checksum-backup.json');
+  await expect(page.locator('[data-testid="import-error-banner"]')).toBeVisible();
+  await expect(page.locator('[data-testid="import-error-banner"]')).toContainText('beschadigd');
+
+  // Controleer opnieuw dat er niks is toegevoegd of gewijzigd
+  currentProjectCount = await page.locator('[data-testid="project-card"]').count();
+  expect(currentProjectCount).toBe(initialProjectCount);
+});
+
+Draag deze gerust door. Zodra #66 en #68 verwerkt zijn, staat de foutafhandeling en import-veiligheid als een kluis! 🚀
