@@ -357,7 +357,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
     );
     if (!reloadedPortfolio.open) throw new Error('The portfolio did not open after the page reload.');
 
-    return 'Passed: authenticated photo recovery preserved saved assumptions and the selected Virtual stage scenario; portfolio controls worked; and project-name order persisted after closing, reopening, and reloading without changing the project record.';
+    return 'Passed: authenticated photo recovery preserved saved assumptions and the selected Virtual stage scenario; portfolio controls worked; and project-name order persisted after close, reopen, and reload without changing the project record.';
   } finally {
     devTools.close();
   }
@@ -428,6 +428,7 @@ try {
     '--no-default-browser-check',
     '--disable-background-networking',
     '--disable-extensions',
+    '--disable-popup-blocking',
     '--remote-allow-origins=*',
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=${userDataDir}`,
@@ -436,9 +437,13 @@ try {
   const timeout = setTimeout(() => browser.kill('SIGKILL'), 120_000);
   try {
     const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
-    const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, browser);
-    const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
-    console.log(`${storageResult}\n${recoveryResult}\n${searchResult}`);
+    if (process.env.PROPERTY_STORAGE_ONLY === '1') {
+      console.log(storageResult);
+    } else {
+      const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, browser);
+      const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
+      console.log(`${storageResult}\n${recoveryResult}\n${searchResult}`);
+    }
   } finally {
     clearTimeout(timeout);
     await stopProcess(browser);

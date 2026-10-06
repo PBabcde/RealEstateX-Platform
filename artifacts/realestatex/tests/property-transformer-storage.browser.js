@@ -17,6 +17,7 @@ import {
   savePropertyImage,
   savePropertyProject,
   savePropertyProjectWithImage,
+  subscribePropertyStorageChanges,
 } from '../src/lib/property-transformer-db.ts';
 import { ProjectManager } from '../src/pages/property-transformer.tsx';
 
@@ -331,6 +332,167 @@ function runSavedProjectSearchUiChecks() {
   root.unmount();
 }
 
+async function runCrossTabPhotoHealthChecks() {
+  const project = {
+    ...expectedProjects.alpha,
+    id: 'browser-cross-tab-photo-health',
+    projectName: 'Cross-tab photo health fixture',
+    originalKey: 'browser-cross-tab-original',
+    resultKeys: { stage: 'browser-cross-tab-concept' },
+    selectedResult: 'stage',
+    updatedAt: '2026-10-06T12:00:00.000Z',
+  };
+  const originalRecord = {
+    key: project.originalKey,
+    blob: new Blob(['cross-tab original'], { type: 'image/png' }),
+    label: 'Originele foto',
+    mimeType: 'image/png',
+    isConcept: false,
+    disclaimer: 'Source photo stored locally.',
+    createdAt: project.updatedAt,
+  };
+  await savePropertyProjectWithImage(project, originalRecord);
+
+  const rootElement = document.querySelector('#cross-tab-photo-test-root');
+  const root = createRoot(rootElement);
+  let displayedProjects = [];
+  let photoHealthByProject = {};
+  let refreshError;
+  const render = () => flushSync(() => root.render(React.createElement(ProjectManager, {
+    projects: displayedProjects,
+    photoHealthByProject,
+    loading: false,
+    busy: false,
+    activeProjectId: null,
+    transferError: '',
+    transferNotice: '',
+    onClose() {},
+    onCreate() {},
+    onOpen() {},
+    onDelete() {},
+    onExport() {},
+    onExportPortfolio() {},
+    onImport() {},
+    onImportPortfolio() {},
+  })));
+  const refresh = async () => {
+    const stored = await loadPropertyProjectsWithPhotoHealth();
+    displayedProjects = stored.projects.filter((item) => item.id === project.id);
+    photoHealthByProject = { [project.id]: stored.photoHealthById[project.id] };
+    render();
+  };
+  await refresh();
+  const unsubscribe = subscribePropertyStorageChanges(() => {
+    void refresh().catch((error) => { refreshError = error; });
+  });
+  let writer;
+
+  const statusSelector = `[data-testid="status-project-photo-health-${project.id}"]`;
+  const readStatus = () => rootElement.querySelector(statusSelector)?.textContent ?? '';
+  const waitForStatus = async (predicate, description) => {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      if (refreshError) throw refreshError;
+      const status = readStatus();
+      if (predicate(status)) return status;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`Timed out waiting for ${description}. Current photo status: ${readStatus()}`);
+  };
+
+  try {
+    assert(
+      readStatus().includes('Conceptfoto ontbreken: Virtual stage'),
+      `The open project list did not start with the expected missing-concept warning: ${readStatus()}`,
+    );
+    window.__photoWriterReady = false;
+    window.addEventListener('message', (event) => {
+      if (event.origin === location.origin && event.data?.source === 'photo-writer' && event.data.type === 'ready') {
+        window.__photoWriterReady = true;
+      }
+    });
+    writer = window.open(
+      '/tests/property-transformer-cross-tab-writer.html',
+      'property-photo-cross-tab-writer',
+      'popup,width=360,height=240',
+    );
+    assert(writer, 'The second browser tab for photo changes could not be opened.');
+    const readyDeadline = Date.now() + 15_000;
+    while (!window.__photoWriterReady && Date.now() < readyDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert(window.__photoWriterReady, 'The second tab photo writer did not connect.');
+
+    let requestNumber = 0;
+    const runWriterCommand = (operation, payload = {}) => new Promise((resolve, reject) => {
+      const requestId = `photo-health-${++requestNumber}`;
+      const timeout = setTimeout(() => {
+        window.removeEventListener('message', onMessage);
+        reject(new Error(`The second tab did not finish ${operation}.`));
+      }, 15_000);
+      const onMessage = (event) => {
+        if (event.origin !== location.origin || event.data?.source !== 'photo-writer' || event.data.requestId !== requestId) return;
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        if (event.data.error) reject(new Error(event.data.error));
+        else resolve();
+      };
+      window.addEventListener('message', onMessage);
+      writer.postMessage({ operation, requestId, ...payload }, location.origin);
+    });
+
+    await runWriterCommand('add-concept', { key: project.resultKeys.stage });
+    await waitForStatus(
+      (status) => status === 'Geen ontbrekende foto’s',
+      'the warning to clear after the second tab adds the referenced concept photo',
+    );
+
+    await runWriterCommand('remove-image', { key: project.resultKeys.stage });
+    await waitForStatus(
+      (status) => status.includes('Conceptfoto ontbreken: Virtual stage'),
+      'the warning to return after the second tab removes the concept photo',
+    );
+
+    await runWriterCommand('remove-image', { key: project.originalKey });
+    await waitForStatus(
+      (status) => status.includes('Bronfoto ontbreekt') && status.includes('Conceptfoto ontbreken: Virtual stage'),
+      'the source-photo warning after the second tab removes the source photo',
+    );
+
+    const recoveredProject = {
+      ...project,
+      originalKey: 'browser-cross-tab-restored-original',
+      updatedAt: new Date().toISOString(),
+    };
+    await runWriterCommand('recover-source', { project: recoveredProject });
+    const recoveredStatus = await waitForStatus(
+      (status) => !status.includes('Bronfoto ontbreekt') && status.includes('Conceptfoto ontbreken: Virtual stage'),
+      'the source-photo warning to clear after the second tab recovers the photo',
+    );
+    assert(
+      !recoveredStatus.includes('Bronfoto ontbreekt'),
+      'The open project list kept showing a missing-source warning after recovery.',
+    );
+
+    const savedProject = await loadPropertyProject(project.id);
+    const settingsOnly = (value) => {
+      const settings = { ...value };
+      delete settings.originalKey;
+      delete settings.updatedAt;
+      return settings;
+    };
+    assert(
+      JSON.stringify(settingsOnly(savedProject)) === JSON.stringify(settingsOnly(project)),
+      'Cross-tab photo status refresh changed saved project settings or scenario data.',
+    );
+    assert(savedProject.selectedResult === 'stage', 'Cross-tab photo recovery changed the selected scenario.');
+  } finally {
+    unsubscribe();
+    writer?.close();
+    root.unmount();
+  }
+}
+
 async function run() {
   const phase = sessionStorage.getItem(phaseKey);
 
@@ -588,8 +750,9 @@ async function run() {
     const addedConceptHealth = await loadPropertyProjectsWithPhotoHealth();
     assert(addedConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.length === 0, 'Adding the concept photo did not clear its missing status.');
     await deletePropertyImage('recovery-stage');
+    await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition, and preserves the selected scenario and project settings. Saved-project search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition in another tab, and preserves the selected scenario and project settings. Saved-project search, ordering, export, and import checks also passed.';
     return;
   }
 

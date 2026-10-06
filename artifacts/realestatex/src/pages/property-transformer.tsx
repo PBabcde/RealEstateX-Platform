@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, subscribePropertyStorageChanges, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -121,6 +121,7 @@ function PropertyTransformer() {
   const [activeTab, setActiveTab] = useState<'studio' | 'split' | 'roi'>('studio');
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const projectListRefreshSequence = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
   const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
@@ -246,16 +247,33 @@ function PropertyTransformer() {
   const yieldValue = totalInvestment > 0 ? ((form.monthlyRent * 12) / totalInvestment) * 100 : 0;
   const totalArea = form.units.reduce((sum, unit) => sum + unit.area, 0);
 
-  const refreshProjects = async () => {
+  const refreshProjects = useCallback(async () => {
+    const refreshSequence = ++projectListRefreshSequence.current;
     setProjectListLoading(true);
     try {
       const projectList = await loadPropertyProjectsWithPhotoHealth();
-      setProjects(projectList.projects);
-      setPhotoHealthByProject(projectList.photoHealthById);
+      if (refreshSequence === projectListRefreshSequence.current) {
+        setProjects(projectList.projects);
+        setPhotoHealthByProject(projectList.photoHealthById);
+      }
     } finally {
-      setProjectListLoading(false);
+      if (refreshSequence === projectListRefreshSequence.current) setProjectListLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!projectManagerOpen) return;
+    let active = true;
+    const unsubscribe = subscribePropertyStorageChanges(() => {
+      void refreshProjects().catch(() => {
+        if (active) setProjectTransferError('De foto-status in de projectlijst kon niet uit de lokale browseropslag worden bijgewerkt.');
+      });
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [projectManagerOpen, refreshProjects]);
   const openProjectManager = () => {
     setProjectTransferError('');
     setProjectTransferNotice('');

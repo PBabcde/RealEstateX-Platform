@@ -81,6 +81,32 @@ const IMAGES = 'images';
 const PROJECT_SORT_ORDER_PREFERENCE_KEY = 'realestatex.property-project-sort-order';
 const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'dusk'];
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
+const PROPERTY_STORAGE_CHANNEL_NAME = 'realestatex-property-storage-changes';
+
+const propertyStorageSubscribers = new Set<() => void>();
+let propertyStorageChannel: BroadcastChannel | null = null;
+
+function getPropertyStorageChannel(): BroadcastChannel | null {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
+  if (!propertyStorageChannel) {
+    propertyStorageChannel = new BroadcastChannel(PROPERTY_STORAGE_CHANNEL_NAME);
+    propertyStorageChannel.addEventListener('message', (event: MessageEvent) => {
+      if (event.data?.type !== 'changed') return;
+      for (const subscriber of propertyStorageSubscribers) subscriber();
+    });
+  }
+  return propertyStorageChannel;
+}
+
+export function subscribePropertyStorageChanges(subscriber: () => void): () => void {
+  if (!getPropertyStorageChannel()) return () => {};
+  propertyStorageSubscribers.add(subscriber);
+  return () => propertyStorageSubscribers.delete(subscriber);
+}
+
+function notifyPropertyStorageChanged(): void {
+  getPropertyStorageChannel()?.postMessage({ type: 'changed' });
+}
 
 function compareProjectText(leftValue: string, rightValue: string): number {
   const left = leftValue.trim();
@@ -319,13 +345,18 @@ function openDb(): Promise<IDBDatabase> {
 
 async function put<T>(storeName: string, value: T): Promise<void> {
   const db = await openDb();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readwrite');
-    transaction.objectStore(storeName).put(value);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-  db.close();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      transaction.objectStore(storeName).put(value);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  notifyPropertyStorageChanged();
 }
 
 async function get<T>(storeName: string, key: string): Promise<T | undefined> {
@@ -355,6 +386,7 @@ export async function savePropertyProjectWithImage(project: PropertyProject, ima
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
+    notifyPropertyStorageChanged();
   } finally {
     db.close();
   }
@@ -540,6 +572,7 @@ export async function deletePropertyProject(project: Pick<PropertyProject, 'id' 
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
+    notifyPropertyStorageChanged();
   } finally {
     db.close();
   }
@@ -559,6 +592,7 @@ export async function deletePropertyImage(key: string): Promise<void> {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
+    notifyPropertyStorageChanged();
   } finally {
     db.close();
   }
@@ -745,6 +779,7 @@ async function writeImportedProjectsAtomically(preparedProjects: PreparedPropert
       transaction.onerror = () => reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
       transaction.onabort = () => reject(new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
     });
+    notifyPropertyStorageChanged();
   } catch (error) {
     if (error instanceof Error && error.message.includes('er is niets toegevoegd')) throw error;
     throw new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.');
@@ -767,6 +802,7 @@ export async function importPropertyProject(archiveInput: unknown): Promise<Prop
       transaction.onerror = () => reject(transaction.error ?? new Error('Het project kon niet in deze browser worden opgeslagen.'));
       transaction.onabort = () => reject(transaction.error ?? new Error('Het project kon niet volledig in deze browser worden opgeslagen.'));
     });
+    notifyPropertyStorageChanged();
   } finally {
     db.close();
   }
