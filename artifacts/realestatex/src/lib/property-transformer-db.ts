@@ -229,6 +229,20 @@ export function savePropertyProjectSortOrderPreference(order: PropertyProjectSor
   }
 }
 
+export function subscribePropertyProjectSortOrderPreferenceChanges(
+  subscriber: () => void,
+  scope: StorageScope = null,
+): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const preferenceKey = sortOrderPreferenceKey(scope);
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === preferenceKey) subscriber();
+  };
+  window.addEventListener('storage', handleStorage);
+  return () => window.removeEventListener('storage', handleStorage);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -58,7 +58,7 @@ function waitForServer(server, url, timeoutMs = 30_000) {
   });
 }
 
-async function getPageTarget(debugPort, browser) {
+async function getPageTarget(debugPort, browser, targetId) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     if (browser.exitCode !== null) throw new Error(`Chromium exited before opening a page (code ${browser.exitCode}).`);
@@ -66,7 +66,7 @@ async function getPageTarget(debugPort, browser) {
       const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
       if (response.ok) {
         const targets = await response.json();
-        const page = targets.find((target) => target.type === 'page');
+        const page = targets.find((target) => target.type === 'page' && (!targetId || target.id === targetId));
         if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
       }
     } catch {
@@ -110,6 +110,15 @@ function connectDevTools(webSocketUrl) {
     });
     socket.addEventListener('error', () => reject(new Error('Could not connect to Chromium DevTools.')));
   });
+}
+
+async function openBrowserPage(debugPort, browser, browserDevTools, url) {
+  const { targetId } = await browserDevTools.send('Target.createTarget', { url });
+  const socketUrl = await getPageTarget(debugPort, browser, targetId);
+  const devTools = await connectDevTools(socketUrl);
+  await devTools.send('Runtime.enable');
+  await devTools.send('Page.enable');
+  return { targetId, devTools };
 }
 
 async function runBrowserTest(debugPort, url, browser) {
@@ -629,6 +638,105 @@ function makeTestPng() {
   ]);
 }
 
+async function runSortOrderCrossTabTest(debugPort, url, browser) {
+  const versionResponse = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
+  if (!versionResponse.ok) throw new Error('Could not connect to the Chromium browser debugging endpoint.');
+  const { webSocketDebuggerUrl } = await versionResponse.json();
+  const browserDevTools = await connectDevTools(webSocketDebuggerUrl);
+  const targets = [];
+
+  const openPage = async () => {
+    const page = await openBrowserPage(debugPort, browser, browserDevTools, url);
+    targets.push(page);
+    return page.devTools;
+  };
+  const evaluate = async (devTools, expression, awaitPromise = false) => {
+    const response = await devTools.send('Runtime.evaluate', {
+      expression,
+      awaitPromise,
+      returnByValue: true,
+    });
+    if (response.exceptionDetails) {
+      throw new Error(response.result?.exceptionDetails?.exception?.description ?? response.exceptionDetails.text);
+    }
+    return response.result?.value;
+  };
+  const stateExpression = `(() => {
+    const result = document.querySelector('#test-result');
+    const dialog = document.querySelector('[data-testid="dialog-project-manager"]');
+    const select = dialog?.querySelector('[data-testid="select-project-sort-order"]');
+    const projectIds = Array.from(dialog?.querySelectorAll('li[data-testid^="project-row-"]') ?? [])
+      .map((row) => row.getAttribute('data-testid')?.replace('project-row-', ''));
+    return {
+      status: result?.dataset.status,
+      message: result?.textContent ?? '',
+      order: select?.value,
+      projectIds,
+    };
+  })()`;
+  const waitForState = async (devTools, expectedOrder, expectedIds, description) => {
+    const deadline = Date.now() + 15_000;
+    let lastValue;
+    while (Date.now() < deadline) {
+      if (browser.exitCode !== null) throw new Error(`Chromium exited while waiting for ${description}.`);
+      lastValue = await evaluate(devTools, stateExpression);
+      if (lastValue?.status === 'failed') throw new Error(`Sort synchronization fixture failed: ${lastValue.message}`);
+      if (lastValue?.status === 'ready'
+          && lastValue.order === expectedOrder
+          && lastValue.projectIds?.join(',') === expectedIds.join(',')) {
+        return lastValue;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timed out waiting for ${description}. Last state: ${JSON.stringify(lastValue)}`);
+  };
+  const selectOrder = async (devTools, order) => evaluate(devTools, `(() => {
+    const select = document.querySelector('[data-testid="select-project-sort-order"]');
+    select.value = ${JSON.stringify(order)};
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+
+  try {
+    const firstTab = await openPage();
+    const recentOrder = ['sort-sync-main', 'sort-sync-alpha', 'sort-sync-zulu'];
+    const nameOrder = ['sort-sync-alpha', 'sort-sync-main', 'sort-sync-zulu'];
+    const municipalityOrder = ['sort-sync-zulu', 'sort-sync-main', 'sort-sync-alpha'];
+    await waitForState(firstTab, 'recent', recentOrder, 'the first project list');
+    const savedProjectsBefore = await evaluate(
+      firstTab,
+      'window.__propertySortSyncTest.readProjects()',
+      true,
+    );
+
+    const secondTab = await openPage();
+    await waitForState(secondTab, 'recent', recentOrder, 'the second project list');
+
+    await selectOrder(firstTab, 'name');
+    await waitForState(firstTab, 'name', nameOrder, 'the first tab to apply project-name order');
+    await waitForState(secondTab, 'name', nameOrder, 'the second tab to receive project-name order');
+
+    await selectOrder(secondTab, 'municipality');
+    await waitForState(secondTab, 'municipality', municipalityOrder, 'the second tab to apply municipality order');
+    await waitForState(firstTab, 'municipality', municipalityOrder, 'the first tab to receive municipality order');
+
+    const savedProjectsAfter = await evaluate(
+      firstTab,
+      'window.__propertySortSyncTest.readProjects()',
+      true,
+    );
+    if (JSON.stringify(savedProjectsAfter) !== JSON.stringify(savedProjectsBefore)) {
+      throw new Error('Synchronizing the project-list order changed a saved project or its timestamp.');
+    }
+
+    return 'Cross-tab project sorting passed: both open lists updated immediately and saved projects stayed unchanged.';
+  } finally {
+    for (const { devTools } of targets) devTools.close();
+    await Promise.all(targets.map(({ targetId }) =>
+      browserDevTools.send('Target.closeTarget', { targetId }).catch(() => undefined)));
+    browserDevTools.close();
+  }
+}
+
 const chromiumPath = process.env.CHROMIUM_PATH || process.env.CHROME_BIN || '/repl/tools/bin/chromium';
 const port = await getFreePort();
 const debugPort = await getFreePort();
@@ -637,6 +745,7 @@ const accountIsolationUrl = `http://127.0.0.1:${port}/tests/property-transformer
 const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
 const duplicateImportUrl = `http://127.0.0.1:${port}/tests/property-transformer-duplicate-import.html`;
 const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
+const sortSyncUrl = `http://127.0.0.1:${port}/tests/property-transformer-sort-sync.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
 const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
 const unreadableImagePath = path.join(userDataDir, 'unreadable-source.png');
@@ -684,7 +793,8 @@ try {
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, unreadableImagePath, unsupportedImagePath, browser);
       const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
       const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
-      console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}`);
+      const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
+      console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
     }
   } finally {
     clearTimeout(timeout);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk, useJoinPropertyProBetaWaitlist } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, loadPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -916,6 +916,9 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
     setSortOrder(order);
     savePropertyProjectSortOrderPreference(order, accountId);
   };
+  useEffect(() => subscribePropertyProjectSortOrderPreferenceChanges(() => {
+    setSortOrder(loadPropertyProjectSortOrderPreference(accountId));
+  }, accountId), [accountId]);
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
   const matchingProjects = sortPropertyProjects(projects.filter((item) => {
     const searchableText = [item.projectName || 'Transformatiescan', item.address, item.municipality]
