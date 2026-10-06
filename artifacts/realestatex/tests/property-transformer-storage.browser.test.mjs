@@ -731,7 +731,200 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('The retry did not save and reference the replacement source photo.');
     }
 
-    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; the repaired concept and source preview persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
+    await evaluate(`(() => {
+      if (document.querySelector('[data-testid="dialog-project-manager"]')) {
+        document.querySelector('[data-testid="button-close-projects"]')?.click();
+      }
+    })()`);
+    await waitFor(
+      `!document.querySelector('[data-testid="dialog-project-manager"]')`,
+      (value) => value === true,
+      'the project manager to close before regenerating the active project preview',
+    );
+    await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
+    const regeneratedActivePreview = await waitFor(
+      `(() => {
+        const source = document.querySelector('img[alt="Originele woningfoto"]');
+        const concept = document.querySelector('img[alt="Virtual stage concept"]');
+        return {
+          sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
+          conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
+        };
+      })()`,
+      (value) => value?.sourceLoaded && value.conceptLoaded,
+      'the active project to show its regenerated source and concept previews',
+    );
+    if (!regeneratedActivePreview.sourceLoaded || !regeneratedActivePreview.conceptLoaded) {
+      throw new Error('The active project did not show both photo previews before successful deletion.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const openProjectBeforeDeletion = await waitFor(
+      `(() => {
+        const row = document.querySelector('[data-testid="project-row-browser-photo-recovery-project"]');
+        const source = document.querySelector('img[alt="Originele woningfoto"]');
+        const concept = document.querySelector('img[alt="Virtual stage concept"]');
+        return {
+          managerOpen: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+          targetActive: row?.textContent?.includes('Actief') ?? false,
+          sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
+          conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
+        };
+      })()`,
+      (value) => value?.managerOpen && value.targetActive && value.sourceLoaded && value.conceptLoaded,
+      'the open project and both photo previews before successful deletion',
+    );
+    if (!openProjectBeforeDeletion.targetActive
+      || !openProjectBeforeDeletion.sourceLoaded
+      || !openProjectBeforeDeletion.conceptLoaded) {
+      throw new Error('The successful deletion check did not start with the open project and both loaded photo previews.');
+    }
+
+    const beforeSuccessfulDeletion = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        projects: await window.__propertyRecoveryTest.readProjects(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (!beforeSuccessfulDeletion.project
+      || !beforeSuccessfulDeletion.imageRecords.some((image) => image.key === beforeSuccessfulDeletion.project.originalKey)
+      || !beforeSuccessfulDeletion.imageRecords.some((image) => image.key === beforeSuccessfulDeletion.project.resultKeys.stage)
+      || !beforeSuccessfulDeletion.imageRecords.some((image) => image.key === 'browser-photo-recovery-survivor-source')
+      || !beforeSuccessfulDeletion.imageRecords.some((image) => image.key === 'browser-photo-recovery-survivor-concept')) {
+      throw new Error('The successful deletion check did not start with the active project photos and a separate project with photos.');
+    }
+
+    await evaluate(`(() => {
+      const test = window.__propertyRecoveryTest;
+      test.deleteConfirmations = [];
+      window.confirm = (message) => {
+        test.deleteConfirmations.push(message);
+        return true;
+      };
+      const deleteButton = document.querySelector(
+        '[data-testid="button-delete-project-browser-photo-recovery-project"]'
+      );
+      if (!deleteButton) throw new Error('The open saved project deletion action was not rendered.');
+      deleteButton.click();
+    })()`);
+    const successfulDeletionUi = await waitFor(
+      `(async () => ({
+        projectExists: Boolean(await window.__propertyRecoveryTest.readProject()),
+        emptyHeading: Array.from(document.querySelectorAll('h1'))
+          .some((heading) => heading.textContent?.includes('Geen actief project')),
+        createEnabled: Boolean(document.querySelector('[data-testid="button-create-project"]')
+          && !document.querySelector('[data-testid="button-create-project"]').disabled),
+        savedProjectsButton: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+        targetRowExists: Boolean(document.querySelector('[data-testid="project-row-browser-photo-recovery-project"]')),
+        stalePhotoPreviewCount: document.querySelectorAll(
+          'img[alt="Originele woningfoto"], img[alt$="concept"]'
+        ).length,
+        deleteConfirmation: window.__propertyRecoveryTest.deleteConfirmations[0] ?? '',
+      }))()`,
+      (value) => value?.emptyHeading
+        && value.createEnabled
+        && value.savedProjectsButton
+        && !value.projectExists
+        && !value.targetRowExists
+        && value.stalePhotoPreviewCount === 0
+        && value.deleteConfirmation,
+      'the studio to return to a usable empty state after deleting its open project',
+    );
+    if (!successfulDeletionUi.deleteConfirmation.includes('Photo recovery browser fixture')
+      || !successfulDeletionUi.deleteConfirmation.includes('foto')) {
+      throw new Error(`The project deletion confirmation did not name the project and its photos: ${successfulDeletionUi.deleteConfirmation}`);
+    }
+    if (!successfulDeletionUi.emptyHeading || !successfulDeletionUi.createEnabled
+      || !successfulDeletionUi.savedProjectsButton || successfulDeletionUi.stalePhotoPreviewCount !== 0) {
+      throw new Error('Deleting the open project did not leave a usable empty studio without stale photo previews.');
+    }
+
+    const afterSuccessfulDeletion = await evaluate(
+      `(async () => ({
+        projects: await window.__propertyRecoveryTest.readProjects(),
+        deletedProject: await window.__propertyRecoveryTest.readProject('browser-photo-recovery-project'),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    const expectedRemainingProjects = beforeSuccessfulDeletion.projects
+      .filter((item) => item.id !== beforeSuccessfulDeletion.project.id);
+    const expectedRemainingImages = beforeSuccessfulDeletion.imageRecords
+      .filter((image) => image.key !== beforeSuccessfulDeletion.project.originalKey
+        && !Object.values(beforeSuccessfulDeletion.project.resultKeys).includes(image.key));
+    if (afterSuccessfulDeletion.deletedProject) {
+      throw new Error('The successfully deleted open project remained in browser storage.');
+    }
+    if (JSON.stringify(afterSuccessfulDeletion.projects) !== JSON.stringify(expectedRemainingProjects)) {
+      throw new Error('Deleting the open project changed or removed another saved project.');
+    }
+    if (JSON.stringify(afterSuccessfulDeletion.imageRecords) !== JSON.stringify(expectedRemainingImages)) {
+      throw new Error('Deleting the open project changed or removed another project’s photos.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
+    await waitFor(
+      `(() => ({
+        managerClosed: !document.querySelector('[data-testid="dialog-project-manager"]'),
+        emptyHeading: Array.from(document.querySelectorAll('h1'))
+          .some((heading) => heading.textContent?.includes('Geen actief project')),
+        createEnabled: Array.from(document.querySelectorAll('button')).some((button) =>
+          button.textContent?.includes('Nieuw project') && !button.disabled),
+        photoPreviewCount: document.querySelectorAll(
+          'img[alt="Originele woningfoto"], img[alt$="concept"]'
+        ).length,
+      }))()`,
+      (value) => value?.managerClosed && value.emptyHeading && value.createEnabled && value.photoPreviewCount === 0,
+      'the saved-project manager to close onto the ready empty studio',
+    );
+
+    await devTools.send('Page.navigate', { url });
+    const reloadedDeletionState = await waitFor(
+      `(async () => {
+        const fixture = window.__propertyRecoveryTest;
+        if (typeof fixture?.readProject !== 'function' || typeof fixture?.readProjects !== 'function') {
+          return { fixtureReady: false };
+        }
+        const projects = await fixture.readProjects();
+        const survivor = await fixture.readProject('browser-photo-recovery-sort-alpha');
+        const deletedProject = await fixture.readProject('browser-photo-recovery-project');
+        const source = await fixture.readSourceImage('browser-photo-recovery-survivor-source');
+        const concept = await fixture.readConceptImage('browser-photo-recovery-survivor-concept');
+        const sourcePreview = document.querySelector('img[alt="Originele woningfoto"]');
+        const conceptPreview = document.querySelector('img[alt="Surviving concept photo concept"]');
+        return {
+          fixtureReady: true,
+          projects: projects.map((item) => item.id),
+          survivor,
+          deletedProjectExists: Boolean(deletedProject),
+          source,
+          concept,
+          sourcePreviewLoaded: Boolean(sourcePreview?.complete && sourcePreview.naturalWidth > 0),
+          conceptPreviewLoaded: Boolean(conceptPreview?.complete && conceptPreview.naturalWidth > 0),
+        };
+      })()`,
+      (value) => value?.fixtureReady
+        && value.projects
+        && !value.projects.includes('browser-photo-recovery-project')
+        && value.survivor?.id === 'browser-photo-recovery-sort-alpha'
+        && value.source?.type === 'image/png'
+        && value.concept?.type === 'image/png'
+        && value.sourcePreviewLoaded
+        && value.conceptPreviewLoaded,
+      'the remaining project and its photos to be available in the studio after reload',
+    );
+    if (reloadedDeletionState.deletedProjectExists
+      || !reloadedDeletionState.projects.includes('browser-photo-recovery-sort-zulu')
+      || !reloadedDeletionState.source
+      || !reloadedDeletionState.concept
+      || !reloadedDeletionState.sourcePreviewLoaded
+      || !reloadedDeletionState.conceptPreviewLoaded) {
+      throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
+    }
+
+    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; the repaired concept and source preview persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
   } finally {
     devTools.close();
   }
@@ -771,7 +964,7 @@ function makeTestPng() {
 
 function makeTestJpeg() {
   return Buffer.from(
-    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IT//2Q==',
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAACAAIDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ADoDFU3/2Q==',
     'base64',
   );
 }

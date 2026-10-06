@@ -7,9 +7,12 @@ const {
   loadPropertyProject,
   loadPropertyProjects,
   loadPropertyProjectImages,
+  savePropertyImage,
   savePropertyProject,
+  savePropertyProjectWithImage,
 } = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 const recoveryFixtureSessionKey = 'realestatex-photo-recovery-fixture-ready';
+const fixturePngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL+WQAAAABJRU5ErkJggg==';
 
 const result = document.querySelector('#test-result');
 const project = {
@@ -53,9 +56,9 @@ const projectOrderFixtures = [
     id: 'browser-photo-recovery-sort-alpha',
     projectName: 'Alpha order fixture',
     municipality: 'Utrecht',
-    originalKey: '',
-    resultKeys: {},
-    selectedResult: null,
+    originalKey: 'browser-photo-recovery-survivor-source',
+    resultKeys: { stage: 'browser-photo-recovery-survivor-concept' },
+    selectedResult: 'stage',
     updatedAt: '2026-10-04T12:00:00.000Z',
   },
   {
@@ -78,7 +81,28 @@ async function prepareFixture() {
     }
     await savePropertyProject(project);
     for (const orderFixture of projectOrderFixtures) {
-      await savePropertyProject(orderFixture);
+      if (orderFixture.id === 'browser-photo-recovery-sort-alpha') {
+        await savePropertyProjectWithImage(orderFixture, {
+          key: orderFixture.originalKey,
+          blob: await fetch(fixturePngDataUrl).then((response) => response.blob()),
+          label: 'Surviving source photo',
+          mimeType: 'image/png',
+          isConcept: false,
+          disclaimer: '',
+          createdAt: orderFixture.updatedAt,
+        });
+        await savePropertyImage({
+          key: orderFixture.resultKeys.stage,
+          blob: await fetch(fixturePngDataUrl).then((response) => response.blob()),
+          label: 'Surviving concept photo',
+          mimeType: 'image/png',
+          isConcept: true,
+          disclaimer: 'AI concept for project-deletion preservation coverage.',
+          createdAt: orderFixture.updatedAt,
+        });
+      } else {
+        await savePropertyProject(orderFixture);
+      }
     }
     sessionStorage.setItem(recoveryFixtureSessionKey, 'true');
   }
@@ -102,12 +126,16 @@ async function prepareFixture() {
     initialProject: project,
     failNextConceptRequest: false,
     lastConceptRequestUrl: '',
-    successfulConceptDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL+WQAAAABJRU5ErkJggg==',
+    deleteConfirmations: [],
+    successfulConceptDataUrl: fixturePngDataUrl,
     failNextImageWrite() {
       abortNextImageWrite = true;
     },
-    async readProject() {
-      return loadPropertyProject(project.id);
+    async readProject(id = project.id) {
+      return loadPropertyProject(id);
+    },
+    async readProjects() {
+      return loadPropertyProjects();
     },
     async readSourceImage(key) {
       const image = await loadPropertyImage(key);
