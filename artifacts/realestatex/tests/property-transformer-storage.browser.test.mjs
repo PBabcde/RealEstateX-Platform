@@ -129,6 +129,7 @@ async function runBrowserTest(debugPort, url, browser) {
   await devTools.send('Page.navigate', { url });
 
   const deadline = Date.now() + 45_000;
+  let lastState;
   while (Date.now() < deadline) {
     if (browser.exitCode !== null) throw new Error(`Chromium exited during the browser test (code ${browser.exitCode}).`);
     const evaluation = await devTools.send('Runtime.evaluate', {
@@ -139,6 +140,7 @@ async function runBrowserTest(debugPort, url, browser) {
       returnByValue: true,
     });
     const state = evaluation.result?.value;
+    lastState = state;
     if (state?.status === 'passed') {
       devTools.close();
       return state.text;
@@ -154,10 +156,10 @@ async function runBrowserTest(debugPort, url, browser) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   devTools.close();
-  throw new Error('Browser test timed out waiting for its checks to finish.');
+  throw new Error(`Browser test timed out waiting for its checks to finish. Last browser state: ${JSON.stringify(lastState)}`);
 }
 
-async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadableImagePath, unsupportedImagePath, browser) {
+async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUploadPath, unreadableImagePath, unsupportedImagePath, browser) {
   const socketUrl = await getPageTarget(debugPort, browser);
   const devTools = await connectDevTools(socketUrl);
   await devTools.send('Runtime.enable');
@@ -282,7 +284,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
 
     await assertRejectedReplacement(unreadableImagePath, 'kan niet worden gelezen', 'an unreadable replacement image');
     await assertRejectedReplacement(unsupportedImagePath, 'Alleen JPEG- en PNG-afbeeldingen', 'an unsupported replacement image');
-    await uploadReplacement(uploadPath);
+    await uploadReplacement(jpegUploadPath);
 
     await waitFor(
       `(() => {
@@ -314,8 +316,8 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
     if (!persisted.project || !persisted.source) {
       throw new Error('The replacement source image was not stored in the browser.');
     }
-    if (persisted.source.size <= 0 || persisted.source.isConcept || !persisted.source.type.startsWith('image/')) {
-      throw new Error('The recovered source image is not stored as a non-empty source photo.');
+    if (persisted.source.size <= 0 || persisted.source.isConcept || persisted.source.type !== 'image/jpeg') {
+      throw new Error(`The recovered JPEG is not stored as a non-empty JPEG source photo: ${persisted.source.type}`);
     }
     const settingsAfterRecovery = { ...persisted.project };
     delete settingsAfterRecovery.originalKey;
@@ -499,15 +501,21 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
         const image = project?.resultKeys?.stage
           ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
           : null;
+        const source = project?.originalKey
+          ? await window.__propertyRecoveryTest.readSourceImage(project.originalKey)
+          : null;
         const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
         const preview = document.querySelector('img[alt="Virtual stage concept"]');
+        const sourcePreview = document.querySelector('img[alt="Originele woningfoto"]');
         const scenarioHeading = Array.from(document.querySelectorAll('h2'))
           .find((heading) => heading.textContent?.includes('Virtual stage naast het origineel'));
         return {
           project,
           image,
+          source,
           notice,
           previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0),
+          sourcePreviewLoaded: Boolean(sourcePreview?.complete && sourcePreview.naturalWidth > 0),
           scenarioVisible: Boolean(scenarioHeading),
         };
       })()`,
@@ -515,7 +523,9 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
         && value.project.resultKeys?.stage === successfulRepair.project.resultKeys.stage
         && value.image?.isConcept
         && value.image?.size > 0
+        && value.source?.type === 'image/jpeg'
         && value.previewLoaded
+        && value.sourcePreviewLoaded
         && value.scenarioVisible
         && !value.notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
       'the repaired concept and selected scenario to persist after refresh',
@@ -699,7 +709,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadab
       throw new Error('The retry did not save and reference the replacement source photo.');
     }
 
-    return 'Passed: invalid and failed replacement photos remained retryable without changing saved data; the repaired concept persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
+    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; the repaired concept and source preview persisted after refresh; the selected project-list order survived close, reopen, and reload; and an aborted project deletion preserved the project and photos while showing a clear error.';
   } finally {
     devTools.close();
   }
@@ -735,6 +745,13 @@ function makeTestPng() {
     pngChunk('IDAT', deflateSync(pixel)),
     pngChunk('IEND'),
   ]);
+}
+
+function makeTestJpeg() {
+  return Buffer.from(
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IT//2Q==',
+    'base64',
+  );
 }
 
 async function runSortOrderCrossTabTest(debugPort, url, browser) {
@@ -906,12 +923,14 @@ const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.ht
 const sortSyncUrl = `http://127.0.0.1:${port}/tests/property-transformer-sort-sync.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
 const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
+const recoveryJpegImagePath = path.join(userDataDir, 'replacement-source.jpeg');
 const unreadableImagePath = path.join(userDataDir, 'unreadable-source.png');
 const unsupportedImagePath = path.join(userDataDir, 'unsupported-source.gif');
 await writeFile(
   recoveryImagePath,
   makeTestPng(),
 );
+await writeFile(recoveryJpegImagePath, makeTestJpeg());
 await writeFile(unreadableImagePath, Buffer.from('This is not a readable PNG image.'));
 await writeFile(unsupportedImagePath, Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=', 'base64'));
 const server = spawn('pnpm', ['exec', 'vite', '--config', 'tests/vite.authenticated.config.ts', '--host', '127.0.0.1'], {
@@ -943,16 +962,21 @@ try {
   ], { stdio: 'ignore' });
   const timeout = setTimeout(() => browser.kill('SIGKILL'), 180_000);
   try {
-    const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
-    if (process.env.PROPERTY_STORAGE_ONLY === '1') {
-      console.log(storageResult);
+    if (process.env.PROPERTY_RECOVERY_ONLY === '1') {
+      const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
+      console.log(recoveryResult);
     } else {
-      const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
-      const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, unreadableImagePath, unsupportedImagePath, browser);
-      const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
-      const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
-      const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
-      console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
+      const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
+      if (process.env.PROPERTY_STORAGE_ONLY === '1') {
+        console.log(storageResult);
+      } else {
+        const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
+        const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
+        const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
+        const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
+        const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
+        console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
+      }
     }
   } finally {
     clearTimeout(timeout);
