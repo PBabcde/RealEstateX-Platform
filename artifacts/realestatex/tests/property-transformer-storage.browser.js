@@ -1,9 +1,11 @@
 import React from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Router } from 'wouter';
 import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
 import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
-import { ProjectManager } from '../src/pages/property-transformer.tsx';
+import { ProjectManager, PropertyTransformer } from '../src/pages/property-transformer.tsx';
 
 const {
   deletePropertyProject,
@@ -37,6 +39,12 @@ const imagePayloads = {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function setTextareaValue(element, value) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+  setter.call(element, value);
+  element.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function makeProject({
@@ -384,7 +392,7 @@ async function runCrossTabPhotoHealthChecks() {
     originalKey: 'browser-cross-tab-original',
     resultKeys: { stage: 'browser-cross-tab-concept' },
     selectedResult: 'stage',
-    updatedAt: '2026-10-06T12:00:00.000Z',
+    updatedAt: '2099-10-06T12:00:00.000Z',
   };
   const originalRecord = {
     key: project.originalKey,
@@ -399,6 +407,21 @@ async function runCrossTabPhotoHealthChecks() {
 
   const rootElement = document.querySelector('#cross-tab-photo-test-root');
   const root = createRoot(rootElement);
+  const editorRootElement = document.querySelector('#editor-cross-tab-photo-test-root');
+  const editorRoot = createRoot(editorRootElement);
+  const editorQueryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  flushSync(() => editorRoot.render(
+    React.createElement(QueryClientProvider, { client: editorQueryClient },
+      React.createElement(Router, null,
+        React.createElement(PropertyTransformer, {
+          accountId: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
+          userEmail: '',
+        }),
+      ),
+    ),
+  ));
   let displayedProjects = [];
   let photoHealthByProject = {};
   let refreshError;
@@ -447,8 +470,38 @@ async function runCrossTabPhotoHealthChecks() {
     }
     throw new Error(`Timed out waiting for ${description}. Current photo status: ${readStatus()}`);
   };
+  const waitForEditor = async (predicate, description) => {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      if (refreshError) throw refreshError;
+      if (await predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const warning = editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '(no photo warning)';
+    const previews = [...editorRootElement.querySelectorAll('img')].map((image) => image.alt);
+    throw new Error(`Timed out waiting for ${description}. Editor warning: ${warning}. Preview images: ${previews.join(', ') || '(none)'}.`);
+  };
+  const getEditorProjectName = () => [...editorRootElement.querySelectorAll('input')]
+    .find((input) => input.value === project.projectName);
+  const getEditorNotes = () => editorRootElement.querySelector('[data-testid="input-project-notes"]');
+  const readEditorPreviewContents = async () => {
+    const read = async (selector) => {
+      const image = editorRootElement.querySelector(selector);
+      if (!image) return null;
+      return fetch(image.src).then((response) => response.text());
+    };
+    return {
+      source: await read('img[alt="Originele woningfoto"]'),
+      concept: await read('img[alt="Virtual stage concept"]'),
+    };
+  };
 
   try {
+    await waitForEditor(
+      () => getEditorProjectName()?.value === project.projectName
+        && editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Virtual stage'),
+      'the editor to open the cross-tab photo fixture with its missing-concept warning',
+    );
     assert(
       readStatus().includes('Conceptfoto ontbreken: Virtual stage'),
       `The open project list did not start with the expected missing-concept warning: ${readStatus()}`,
@@ -494,50 +547,96 @@ async function runCrossTabPhotoHealthChecks() {
       (status) => status === 'Geen ontbrekende foto’s',
       'the warning to clear after the second tab adds the referenced concept photo',
     );
+    await waitForEditor(async () => {
+      const previews = await readEditorPreviewContents();
+      return previews.source === 'cross-tab original' && previews.concept === 'cross-tab concept';
+    }, 'the open editor to show the added source and concept previews');
+    assert(
+      editorRootElement.textContent.includes('Virtual stage naast het origineel'),
+      'The open editor did not retain the selected scenario after the concept was added in another tab.',
+    );
+
+    const editorNotes = getEditorNotes();
+    assert(editorNotes, 'The open editor did not render its project notes field.');
+    setTextareaValue(editorNotes, 'Unsaved notes from the open editor');
+    await waitForEditor(
+      () => editorNotes?.value === 'Unsaved notes from the open editor',
+      'the editor notes to reflect the in-progress local edit',
+    );
+    const styledButton = editorRootElement.querySelector('[data-testid="button-style-modern"]');
+    assert(styledButton?.className.includes('ring-2'), 'The fixture did not begin with its saved style selected.');
 
     await runWriterCommand('remove-image', { key: project.resultKeys.stage });
     await waitForStatus(
       (status) => status.includes('Conceptfoto ontbreken: Virtual stage'),
       'the warning to return after the second tab removes the concept photo',
     );
+    await waitForEditor(
+      () => editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Conceptfoto ontbreekt: Virtual stage')
+        && editorRootElement.textContent.includes('Het gekozen scenario blijft Virtual stage')
+        && !editorRootElement.querySelector('img[alt="Virtual stage concept"]'),
+      'the open editor to show the missing-concept notice after removal in another tab',
+    );
+    assert(editorNotes.value === 'Unsaved notes from the open editor', 'Refreshing the missing-concept notice overwrote the editor’s in-progress notes.');
+    assert(styledButton.className.includes('ring-2'), 'Refreshing the missing-concept notice changed the selected project style.');
+
+    await runWriterCommand('add-concept', { key: project.resultKeys.stage });
+    await waitForEditor(async () => {
+      const previews = await readEditorPreviewContents();
+      return previews.concept === 'cross-tab concept';
+    }, 'the open editor to show the recovered concept preview');
 
     await runWriterCommand('remove-image', { key: project.originalKey });
     await waitForStatus(
-      (status) => status.includes('Bronfoto ontbreekt') && status.includes('Conceptfoto ontbreken: Virtual stage'),
+      (status) => status.includes('Bronfoto ontbreekt') && status === 'Bronfoto ontbreekt',
       'the source-photo warning after the second tab removes the source photo',
+    );
+    await waitForEditor(
+      () => editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('De bronfoto ontbreekt')
+        && !editorRootElement.querySelector('img[alt="Originele woningfoto"]'),
+      'the open editor to show the missing-source notice after removal in another tab',
     );
 
     const recoveredProject = {
       ...project,
       originalKey: 'browser-cross-tab-restored-original',
+      projectName: 'Second-tab replacement name',
+      notes: 'Second-tab replacement notes',
+      selectedStyle: 'industrial',
+      selectedResult: null,
       updatedAt: new Date().toISOString(),
     };
     await runWriterCommand('recover-source', { project: recoveredProject });
     const recoveredStatus = await waitForStatus(
-      (status) => !status.includes('Bronfoto ontbreekt') && status.includes('Conceptfoto ontbreken: Virtual stage'),
-      'the source-photo warning to clear after the second tab recovers the photo',
+      (status) => status === 'Geen ontbrekende foto’s',
+      'the photo warnings to clear after the second tab recovers the source photo',
     );
     assert(
       !recoveredStatus.includes('Bronfoto ontbreekt'),
       'The open project list kept showing a missing-source warning after recovery.',
     );
+    await waitForEditor(async () => {
+      const previews = await readEditorPreviewContents();
+      return previews.source === 'cross-tab replacement source'
+        && previews.concept === 'cross-tab concept'
+        && editorRootElement.textContent.includes('Virtual stage naast het origineel');
+    }, 'the open editor to show the recovered source and retained concept previews');
+    assert(getEditorProjectName()?.value === project.projectName, 'Refreshing recovered photos replaced the open editor’s project name.');
+    assert(editorNotes.value === 'Unsaved notes from the open editor', 'Refreshing recovered photos replaced the open editor’s in-progress notes.');
+    assert(styledButton.className.includes('ring-2'), 'Refreshing recovered photos changed the selected project style.');
 
     const savedProject = await loadPropertyProject(project.id);
-    const settingsOnly = (value) => {
-      const settings = { ...value };
-      delete settings.originalKey;
-      delete settings.updatedAt;
-      return settings;
-    };
     assert(
-      JSON.stringify(settingsOnly(savedProject)) === JSON.stringify(settingsOnly(project)),
-      'Cross-tab photo status refresh changed saved project settings or scenario data.',
+      savedProject.originalKey === recoveredProject.originalKey,
+      'Cross-tab photo recovery did not update the saved source-photo reference.',
     );
-    assert(savedProject.selectedResult === 'stage', 'Cross-tab photo recovery changed the selected scenario.');
+    assert(savedProject.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
   } finally {
     unsubscribe();
     writer?.close();
     root.unmount();
+    editorRoot.unmount();
+    editorQueryClient.clear();
   }
 }
 
@@ -857,7 +956,7 @@ async function run() {
     await deletePropertyImage('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: saved-project photo status identifies missing and available source/concept photos, refreshes after removal, recovery, and re-addition in another tab, and preserves the selected scenario and project settings. Portfolio restore rolled back all queued projects and images after a failed IndexedDB write and showed a clear storage error. Saved-project search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: the open editor and saved-project list refresh source and concept photo previews and warnings after cross-tab additions, removals, and recovery, while the editor keeps its in-progress form edits, settings, and selected scenario. Portfolio restore rolled back queued projects and images after a failed IndexedDB write and showed a clear storage error. Saved-project search, ordering, export, and import checks also passed.';
     return;
   }
 

@@ -193,6 +193,9 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const transferFileRef = useRef<HTMLInputElement>(null);
   const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
   const projectRef = useRef<PropertyProject | null>(project);
+  const originalPreviewRef = useRef(originalUrl);
+  const resultPreviewsRef = useRef(results);
+  const activePreviewRefreshSequence = useRef(0);
   const objectUrls = useRef(new Set<string>());
   const declutter = useDeclutterPropertyImage();
   const stage = useStagePropertyImage();
@@ -244,6 +247,14 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   }, [project]);
 
   useEffect(() => {
+    originalPreviewRef.current = originalUrl;
+  }, [originalUrl]);
+
+  useEffect(() => {
+    resultPreviewsRef.current = results;
+  }, [results]);
+
+  useEffect(() => {
     let active = true;
     void (async () => {
       try {
@@ -267,8 +278,6 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         setPhotoHealthByProject(projectList.photoHealthById);
         setLegacyClaimStatus(claimStatus);
         if (!existing) return;
-        setProject(existing);
-        setSplitRatio(existing.splitRatio);
         try {
           const loaded = await loadProjectPreviews(existing);
           if (!active) {
@@ -277,12 +286,18 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
             }
             return;
           }
+          setProject(existing);
+          setSplitRatio(existing.splitRatio);
           setOriginalUrl(loaded.originalUrl);
           setResults(loaded.results);
           setMissingOriginalPhoto(loaded.missingSource);
           setMissingConceptActions(loaded.missingConcepts);
         } catch (error) {
-          if (active) setUploadError(error instanceof Error ? error.message : 'De projectfoto’s konden niet uit de lokale opslag worden geladen.');
+          if (active) {
+            setProject(existing);
+            setSplitRatio(existing.splitRatio);
+            setUploadError(error instanceof Error ? error.message : 'De projectfoto’s konden niet uit de lokale opslag worden geladen.');
+          }
         }
       } catch {
         if (active) {
@@ -295,6 +310,77 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     })();
     return () => { active = false; };
   }, [storage]);
+
+  useEffect(() => {
+    const projectId = project?.id;
+    if (!projectId) return;
+
+    let active = true;
+    const refreshActivePhotoPreviews = async () => {
+      const sequence = ++activePreviewRefreshSequence.current;
+      let loaded: Awaited<ReturnType<typeof loadProjectPreviews>> | undefined;
+      try {
+        const latestProject = await storage.loadPropertyProject(projectId);
+        if (!latestProject) return;
+        loaded = await loadProjectPreviews(latestProject);
+        const currentProject = projectRef.current;
+        if (!active || sequence !== activePreviewRefreshSequence.current || currentProject?.id !== projectId) {
+          for (const url of [loaded.originalUrl, ...Object.values(loaded.results).map((item) => item?.imageUrl ?? '')]) {
+            if (url) revokeObjectUrl(url);
+          }
+          return;
+        }
+
+        projectRef.current = {
+          ...currentProject,
+          originalKey: latestProject.originalKey,
+          resultKeys: latestProject.resultKeys,
+        };
+        setProject((current) => {
+          if (!current || current.id !== projectId) return current;
+          const refreshed = {
+            ...current,
+            originalKey: latestProject.originalKey,
+            resultKeys: latestProject.resultKeys,
+          };
+          projectRef.current = refreshed;
+          return refreshed;
+        });
+
+        const nextUrls = new Set([
+          loaded.originalUrl,
+          ...Object.values(loaded.results).map((item) => item?.imageUrl ?? ''),
+        ]);
+        for (const url of [
+          originalPreviewRef.current,
+          ...Object.values(resultPreviewsRef.current).map((item) => item?.imageUrl ?? ''),
+        ]) {
+          if (url && !nextUrls.has(url)) revokeObjectUrl(url);
+        }
+
+        originalPreviewRef.current = loaded.originalUrl;
+        resultPreviewsRef.current = loaded.results;
+        setOriginalUrl(loaded.originalUrl);
+        setResults(loaded.results);
+        setMissingOriginalPhoto(loaded.missingSource);
+        setMissingConceptActions(loaded.missingConcepts);
+      } catch (error) {
+        if (active && sequence === activePreviewRefreshSequence.current && projectRef.current?.id === projectId) {
+          setUploadError(error instanceof Error ? error.message : 'De projectfoto’s konden niet opnieuw uit de lokale opslag worden geladen.');
+        }
+      }
+    };
+
+    const unsubscribe = storage.subscribePropertyStorageChanges(() => {
+      void refreshActivePhotoPreviews();
+    });
+    void refreshActivePhotoPreviews();
+    return () => {
+      active = false;
+      activePreviewRefreshSequence.current += 1;
+      unsubscribe();
+    };
+  }, [project?.id, storage]);
 
   const form = project ?? makeProject();
   const updateProject = (patch: Partial<PropertyProject>) => setProject((current) => current ? { ...current, ...patch, updatedAt: new Date().toISOString() } : current);
