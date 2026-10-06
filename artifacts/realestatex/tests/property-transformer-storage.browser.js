@@ -171,13 +171,23 @@ function setSearchQuery(value) {
   flushSync(() => input.dispatchEvent(new Event('input', { bubbles: true })));
 }
 
+function setProjectSortOrder(value) {
+  const select = document.querySelector('#project-search-test-root [data-testid="select-project-sort-order"]');
+  assert(select instanceof HTMLSelectElement, 'The saved-project sort selector was not rendered.');
+  Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, value);
+  flushSync(() => select.dispatchEvent(new Event('change', { bubbles: true })));
+}
+
 function runSavedProjectSearchUiChecks() {
   const projects = [
     { id: 'search-newest', projectName: 'Café Loft', address: '12 Rue Road', municipality: 'Haarlem', updatedAt: '2026-09-28T00:00:00.000Z' },
     { id: 'search-middle', projectName: 'Canal House', address: '42 Canal Road', municipality: 'Amsterdam', updatedAt: '2026-08-28T00:00:00.000Z' },
     { id: 'search-oldest', projectName: 'Garden Apartment', address: '8 Oak Road', municipality: 'Amsterdam', updatedAt: '2026-07-28T00:00:00.000Z' },
+    { id: 'search-alphabetical', projectName: 'Aardvark House', address: '5 Aardvark Road', municipality: 'Utrecht', updatedAt: '2026-06-28T00:00:00.000Z' },
+    { id: 'search-no-road', projectName: 'Lakeside Manor', address: '1 Lakeside Avenue', municipality: 'Rotterdam', updatedAt: '2026-05-28T00:00:00.000Z' },
   ];
   const sourceOrder = projects.map((project) => project.id);
+  const originalProjects = JSON.stringify(projects);
   const root = createRoot(document.querySelector('#project-search-test-root'));
   flushSync(() => root.render(React.createElement(ProjectManager, {
     projects,
@@ -201,7 +211,7 @@ function runSavedProjectSearchUiChecks() {
     ['cafe', ['search-newest'], 'accent-insensitive matching'],
     ['CAFÉ', ['search-newest'], 'case-insensitive matching'],
     ['canal amsterdam', ['search-middle'], 'terms spread across searchable fields'],
-    ['road', sourceOrder, 'filtered newest-first order'],
+    ['road', ['search-newest', 'search-middle', 'search-oldest', 'search-alphabetical'], 'filtered newest-first order'],
   ];
 
   for (const [query, expectedIds, description] of matchingCases) {
@@ -209,6 +219,19 @@ function runSavedProjectSearchUiChecks() {
     assertVisibleProjectOrder(expectedIds, `Search for "${query}" should match ${description}.`);
     assert(JSON.stringify(projects.map((project) => project.id)) === JSON.stringify(sourceOrder), 'Searching changed the source projects list order.');
   }
+
+  setSearchQuery('');
+  setProjectSortOrder('name');
+  assertVisibleProjectOrder(['search-alphabetical', 'search-newest', 'search-middle', 'search-oldest', 'search-no-road'], 'Project-name sorting should be alphabetical.');
+  setSearchQuery('road');
+  assertVisibleProjectOrder(['search-alphabetical', 'search-newest', 'search-middle', 'search-oldest'], 'Search results should retain project-name order.');
+
+  setSearchQuery('');
+  setProjectSortOrder('municipality');
+  assertVisibleProjectOrder(['search-middle', 'search-oldest', 'search-newest', 'search-no-road', 'search-alphabetical'], 'Municipality sorting should be alphabetical with name order for ties.');
+  setSearchQuery('road');
+  assertVisibleProjectOrder(['search-middle', 'search-oldest', 'search-newest', 'search-alphabetical'], 'Search results should retain municipality order.');
+  assert(JSON.stringify(projects) === originalProjects, 'Changing sort order or searching changed project data or timestamps.');
 
   setSearchQuery('Atlantis');
   const emptyState = document.querySelector('#project-search-test-root [data-testid="empty-project-search"]');
@@ -221,7 +244,9 @@ function runSavedProjectSearchUiChecks() {
   flushSync(() => clearButton.click());
   const input = document.querySelector('#project-search-test-root [data-testid="input-search-projects"]');
   assert(input.value === '', 'Clearing the search did not clear the query.');
-  assertVisibleProjectOrder(sourceOrder, 'Clearing the query should restore every project in newest-first order.');
+  setProjectSortOrder('recent');
+  assertVisibleProjectOrder(sourceOrder, 'Clearing the query and selecting recent order should restore every project in newest-first order.');
+  assert(JSON.stringify(projects) === originalProjects, 'Restoring recent order changed project data or timestamps.');
   root.unmount();
 }
 
@@ -401,7 +426,7 @@ async function run() {
 
     await deletePropertyImage('recovery-stage');
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: saved-project search matched name, address, and municipality (including case, accents, and multi-term queries); empty results and clearing restored the source order. Export/import and recovery checks also passed.';
+    result.textContent = 'Passed: saved-project search matched name, address, and municipality (including case, accents, and multi-term queries); recent, project-name, and municipality ordering work with filtered results without changing project data or timestamps. Export/import and recovery checks also passed.';
     return;
   }
 

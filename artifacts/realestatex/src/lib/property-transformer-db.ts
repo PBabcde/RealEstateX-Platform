@@ -1,5 +1,6 @@
 export type PropertyStyle = 'japandi' | 'modern' | 'industrial';
 export type PropertyAction = 'declutter' | 'stage' | 'makeover' | 'dusk';
+export type PropertyProjectSortOrder = 'recent' | 'name' | 'municipality';
 
 export type PropertyImageRecord = {
   key: string;
@@ -67,6 +68,39 @@ const PROJECTS = 'projects';
 const IMAGES = 'images';
 const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'dusk'];
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
+
+function compareProjectText(leftValue: string, rightValue: string): number {
+  const left = leftValue.trim();
+  const right = rightValue.trim();
+  if (!left && !right) return 0;
+  if (!left) return 1;
+  if (!right) return -1;
+  return left.localeCompare(right, 'nl-NL', { numeric: true, sensitivity: 'base' });
+}
+
+export function sortPropertyProjects(
+  projects: PropertyProject[],
+  order: PropertyProjectSortOrder = 'recent',
+): PropertyProject[] {
+  const recentFirst = (left: PropertyProject, right: PropertyProject) =>
+    right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id);
+
+  return [...projects].sort((left, right) => {
+    if (order === 'recent') return recentFirst(left, right);
+
+    const leftName = left.projectName || 'Transformatiescan';
+    const rightName = right.projectName || 'Transformatiescan';
+    const primaryOrder = order === 'name'
+      ? compareProjectText(leftName, rightName)
+      : compareProjectText(left.municipality, right.municipality);
+    if (primaryOrder !== 0) return primaryOrder;
+
+    const secondaryOrder = order === 'name'
+      ? compareProjectText(left.municipality, right.municipality)
+      : compareProjectText(leftName, rightName);
+    return secondaryOrder || recentFirst(left, right);
+  });
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -272,7 +306,7 @@ export async function loadPropertyProjects(): Promise<PropertyProject[]> {
       request.onsuccess = () => resolve(request.result as PropertyProject[]);
       request.onerror = () => reject(request.error);
     });
-    return projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return sortPropertyProjects(projects);
   } finally {
     db.close();
   }
