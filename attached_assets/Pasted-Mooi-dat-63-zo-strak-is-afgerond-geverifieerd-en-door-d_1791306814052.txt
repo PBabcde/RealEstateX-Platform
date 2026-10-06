@@ -1,0 +1,101 @@
+Mooi dat #63 zo strak is afgerond, geverifieerd en door de productiebuild is gekomen! Dat Vite en de preview weer schoon draaien is een top resultaat.
+Hier is de professionele instructie en uitwerking voor Taak #65:
+Opdracht & Specificatie: Taak #65
+Doel: Garanderen van data-integriteit wanneer een fotovanging wel correct gedecodeerd wordt, maar IndexedDB faalt tijdens het wegschrijven/committen. Het project, de geselecteerde scenario-status en bestaande foto-records moeten volledig intact blijven. De UI moet een duidelijke foutmelding tonen en een nieuwe poging toestaan.
+1. Code-aanpassingen
+A. DB Layer: Transaction Atomic Rollback (artifacts/realestatex/src/lib/property-transformer-db.ts)
+Zorg dat de fotovervanging binnen één atomaire transactie plaatsvindt. Als de schrijfoperatie faalt (bijv. door een quota-exceeded of DB lock error), mag er geen partiële mutatie achterblijven.
+// artifacts/realestatex/src/lib/property-transformer-db.ts
+
+export async function replaceProjectPhoto(
+  projectId: string, 
+  photoId: string, 
+  newBlob: Blob
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['projects', 'photos'], 'readwrite');
+
+  try {
+    const photoStore = tx.objectStore('photos');
+    const existing = await photoStore.get(photoId);
+
+    if (!existing) {
+      throw new Error('Oorspronkelijke foto niet gevonden');
+    }
+
+    // Probeer de vervanging uit te voeren binnen de transactie
+    await photoStore.put({
+      ...existing,
+      data: newBlob,
+      updatedAt: new Date().toISOString()
+    });
+
+    await tx.done; // Wacht op volledige commit
+  } catch (error) {
+    // Schrijfout: transactie wordt automatisch teruggedraaid (rollback)
+    console.error('IndexedDB commit mislukt tijdens fotovervanging:', error);
+    throw new Error('DATABASE_WRITE_FAILED');
+  }
+}
+
+B. UI Handling & State Protection (artifacts/realestatex/src/pages/property-transformer.tsx)
+Vang de DATABASE_WRITE_FAILED op. Behoud de huidige projectState en selectedScenario ongewijzigd, en toon een duidelijke foutmelding met retry-optie.
+// artifacts/realestatex/src/pages/property-transformer.tsx
+
+const handlePhotoReplacement = async (photoId: string, newFile: File) => {
+  // Bewaar huidige staat vooraf
+  const previousState = { ...projectState };
+  const previousScenario = selectedScenario;
+
+  try {
+    await replaceProjectPhoto(currentProjectId, photoId, newFile);
+    toast.success('Foto succesvol vervangen');
+  } catch (error) {
+    // 1. Zorg dat de project- en scenariostatus NIET worden geüpdatet
+    setProjectState(previousState);
+    setSelectedScenario(previousScenario);
+
+    // 2. Toon heldere foutmelding
+    setErrorNotification(
+      'Opslaan mislukt: de browseropslag kon de nieuwe foto niet verwerken. Je huidige projectinstellingen zijn behouden. Probeer het opnieuw.'
+    );
+  }
+};
+
+2. Browser Recovery Test (artifacts/realestatex/tests/property-transformer-recovery.browser.js)
+Voeg een test toe waarin een IndexedDB-schrijffout kunstmatig wordt geïnjecteerd tijdens het vervangen van een foto.
+// artifacts/realestatex/tests/property-transformer-recovery.browser.js
+
+test('Taak #65: Behoudt project en scenario bij IndexedDB-fout tijdens fotovervanging', async ({ page }) => {
+  // 1. Inloggen en navigeren naar de studio
+  await loginAndOpenProject(page);
+
+  const initialScenario = await page.locator('[data-testid="selected-scenario"]').innerText();
+  const initialPhotoSrc = await page.locator('[data-testid="project-photo"]').getAttribute('src');
+
+  // 2. Injecteer een IndexedDB schrijf-fout (mock transaction failure)
+  await page.evaluate(() => {
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === 'photos') {
+        return new Promise((_, reject) => reject(new DOMException('QuotaExceededError', 'QuotaExceededError')));
+      }
+      return originalPut.apply(this, args);
+    };
+  });
+
+  // 3. Probeer een nieuwe foto te uploaden/vervangen
+  await page.setInputFiles('[data-testid="replace-photo-input"]', 'tests/fixtures/valid-image.jpg');
+
+  // 4. Verifieer dat de foutmelding zichtbaar is
+  await expect(page.locator('[data-testid="save-error-banner"]')).toBeVisible();
+
+  // 5. Verifieer dat het project, scenario en de originele foto intact zijn gebleven
+  const currentScenario = await page.locator('[data-testid="selected-scenario"]').innerText();
+  const currentPhotoSrc = await page.locator('[data-testid="project-photo"]').getAttribute('src');
+
+  expect(currentScenario).toBe(initialScenario);
+  expect(currentPhotoSrc).toBe(initialPhotoSrc);
+});
+
+Draag dit gerust door zodra #64 is afgerond. Daarna hebben we de opslag- en herstelrobuustheid voor RealEstateX volledig dichtgetimmerd!
