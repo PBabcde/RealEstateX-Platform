@@ -136,7 +136,7 @@ async function runBrowserTest(debugPort, url, browser) {
     }
     if (state?.status === 'failed') {
       devTools.close();
-      throw new Error(`Browser storage test failed:\n${state.text}`);
+      throw new Error(`Browser test failed:\n${state.text}`);
     }
     if (devTools.exceptions.length) {
       devTools.close();
@@ -145,7 +145,7 @@ async function runBrowserTest(debugPort, url, browser) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   devTools.close();
-  throw new Error('Browser storage test timed out waiting for IndexedDB and reload checks to finish.');
+  throw new Error('Browser test timed out waiting for its checks to finish.');
 }
 
 async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, unreadableImagePath, unsupportedImagePath, browser) {
@@ -471,6 +471,7 @@ const port = await getFreePort();
 const debugPort = await getFreePort();
 const storageUrl = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
 const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
+const duplicateImportUrl = `http://127.0.0.1:${port}/tests/property-transformer-duplicate-import.html`;
 const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
 const userDataDir = await mkdtemp(path.join(tmpdir(), 'realestatex-property-storage-'));
 const recoveryImagePath = path.join(userDataDir, 'replacement-source.png');
@@ -516,8 +517,9 @@ try {
       console.log(storageResult);
     } else {
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, unreadableImagePath, unsupportedImagePath, browser);
+      const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
       const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
-      console.log(`${storageResult}\n${recoveryResult}\n${searchResult}`);
+      console.log(`${storageResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}`);
     }
   } finally {
     clearTimeout(timeout);
