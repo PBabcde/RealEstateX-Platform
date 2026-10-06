@@ -67,6 +67,13 @@ export type PropertyProjectArchive = {
   images: ExportedPropertyImage[];
 };
 
+export type PropertyPortfolioArchive = {
+  format: 'realestatex-property-portfolio';
+  version: 1;
+  exportedAt: string;
+  projects: PropertyProjectArchive[];
+};
+
 const DB_NAME = 'realestatex-property-transformer';
 const DB_VERSION = 1;
 const PROJECTS = 'projects';
@@ -222,6 +229,30 @@ function validateArchive(value: unknown): asserts value is PropertyProjectArchiv
     if (!foundImages.has(key)) {
       importError(kind === 'original' ? 'de bronfoto ontbreekt in het projectbestand.' : 'een gegenereerd concept ontbreekt in het projectbestand.');
     }
+  }
+}
+
+function validatePortfolioArchive(value: unknown): asserts value is PropertyPortfolioArchive {
+  if (!isRecord(value) || value.format !== 'realestatex-property-portfolio' || value.version !== 1) {
+    importError('dit is geen ondersteunde RealEstateX-portfolioback-up.');
+  }
+  if (typeof value.exportedAt !== 'string') importError('de exportdatum van de portfolioback-up ontbreekt.');
+  if (!Array.isArray(value.projects) || value.projects.length === 0) {
+    importError('de portfolioback-up bevat geen projecten.');
+  }
+
+  const projectIds = new Set<string>();
+  for (const [index, projectArchive] of value.projects.entries()) {
+    try {
+      validateArchive(projectArchive);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message.replace(/^Import afgewezen:\s*/, '') : 'projectbestand is ongeldig.';
+      importError(`project ${index + 1}: ${reason}`);
+    }
+    if (projectIds.has(projectArchive.project.id)) {
+      importError('dezelfde projectverwijzing komt meerdere keren in de back-up voor.');
+    }
+    projectIds.add(projectArchive.project.id);
   }
 }
 
@@ -592,9 +623,26 @@ export async function exportPropertyProject(project: PropertyProject): Promise<P
   return archive;
 }
 
-export async function importPropertyProject(archiveInput: unknown): Promise<PropertyProject> {
-  validateArchive(archiveInput);
-  const archive = archiveInput;
+export async function exportPropertyPortfolio(projects: PropertyProject[]): Promise<PropertyPortfolioArchive> {
+  if (projects.length === 0) {
+    throw new Error('Er zijn geen opgeslagen projecten om in een portfolio-back-up te bewaren.');
+  }
+  const archives = await Promise.all(projects.map((project) => exportPropertyProject(project)));
+  return {
+    format: 'realestatex-property-portfolio',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    projects: archives,
+  };
+}
+
+type PreparedPropertyProject = {
+  project: PropertyProject;
+  images: PropertyImageRecord[];
+};
+
+async function prepareImportedPropertyProject(archive: PropertyProjectArchive): Promise<PreparedPropertyProject> {
+  validateArchive(archive);
   const id = crypto.randomUUID();
   const keyMap = new Map<string, string>();
   const imageKinds = new Map<string, PropertyAction | 'original'>();
@@ -632,13 +680,63 @@ export async function importPropertyProject(archiveInput: unknown): Promise<Prop
     };
   }));
 
+  return { project, images };
+}
+
+async function writeImportedProjectsAtomically(preparedProjects: PreparedPropertyProject[]): Promise<void> {
+  let db: IDBDatabase;
+  try {
+    db = await openDb();
+  } catch {
+    throw new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Er is niets toegevoegd.');
+  }
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let transaction: IDBTransaction;
+      try {
+        transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      } catch {
+        reject(new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Er is niets toegevoegd.'));
+        return;
+      }
+      const projectStore = transaction.objectStore(PROJECTS);
+      const imageStore = transaction.objectStore(IMAGES);
+      try {
+        for (const { project, images } of preparedProjects) {
+          projectStore.add(project);
+          for (const image of images) imageStore.add(image);
+        }
+      } catch {
+        try {
+          transaction.abort();
+        } catch {
+          // If the transaction has already stopped, the operation has still failed.
+        }
+        reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de browseropslag; er is niets toegevoegd.'));
+        return;
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error('De portfolio-back-up is niet opgeslagen. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
+      transaction.onabort = () => reject(new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.'));
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('er is niets toegevoegd')) throw error;
+    throw new Error('De portfolio-back-up is niet hersteld. Controleer de beschikbare opslagruimte en browserrechten; er is niets toegevoegd.');
+  } finally {
+    db.close();
+  }
+}
+
+export async function importPropertyProject(archiveInput: unknown): Promise<PropertyProject> {
+  validateArchive(archiveInput);
+  const prepared = await prepareImportedPropertyProject(archiveInput);
   const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
-      transaction.objectStore(PROJECTS).put(project);
+      transaction.objectStore(PROJECTS).put(prepared.project);
       const imageStore = transaction.objectStore(IMAGES);
-      for (const image of images) imageStore.put(image);
+      for (const image of prepared.images) imageStore.put(image);
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error('Het project kon niet in deze browser worden opgeslagen.'));
       transaction.onabort = () => reject(transaction.error ?? new Error('Het project kon niet volledig in deze browser worden opgeslagen.'));
@@ -646,7 +744,17 @@ export async function importPropertyProject(archiveInput: unknown): Promise<Prop
   } finally {
     db.close();
   }
-  return project;
+  return prepared.project;
+}
+
+export async function importPropertyPortfolio(portfolioInput: unknown): Promise<PropertyProject[]> {
+  validatePortfolioArchive(portfolioInput);
+  const preparedProjects: PreparedPropertyProject[] = [];
+  for (const archive of portfolioInput.projects) {
+    preparedProjects.push(await prepareImportedPropertyProject(archive));
+  }
+  await writeImportedProjectsAtomically(preparedProjects);
+  return preparedProjects.map(({ project }) => project);
 }
 
 export function blobToObjectUrl(blob: Blob): string {

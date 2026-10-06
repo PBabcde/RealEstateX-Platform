@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, findMatchingSavedPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, exportPropertyPortfolio, findMatchingSavedPropertyProject, importPropertyProject, importPropertyPortfolio, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -123,6 +123,7 @@ function PropertyTransformer() {
   const [isUploading, setIsUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
+  const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
   const projectRef = useRef<PropertyProject | null>(project);
   const objectUrls = useRef(new Set<string>());
   const declutter = useDeclutterPropertyImage();
@@ -362,6 +363,32 @@ function PropertyTransformer() {
     }
   };
 
+  const exportSavedPortfolio = async () => {
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      const current = projectRef.current;
+      if (current) await savePropertyProject(current);
+      const savedProjects = await loadPropertyProjects();
+      const archive = await exportPropertyPortfolio(savedProjects);
+      const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `realestatex-portfolio-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setProjectTransferNotice(`Back-up met ${archive.projects.length} ${archive.projects.length === 1 ? 'project' : 'projecten'}, bronfoto’s en concepten gedownload.`);
+    } catch (error) {
+      setProjectTransferError(error instanceof Error ? error.message : 'De volledige portfolio-back-up kon niet worden gemaakt. Controleer de browseropslag en probeer opnieuw.');
+    } finally {
+      setIsProjectTransferring(false);
+    }
+  };
+
   const restoreImportedProject = async (archive: unknown) => {
     const restored = await importPropertyProject(archive);
     const loaded = await loadProjectPreviews(restored);
@@ -405,6 +432,37 @@ function PropertyTransformer() {
       await restoreImportedProject(archive);
     } catch (error) {
       setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
+    } finally {
+      setIsProjectTransferring(false);
+    }
+  };
+
+  const importPortfolioFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      let portfolio: unknown;
+      try {
+        portfolio = JSON.parse(await file.text());
+      } catch {
+        throw new Error('De portfolio-back-up is niet hersteld: het bestand kan niet als geldige JSON worden gelezen. Er is niets toegevoegd.');
+      }
+      const imported = await importPropertyPortfolio(portfolio);
+      setProjectTransferNotice(`${imported.length} ${imported.length === 1 ? 'project' : 'projecten'} met foto’s en concepten hersteld als nieuwe projecten. Bestaande projecten zijn ongewijzigd.`);
+      try {
+        await refreshProjects();
+      } catch {
+        setProjectTransferError('De portfolio-back-up is wel hersteld, maar de projectlijst kon niet opnieuw worden geladen. Sluit en open deze lijst opnieuw.');
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Controleer het bestand en de browseropslag.';
+      setProjectTransferError(reason.includes('er is niets toegevoegd')
+        ? reason
+        : `De portfolio-back-up is niet hersteld; er is niets toegevoegd. ${reason}`);
     } finally {
       setIsProjectTransferring(false);
     }
@@ -597,6 +655,7 @@ function PropertyTransformer() {
 
   if (!project) return <AppShell><div className="property-noise mx-auto max-w-3xl py-12">
     <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
+   <input ref={portfolioTransferFileRef} type="file" accept=".json,application/json" onChange={importPortfolioFile} className="hidden" data-testid="input-import-portfolio" />
     <Card className="p-8 text-center sm:p-12">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#f3e7da] text-[#a95f39]"><Layers3 size={23} /></div>
       <p className="mono mt-5 text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Local-first studio</p>
@@ -608,7 +667,7 @@ function PropertyTransformer() {
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -617,7 +676,8 @@ function PropertyTransformer() {
       <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={openProjectManager} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
     </header>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
-     <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
+      <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
+      <input ref={portfolioTransferFileRef} type="file" accept=".json,application/json" onChange={importPortfolioFile} className="hidden" data-testid="input-import-portfolio" />
      {(missingOriginalPhoto || missingConceptActions.length > 0) && <div className="mb-5 flex flex-col gap-2 rounded-xl border border-[#e7c98a] bg-[#fff8e7] px-4 py-3 text-xs text-[#76551c]" role="alert" data-testid="status-missing-project-images">
        {missingOriginalPhoto && <div className="flex flex-wrap items-center justify-between gap-2"><p><strong>De bronfoto ontbreekt.</strong> Je project, financiële aannames, units en checklist zijn behouden.</p><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="shrink-0 rounded-lg bg-[#8d6320] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-50" data-testid="button-restore-source-photo">{isUploading ? 'Foto voorbereiden…' : 'Bronfoto toevoegen'}</button></div>}
        {missingConceptActions.length > 0 && <div><p><strong>Conceptfoto ontbreekt:</strong> {missingConceptActions.map((action) => actions.find((item) => item.id === action)?.label ?? action).join(', ')}.</p><p className="mt-1">Het gekozen scenario blijft {actions.find((item) => item.id === project.selectedResult)?.label ?? 'ongewijzigd'}; het is niet automatisch aangepast.</p></div>}
@@ -651,7 +711,7 @@ function PropertyTransformer() {
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-      {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
+      {projectManagerOpen && <ProjectManager projects={projects} photoHealthByProject={photoHealthByProject} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={() => transferFileRef.current?.click()} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 }
 
@@ -674,7 +734,7 @@ function projectPhotoHealthLabel(health: PropertyProjectPhotoHealth): { label: s
   };
 }
 
-export function ProjectManager({ projects, photoHealthByProject, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
+export function ProjectManager({ projects, photoHealthByProject, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
   projects: PropertyProject[];
   photoHealthByProject: Record<string, PropertyProjectPhotoHealth>;
   loading: boolean;
@@ -687,7 +747,9 @@ export function ProjectManager({ projects, photoHealthByProject, loading, busy, 
   onOpen: (id: string) => void;
   onDelete: (project: PropertyProject) => void;
   onExport: (project: PropertyProject) => void;
+  onExportPortfolio: () => void;
   onImport: () => void;
+  onImportPortfolio: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<PropertyProjectSortOrder>('recent');
@@ -710,7 +772,11 @@ export function ProjectManager({ projects, photoHealthByProject, loading, busy, 
       <div className="space-y-3 p-5 sm:p-7">
         <button onClick={onCreate} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] transition-colors hover:bg-[#34435b] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw vastgoedproject</button>
         <button onClick={onImport} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#a95f39]/40 bg-[#fff8ef] px-4 py-3 text-xs font-bold text-[#8c4d2d] transition-colors hover:border-[#a95f39] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-import-project"><Upload size={15} /> Projectbestand importeren</button>
-        <p className="text-[10px] leading-4 text-muted-foreground">Kies een eerder geëxporteerd RealEstateX-bestand. De projectgegevens en foto’s blijven op dit apparaat.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button onClick={onExportPortfolio} disabled={busy || projects.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-export-portfolio"><Download size={15} /> Portfolio-back-up downloaden</button>
+          <button onClick={onImportPortfolio} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-import-portfolio"><Upload size={15} /> Portfolio-back-up herstellen</button>
+        </div>
+        <p className="text-[10px] leading-4 text-muted-foreground">De portfolio-back-up bevat alle opgeslagen projectgegevens, bronfoto’s en concepten in één JSON-bestand. Herstellen voegt de projecten als nieuwe kopieën toe; bij een ongeldig onderdeel wordt niets toegevoegd. Alles blijft in deze browser.</p>
         {transferError && <p className="rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-project-transfer-error">{transferError}</p>}
         {transferNotice && <p className="rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs text-[#287b6a]" role="status" data-testid="status-project-transfer-notice">{transferNotice}</p>}
         {!loading && projects.length > 0 && <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">

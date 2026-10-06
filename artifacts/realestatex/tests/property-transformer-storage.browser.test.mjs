@@ -285,10 +285,30 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, browser)
       throw new Error(`Recovering the source photo changed or hid the selected-scenario notice: ${finalNotice}`);
     }
 
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const portfolioControls = await waitFor(
+      `(() => {
+        const dialog = document.querySelector('[data-testid="dialog-project-manager"]');
+        const exportButton = document.querySelector('[data-testid="button-export-portfolio"]');
+        const importButton = document.querySelector('[data-testid="button-import-portfolio"]');
+        return {
+          dialogOpen: Boolean(dialog),
+          exportEnabled: Boolean(exportButton && !exportButton.disabled),
+          importEnabled: Boolean(importButton && !importButton.disabled),
+          localOnlyExplanation: dialog?.textContent.includes('blijft in deze browser') ?? false,
+        };
+      })()`,
+      (value) => value?.dialogOpen && value.exportEnabled && value.importEnabled,
+      'the signed-in portfolio backup and restore controls',
+    );
+    if (!portfolioControls.localOnlyExplanation) {
+      throw new Error('The signed-in project manager did not explain that the portfolio backup stays in this browser.');
+    }
+
     await evaluate(`(() => {
       const result = document.querySelector('#test-result');
       result.dataset.status = 'passed';
-      result.textContent = 'Passed: the authenticated studio showed both missing-photo notices, accepted a replacement source photo, and preserved saved assumptions and the selected Virtual stage scenario.';
+      result.textContent = 'Passed: the authenticated studio showed both missing-photo notices, accepted a replacement source photo, preserved saved assumptions and the selected Virtual stage scenario, and exposed portfolio backup and restore controls.';
     })()`);
     const passed = await waitFor(
       `(() => {

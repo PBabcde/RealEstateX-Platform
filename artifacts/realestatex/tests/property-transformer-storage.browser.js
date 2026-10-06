@@ -4,8 +4,10 @@ import { createRoot } from 'react-dom/client';
 import {
   deletePropertyProject,
   deletePropertyImage,
+  exportPropertyPortfolio,
   exportPropertyProject,
   findMatchingSavedPropertyProject,
+  importPropertyPortfolio,
   importPropertyProject,
   loadPropertyImage,
   loadPropertyProject,
@@ -190,6 +192,7 @@ function runSavedProjectSearchUiChecks() {
   ];
   const sourceOrder = projects.map((project) => project.id);
   const originalProjects = JSON.stringify(projects);
+  const clickedPortfolioActions = [];
   const root = createRoot(document.querySelector('#project-search-test-root'));
   const photoHealthByProject = {
     'search-newest': { sourcePhoto: 'missing', missingConcepts: ['stage'] },
@@ -211,8 +214,19 @@ function runSavedProjectSearchUiChecks() {
     onOpen() {},
     onDelete() {},
     onExport() {},
+    onExportPortfolio() { clickedPortfolioActions.push('export'); },
     onImport() {},
+    onImportPortfolio() { clickedPortfolioActions.push('import'); },
   })));
+  const exportPortfolioButton = document.querySelector('#project-search-test-root [data-testid="button-export-portfolio"]');
+  const importPortfolioButton = document.querySelector('#project-search-test-root [data-testid="button-import-portfolio"]');
+  assert(exportPortfolioButton instanceof HTMLButtonElement && !exportPortfolioButton.disabled, 'The portfolio export action was not available for saved projects.');
+  assert(importPortfolioButton instanceof HTMLButtonElement && !importPortfolioButton.disabled, 'The portfolio restore action was not available.');
+  flushSync(() => {
+    exportPortfolioButton.click();
+    importPortfolioButton.click();
+  });
+  assert(JSON.stringify(clickedPortfolioActions) === JSON.stringify(['export', 'import']), 'Portfolio backup actions did not invoke their handlers.');
   assert(
     document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-newest"]')?.textContent.includes('Bronfoto ontbreekt · Conceptfoto ontbreken: Virtual stage'),
     'A saved project with a missing source photo and concept was not flagged in the list.',
@@ -301,6 +315,11 @@ async function run() {
 
     const archive = await exportPropertyProject(expectedProjects.alpha);
     sessionStorage.setItem('property-transfer-archive', JSON.stringify(archive));
+    const portfolioArchive = await exportPropertyPortfolio(await loadPropertyProjects());
+    assert(portfolioArchive.format === 'realestatex-property-portfolio', 'The portfolio export used an unexpected format.');
+    assert(portfolioArchive.projects.length === 2, 'The portfolio export did not include every saved project.');
+    assert(portfolioArchive.projects.every((projectArchive) => projectArchive.images.length === 2), 'The portfolio export omitted a source photo or generated concept.');
+    sessionStorage.setItem('property-portfolio-archive', JSON.stringify(portfolioArchive));
     await deletePropertyProject(expectedProjects.alpha);
     assert(!(await loadPropertyProject(expectedProjects.alpha.id)), 'Deleted project A is still stored.');
     await assertProjectList([expectedProjects.beta.id]);
@@ -323,10 +342,43 @@ async function run() {
     }
     await assertProjectAndPhotos('beta');
 
+    const serializedPortfolio = sessionStorage.getItem('property-portfolio-archive');
+    assert(serializedPortfolio, 'Portfolio export fixture was not retained for the restore test.');
+    const portfolioArchive = JSON.parse(serializedPortfolio);
+    const invalidPortfolio = structuredClone(portfolioArchive);
+    invalidPortfolio.projects[1].images = invalidPortfolio.projects[1].images.filter(
+      (image) => image.key !== invalidPortfolio.projects[1].project.originalKey,
+    );
+    let invalidPortfolioError = '';
+    try {
+      await importPropertyPortfolio(invalidPortfolio);
+    } catch (error) {
+      invalidPortfolioError = error instanceof Error ? error.message : String(error);
+    }
+    assert(invalidPortfolioError.includes('bronfoto ontbreekt'), 'A portfolio with one invalid project was not rejected with a clear error.');
+    await assertProjectList([expectedProjects.beta.id]);
+
+    const portfolioImports = await importPropertyPortfolio(portfolioArchive);
+    assert(portfolioImports.length === 2, 'Portfolio restore did not add every saved project.');
+    assert(portfolioImports.every((project) => !Object.values(expectedProjects).some((expected) => expected.id === project.id)), 'Portfolio restore reused a source project ID.');
+    const restoredByName = new Map(portfolioImports.map((project) => [project.projectName, project]));
+    for (const [name, original] of Object.entries(expectedProjects)) {
+      const restored = restoredByName.get(original.projectName);
+      assert(restored, `Portfolio restore omitted ${original.projectName}.`);
+      const images = await loadPropertyProjectImages(restored);
+      assert(images.original && (await images.original.blob.text()) === imagePayloads[`${name}-original`].text, `Portfolio restore changed or omitted ${original.projectName}'s source photo.`);
+      const resultAction = Object.keys(original.resultKeys)[0];
+      assert(images.results[resultAction] && (await images.results[resultAction].blob.text()) === imagePayloads[Object.keys(original.resultKeys).map((key) => original.resultKeys[key])[0]].text, `Portfolio restore changed or omitted ${original.projectName}'s concept.`);
+    }
+    const importedAlphaFromPortfolio = portfolioImports.find((project) => project.projectName === expectedProjects.alpha.projectName);
+    assert(importedAlphaFromPortfolio, 'Portfolio restore did not include the expected alpha project.');
+    assert((await findMatchingSavedPropertyProject(portfolioArchive.projects.find((item) => item.project.projectName === expectedProjects.alpha.projectName)))?.id === importedAlphaFromPortfolio.id, 'An imported portfolio project was not recognized as a matching project.');
+    sessionStorage.setItem('property-portfolio-imported-ids', JSON.stringify(portfolioImports.map((project) => project.id)));
+
     const serializedArchive = sessionStorage.getItem('property-transfer-archive');
     assert(serializedArchive, 'Project export fixture was not retained for the import test.');
     const archive = JSON.parse(serializedArchive);
-    assert(!(await findMatchingSavedPropertyProject(archive)), 'A project archive matched an unrelated locally saved project.');
+    assert((await findMatchingSavedPropertyProject(archive))?.id === importedAlphaFromPortfolio.id, 'A single-project archive did not match its copy restored from the portfolio.');
     const incompleteArchive = structuredClone(archive);
     incompleteArchive.images = incompleteArchive.images.filter((image) => image.key !== expectedProjects.alpha.originalKey);
     let incompleteError = '';
@@ -336,7 +388,7 @@ async function run() {
       incompleteError = error instanceof Error ? error.message : String(error);
     }
     assert(incompleteError.includes('bronfoto ontbreekt'), 'An export without its source photo was not rejected with a clear error.');
-    await assertProjectList([expectedProjects.beta.id]);
+    await assertProjectList([expectedProjects.beta.id, ...portfolioImports.map((project) => project.id)]);
 
     const damagedArchive = structuredClone(archive);
     damagedArchive.images[0].blobBase64 = btoa('altered image bytes');
@@ -347,11 +399,11 @@ async function run() {
       damagedError = error instanceof Error ? error.message : String(error);
     }
     assert(damagedError.includes('beschadigd'), 'An archive with modified image bytes was not rejected with a clear error.');
-    await assertProjectList([expectedProjects.beta.id]);
+    await assertProjectList([expectedProjects.beta.id, ...portfolioImports.map((project) => project.id)]);
 
     const imported = await importPropertyProject(archive);
     assert(imported.id !== expectedProjects.alpha.id, 'Import overwrote or reused the source project ID.');
-    assert((await findMatchingSavedPropertyProject(archive))?.id === imported.id, 'A saved import was not recognized as a matching project.');
+    assert([imported.id, importedAlphaFromPortfolio.id].includes((await findMatchingSavedPropertyProject(archive))?.id), 'A saved import was not recognized as a matching project.');
     const editedArchive = structuredClone(archive);
     editedArchive.project.notes += ' edited';
     assert(!(await findMatchingSavedPropertyProject(editedArchive)), 'An archive with different project details was treated as a duplicate.');
@@ -365,7 +417,7 @@ async function run() {
     assert(!(await findMatchingSavedPropertyProject(changedPhotoArchive)), 'An archive with different photo contents was treated as a duplicate.');
     const secondCopy = await importPropertyProject(archive);
     assert(secondCopy.id !== imported.id, 'Importing another copy did not create a separate project.');
-    const matchingCopies = [imported.id, secondCopy.id];
+    const matchingCopies = [imported.id, secondCopy.id, importedAlphaFromPortfolio.id];
     assert(matchingCopies.includes((await findMatchingSavedPropertyProject(archive))?.id), 'Duplicate detection failed after an intentional extra copy was imported.');
     const comparable = (project) => {
       const copy = { ...project };
@@ -392,6 +444,14 @@ async function run() {
     const secondCopyId = sessionStorage.getItem('property-transfer-second-copy-id');
     assert(importedId, 'Imported project ID was not retained across the reload.');
     assert(secondCopyId, 'Intentional extra-copy ID was not retained across the reload.');
+    const portfolioImportedIds = JSON.parse(sessionStorage.getItem('property-portfolio-imported-ids') ?? '[]');
+    assert(portfolioImportedIds.length === 2, 'Portfolio import IDs were not retained across the reload.');
+    for (const id of portfolioImportedIds) {
+      const restoredProject = await loadPropertyProject(id);
+      assert(restoredProject, 'A portfolio project was not available after reload.');
+      const restoredImages = await loadPropertyProjectImages(restoredProject);
+      assert(restoredImages.original && restoredImages.results[Object.keys(restoredProject.resultKeys)[0]], 'A portfolio photo or concept was missing after reload.');
+    }
     const imported = await loadPropertyProject(importedId);
     assert(imported, 'Imported project was not available after reload.');
     const comparable = (project) => {
@@ -406,7 +466,7 @@ async function run() {
     assert((await importedPhotos.original?.blob.text()) === imagePayloads['alpha-original'].text, 'Imported source photo did not survive reload.');
     assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
     assert((await loadPropertyProject(secondCopyId)), 'The intentional extra copy was not available after reload.');
-    await assertProjectList([expectedProjects.beta.id, importedId, secondCopyId]);
+    await assertProjectList([expectedProjects.beta.id, importedId, secondCopyId, ...portfolioImportedIds]);
     runSavedProjectSearchUiChecks();
 
     const recoveryProject = makeProject({
