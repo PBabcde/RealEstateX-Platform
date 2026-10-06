@@ -1,6 +1,8 @@
 import {
   deletePropertyProject,
   deletePropertyImage,
+  exportPropertyProject,
+  importPropertyProject,
   loadPropertyImage,
   loadPropertyProject,
   loadPropertyProjectImages,
@@ -172,6 +174,8 @@ async function run() {
     await assertProjectAndPhotos('alpha');
     await assertProjectAndPhotos('beta');
 
+    const archive = await exportPropertyProject(expectedProjects.alpha);
+    sessionStorage.setItem('property-transfer-archive', JSON.stringify(archive));
     await deletePropertyProject(expectedProjects.alpha);
     assert(!(await loadPropertyProject(expectedProjects.alpha.id)), 'Deleted project A is still stored.');
     await assertProjectList([expectedProjects.beta.id]);
@@ -193,6 +197,71 @@ async function run() {
       assert(!(await loadPropertyImage(key)), `Image ${key} returned after deletion and reload.`);
     }
     await assertProjectAndPhotos('beta');
+
+    const serializedArchive = sessionStorage.getItem('property-transfer-archive');
+    assert(serializedArchive, 'Project export fixture was not retained for the import test.');
+    const archive = JSON.parse(serializedArchive);
+    const incompleteArchive = structuredClone(archive);
+    incompleteArchive.images = incompleteArchive.images.filter((image) => image.key !== expectedProjects.alpha.originalKey);
+    let incompleteError = '';
+    try {
+      await importPropertyProject(incompleteArchive);
+    } catch (error) {
+      incompleteError = error instanceof Error ? error.message : String(error);
+    }
+    assert(incompleteError.includes('bronfoto ontbreekt'), 'An export without its source photo was not rejected with a clear error.');
+    await assertProjectList([expectedProjects.beta.id]);
+
+    const damagedArchive = structuredClone(archive);
+    damagedArchive.images[0].blobBase64 = btoa('altered image bytes');
+    let damagedError = '';
+    try {
+      await importPropertyProject(damagedArchive);
+    } catch (error) {
+      damagedError = error instanceof Error ? error.message : String(error);
+    }
+    assert(damagedError.includes('beschadigd'), 'An archive with modified image bytes was not rejected with a clear error.');
+    await assertProjectList([expectedProjects.beta.id]);
+
+    const imported = await importPropertyProject(archive);
+    assert(imported.id !== expectedProjects.alpha.id, 'Import overwrote or reused the source project ID.');
+    const comparable = (project) => {
+      const copy = { ...project };
+      delete copy.id;
+      delete copy.originalKey;
+      delete copy.resultKeys;
+      return copy;
+    };
+    assert(JSON.stringify(comparable(imported)) === JSON.stringify(comparable(expectedProjects.alpha)), 'Imported project settings, checklist, or units changed.');
+    const importedPhotos = await loadPropertyProjectImages(imported);
+    assert(importedPhotos.original?.key === imported.originalKey, 'The imported source photo could not be reopened.');
+    assert((await importedPhotos.original.blob.text()) === imagePayloads['alpha-original'].text, 'The imported source photo content changed.');
+    assert(importedPhotos.results.stage?.key === imported.resultKeys.stage, 'The imported generated concept could not be reopened.');
+    assert((await importedPhotos.results.stage.blob.text()) === imagePayloads['alpha-stage'].text, 'The imported generated concept content changed.');
+    sessionStorage.setItem('property-transfer-imported-id', imported.id);
+    sessionStorage.setItem(phaseKey, 'imported');
+    location.reload();
+    return;
+  }
+
+  if (phase === 'imported') {
+    const importedId = sessionStorage.getItem('property-transfer-imported-id');
+    assert(importedId, 'Imported project ID was not retained across the reload.');
+    const imported = await loadPropertyProject(importedId);
+    assert(imported, 'Imported project was not available after reload.');
+    const comparable = (project) => {
+      const copy = { ...project };
+      delete copy.id;
+      delete copy.originalKey;
+      delete copy.resultKeys;
+      return copy;
+    };
+    assert(JSON.stringify(comparable(imported)) === JSON.stringify(comparable(expectedProjects.alpha)), 'Imported project settings changed after reload.');
+    const importedPhotos = await loadPropertyProjectImages(imported);
+    assert((await importedPhotos.original?.blob.text()) === imagePayloads['alpha-original'].text, 'Imported source photo did not survive reload.');
+    assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
+    await assertProjectList([expectedProjects.beta.id, importedId]);
+
     const recoveryProject = makeProject({
       id: 'project-recovery',
       name: 'Photo recovery fixture',
@@ -260,7 +329,7 @@ async function run() {
 
     await deletePropertyImage('recovery-stage');
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: project settings and photos survived reload; missing source and concept images were reported; restoring the source preserved settings and the selected concept scenario.';
+    result.textContent = 'Passed: export/import preserved project settings, checklist, source photo, and generated concept across reload; incomplete exports were rejected; existing recovery checks passed.';
     return;
   }
 

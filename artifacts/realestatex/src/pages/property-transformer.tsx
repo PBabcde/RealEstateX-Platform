@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
-import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, WandSparkles, X } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, loadPropertyProjectImages, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjects, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -107,6 +107,9 @@ function PropertyTransformer() {
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
   const [projectListLoading, setProjectListLoading] = useState(false);
   const [isProjectSwitching, setIsProjectSwitching] = useState(false);
+  const [isProjectTransferring, setIsProjectTransferring] = useState(false);
+  const [projectTransferError, setProjectTransferError] = useState('');
+  const [projectTransferNotice, setProjectTransferNotice] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [notice, setNotice] = useState('');
   const [missingOriginalPhoto, setMissingOriginalPhoto] = useState(false);
@@ -117,6 +120,7 @@ function PropertyTransformer() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const transferFileRef = useRef<HTMLInputElement>(null);
   const projectRef = useRef<PropertyProject | null>(project);
   const objectUrls = useRef(new Set<string>());
   const declutter = useDeclutterPropertyImage();
@@ -246,6 +250,8 @@ function PropertyTransformer() {
     }
   };
   const openProjectManager = () => {
+    setProjectTransferError('');
+    setProjectTransferNotice('');
     setProjectManagerOpen(true);
     void refreshProjects().catch(() => setUploadError('De projectlijst kon niet uit de lokale browseropslag worden geladen.'));
   };
@@ -322,6 +328,69 @@ function PropertyTransformer() {
       setUploadError('Het project of de bijbehorende foto’s konden niet volledig worden verwijderd.');
     } finally {
       setIsProjectSwitching(false);
+    }
+  };
+
+  const exportSavedProject = async (target: PropertyProject) => {
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      const current = projectRef.current?.id === target.id ? projectRef.current : target;
+      await savePropertyProject(current);
+      const archive = await exportPropertyProject(current);
+      const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(current.projectName || 'vastgoedproject').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vastgoedproject'}.realestatex.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setProjectTransferNotice('Projectbestand met foto’s en concepten gedownload.');
+    } catch (error) {
+      setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden gemaakt.');
+    } finally {
+      setIsProjectTransferring(false);
+    }
+  };
+
+  const importProjectFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      let archive: unknown;
+      try {
+        archive = JSON.parse(await file.text());
+      } catch {
+        throw new Error('Import afgewezen: dit bestand bevat geen geldige JSON-projectexport.');
+      }
+      const restored = await importPropertyProject(archive);
+      const loaded = await loadProjectPreviews(restored);
+      revokeAllObjectUrls();
+      projectRef.current = restored;
+      setProject(restored);
+      setOriginalUrl(loaded.originalUrl);
+      setResults(loaded.results);
+      setMissingOriginalPhoto(loaded.missingSource);
+      setMissingConceptActions(loaded.missingConcepts);
+      setSplitRatio(restored.splitRatio);
+      setActiveTab('studio');
+      setTransferOpen(false);
+      setProjectManagerOpen(false);
+      setProjectTransferError('');
+      setUploadError('');
+      setNotice(`“${restored.projectName || 'Transformatiescan'}” is in deze browser hersteld, inclusief de aanwezige foto’s en concepten.`);
+      setProjects(await loadPropertyProjects());
+    } catch (error) {
+      setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
+    } finally {
+      setIsProjectTransferring(false);
     }
   };
 
@@ -489,6 +558,7 @@ function PropertyTransformer() {
   if (loading) return <AppShell><div className="space-y-4"><div className="skeleton h-10 w-1/3 rounded-xl" /><div className="skeleton h-56 rounded-2xl" /><div className="grid gap-4 md:grid-cols-3"><div className="skeleton h-44 rounded-2xl" /><div className="skeleton h-44 rounded-2xl" /><div className="skeleton h-44 rounded-2xl" /></div></div></AppShell>;
 
   if (!project) return <AppShell><div className="property-noise mx-auto max-w-3xl py-12">
+    <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
     <Card className="p-8 text-center sm:p-12">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#f3e7da] text-[#a95f39]"><Layers3 size={23} /></div>
       <p className="mono mt-5 text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Local-first studio</p>
@@ -500,7 +570,7 @@ function PropertyTransformer() {
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching} activeProjectId={null} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} />}
+    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -509,6 +579,7 @@ function PropertyTransformer() {
       <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={openProjectManager} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
     </header>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
+     <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
      {(missingOriginalPhoto || missingConceptActions.length > 0) && <div className="mb-5 flex flex-col gap-2 rounded-xl border border-[#e7c98a] bg-[#fff8e7] px-4 py-3 text-xs text-[#76551c]" role="alert" data-testid="status-missing-project-images">
        {missingOriginalPhoto && <div className="flex flex-wrap items-center justify-between gap-2"><p><strong>De bronfoto ontbreekt.</strong> Je project, financiële aannames, units en checklist zijn behouden.</p><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="shrink-0 rounded-lg bg-[#8d6320] px-3 py-2 text-[10px] font-bold text-white disabled:opacity-50" data-testid="button-restore-source-photo">{isUploading ? 'Foto voorbereiden…' : 'Bronfoto toevoegen'}</button></div>}
        {missingConceptActions.length > 0 && <div><p><strong>Conceptfoto ontbreekt:</strong> {missingConceptActions.map((action) => actions.find((item) => item.id === action)?.label ?? action).join(', ')}.</p><p className="mt-1">Het gekozen scenario blijft {actions.find((item) => item.id === project.selectedResult)?.label ?? 'ongewijzigd'}; het is niet automatisch aangepast.</p></div>}
@@ -529,7 +600,7 @@ function PropertyTransformer() {
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-    {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching} activeProjectId={project.id} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} />}
+     {projectManagerOpen && <ProjectManager projects={projects} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onImport={() => transferFileRef.current?.click()} />}
   </div></AppShell>;
 }
 
@@ -538,15 +609,19 @@ function formatProjectUpdatedAt(value: string): string {
   return Number.isNaN(date.getTime()) ? 'Bijwerktijd onbekend' : `Bijgewerkt ${new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}`;
 }
 
-function ProjectManager({ projects, loading, busy, activeProjectId, onClose, onCreate, onOpen, onDelete }: {
+function ProjectManager({ projects, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onImport }: {
   projects: PropertyProject[];
   loading: boolean;
   busy: boolean;
   activeProjectId: string | null;
+  transferError: string;
+  transferNotice: string;
   onClose: () => void;
   onCreate: () => void;
   onOpen: (id: string) => void;
   onDelete: (project: PropertyProject) => void;
+  onExport: (project: PropertyProject) => void;
+  onImport: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
@@ -567,11 +642,15 @@ function ProjectManager({ projects, loading, busy, activeProjectId, onClose, onC
       </div>
       <div className="space-y-3 p-5 sm:p-7">
         <button onClick={onCreate} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] transition-colors hover:bg-[#34435b] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw vastgoedproject</button>
+        <button onClick={onImport} disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#a95f39]/40 bg-[#fff8ef] px-4 py-3 text-xs font-bold text-[#8c4d2d] transition-colors hover:border-[#a95f39] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-import-project"><Upload size={15} /> Projectbestand importeren</button>
+        <p className="text-[10px] leading-4 text-muted-foreground">Kies een eerder geëxporteerd RealEstateX-bestand. De projectgegevens en foto’s blijven op dit apparaat.</p>
+        {transferError && <p className="rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-project-transfer-error">{transferError}</p>}
+        {transferNotice && <p className="rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs text-[#287b6a]" role="status" data-testid="status-project-transfer-notice">{transferNotice}</p>}
         {!loading && projects.length > 0 && <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Zoek opgeslagen projecten</span><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Naam, adres of gemeente" aria-label="Zoek op projectnaam, adres of gemeente" className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-10 text-sm outline-none transition-shadow placeholder:text-muted-foreground/50 focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-search-projects" />{searchQuery && <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-secondary" aria-label="Wis zoekopdracht" data-testid="button-clear-project-search"><X size={14} /></button>}</div></label>}
         {loading ? <p className="py-8 text-center text-xs text-muted-foreground" role="status">Projecten laden…</p> : projects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center"><p className="text-sm font-bold">Nog geen opgeslagen projecten</p><p className="mt-1 text-xs text-muted-foreground">Maak een project aan om woningfoto’s en scenario’s lokaal te bewaren.</p></div> : matchingProjects.length === 0 ? <div className="rounded-xl border border-dashed border-border px-5 py-9 text-center" role="status" data-testid="empty-project-search"><p className="text-sm font-bold">Geen opgeslagen projecten gevonden</p><p className="mt-1 text-xs text-muted-foreground">Geen projectnaam, adres of gemeente komt overeen met “{searchQuery.trim()}”. Pas je zoekopdracht aan of wis deze om alle projecten te zien.</p></div> : <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
           {matchingProjects.map((item) => <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
             <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toegevoegd'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p></div>
-            <div className="flex shrink-0 gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
+             <div className="flex shrink-0 flex-wrap gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onExport(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-export-project-${item.id}`}><Download size={13} /> Exporteren</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
           </li>)}
         </ul>}
       </div>
