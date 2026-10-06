@@ -8,6 +8,13 @@ import {
 const result = document.querySelector('#test-result');
 const projects = [
   {
+    id: 'browser-search-lake',
+    projectName: 'Lake House',
+    address: '1 Plaslaan',
+    municipality: 'Rotterdam',
+    updatedAt: '2026-10-06T12:00:00.000Z',
+  },
+  {
     id: 'browser-search-canal',
     projectName: 'Canal View',
     address: '14 Herengracht',
@@ -15,18 +22,18 @@ const projects = [
     updatedAt: '2026-10-05T12:00:00.000Z',
   },
   {
+    id: 'browser-search-annex',
+    projectName: 'Canal Annex',
+    address: '9 Singel',
+    municipality: 'Amsterdam',
+    updatedAt: '2026-10-04T18:00:00.000Z',
+  },
+  {
     id: 'browser-search-garden',
     projectName: 'Garden Flat',
     address: '8 Linden Road',
-    municipality: 'Haarlem',
+    municipality: 'Amsterdam',
     updatedAt: '2026-10-04T12:00:00.000Z',
-  },
-  {
-    id: 'browser-search-lake',
-    projectName: 'Lake House',
-    address: '1 Plaslaan',
-    municipality: 'Rotterdam',
-    updatedAt: '2026-10-03T12:00:00.000Z',
   },
 ].map((project) => ({
   ...project,
@@ -156,8 +163,62 @@ async function prepareFixture() {
     'Clearing search did not restore every project loaded from IndexedDB.',
   );
 
+  setSearchQuery('Amsterdam');
+  const matchingAmsterdamIds = ['browser-search-canal', 'browser-search-annex', 'browser-search-garden'];
+  assert(
+    JSON.stringify(visibleProjectIds()) === JSON.stringify(matchingAmsterdamIds),
+    'The shared-municipality search did not show all three matches in source order.',
+  );
+
+  const originalConfirm = window.confirm;
+  window.confirm = () => true;
+  try {
+    const deleteMiddleMatch = document.querySelector('[data-testid="button-delete-project-browser-search-annex"]');
+    assert(deleteMiddleMatch instanceof HTMLButtonElement, 'The delete action for the middle search match was not rendered.');
+    flushSync(() => deleteMiddleMatch.click());
+    await waitFor(
+      () => JSON.stringify(visibleProjectIds()) === JSON.stringify(['browser-search-canal', 'browser-search-garden']),
+      'the remaining matching projects after deleting the middle match',
+    );
+    assert(
+      !document.querySelector('[data-testid="empty-project-search"]'),
+      'Deleting one of several matching projects incorrectly showed the no-results state.',
+    );
+
+    setSearchQuery('Garden Flat');
+    assert(
+      JSON.stringify(visibleProjectIds()) === JSON.stringify(['browser-search-garden']),
+      'The final-match search did not show Garden Flat.',
+    );
+    const deleteLastMatch = document.querySelector('[data-testid="button-delete-project-browser-search-garden"]');
+    assert(deleteLastMatch instanceof HTMLButtonElement, 'The delete action for the last matching project was not rendered.');
+    flushSync(() => deleteLastMatch.click());
+    await waitFor(
+      () => Boolean(document.querySelector('[data-testid="empty-project-search"]')),
+      'the no-results explanation after deleting the final matching project',
+    );
+    const emptyState = document.querySelector('[data-testid="empty-project-search"]');
+    assert(emptyState.textContent.includes('Geen opgeslagen projecten gevonden'), 'Deleting the final match did not show the no-results explanation.');
+    assert(emptyState.textContent.includes('Garden Flat'), 'The no-results explanation did not retain the active search.');
+
+    const clearSearch = document.querySelector('[data-testid="button-clear-project-search"]');
+    assert(clearSearch instanceof HTMLButtonElement, 'The clear-search action disappeared after deleting the final match.');
+    flushSync(() => clearSearch.click());
+    await waitFor(
+      () => JSON.stringify(visibleProjectIds()) === JSON.stringify(['browser-search-lake', 'browser-search-canal']),
+      'the surviving projects after clearing search',
+    );
+    const persistedAfterDeletion = (await loadPropertyProjects()).map((project) => project.id);
+    assert(
+      JSON.stringify(persistedAfterDeletion) === JSON.stringify(['browser-search-lake', 'browser-search-canal']),
+      `IndexedDB retained deleted search matches: ${persistedAfterDeletion.join(', ')}.`,
+    );
+  } finally {
+    window.confirm = originalConfirm;
+  }
+
   result.dataset.status = 'passed';
-  result.textContent = 'Passed: the signed-in Property Transformer route loaded three IndexedDB projects, found them by name, address, and municipality, and restored the persisted list when search was cleared.';
+  result.textContent = 'Passed: the signed-in project manager preserved source order after deleting a matching project, showed the no-results explanation after the final match was deleted, and showed only surviving projects when search was cleared.';
 }
 
 prepareFixture().catch((error) => {

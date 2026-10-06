@@ -193,6 +193,7 @@ function runSavedProjectSearchUiChecks() {
   const sourceOrder = projects.map((project) => project.id);
   const originalProjects = JSON.stringify(projects);
   const clickedPortfolioActions = [];
+  let displayedProjects = [...projects];
   const root = createRoot(document.querySelector('#project-search-test-root'));
   const photoHealthByProject = {
     'search-newest': { sourcePhoto: 'missing', missingConcepts: ['stage'] },
@@ -201,8 +202,8 @@ function runSavedProjectSearchUiChecks() {
     'search-alphabetical': { sourcePhoto: 'available', missingConcepts: ['dusk'] },
     'search-no-road': { sourcePhoto: 'available', missingConcepts: [] },
   };
-  flushSync(() => root.render(React.createElement(ProjectManager, {
-    projects,
+  const renderProjectManager = () => root.render(React.createElement(ProjectManager, {
+    projects: displayedProjects,
     photoHealthByProject,
     loading: false,
     busy: false,
@@ -212,12 +213,16 @@ function runSavedProjectSearchUiChecks() {
     onClose() {},
     onCreate() {},
     onOpen() {},
-    onDelete() {},
+    onDelete(project) {
+      displayedProjects = displayedProjects.filter((item) => item.id !== project.id);
+      renderProjectManager();
+    },
     onExport() {},
     onExportPortfolio() { clickedPortfolioActions.push('export'); },
     onImport() {},
     onImportPortfolio() { clickedPortfolioActions.push('import'); },
-  })));
+  }));
+  flushSync(renderProjectManager);
   const exportPortfolioButton = document.querySelector('#project-search-test-root [data-testid="button-export-portfolio"]');
   const importPortfolioButton = document.querySelector('#project-search-test-root [data-testid="button-import-portfolio"]');
   assert(exportPortfolioButton instanceof HTMLButtonElement && !exportPortfolioButton.disabled, 'The portfolio export action was not available for saved projects.');
@@ -287,6 +292,42 @@ function runSavedProjectSearchUiChecks() {
   setProjectSortOrder('recent');
   assertVisibleProjectOrder(sourceOrder, 'Clearing the query and selecting recent order should restore every project in newest-first order.');
   assert(JSON.stringify(projects) === originalProjects, 'Restoring recent order changed project data or timestamps.');
+
+  setSearchQuery('road');
+  assertVisibleProjectOrder(['search-newest', 'search-middle', 'search-oldest', 'search-alphabetical'], 'The deletion search should start with all matching projects in source order.');
+  const deleteMiddleMatch = document.querySelector('#project-search-test-root [data-testid="button-delete-project-search-middle"]');
+  assert(deleteMiddleMatch instanceof HTMLButtonElement, 'The delete action for a matching project was not rendered.');
+  flushSync(() => deleteMiddleMatch.click());
+  assertVisibleProjectOrder(['search-newest', 'search-oldest', 'search-alphabetical'], 'Deleting one of several matches should leave the remaining matches in source order.');
+
+  setSearchQuery('Café Loft');
+  assertVisibleProjectOrder(['search-newest'], 'The last-match deletion query should show its matching project.');
+  const deleteLastMatch = document.querySelector('#project-search-test-root [data-testid="button-delete-project-search-newest"]');
+  assert(deleteLastMatch instanceof HTMLButtonElement, 'The delete action for the last matching project was not rendered.');
+  flushSync(() => deleteLastMatch.click());
+  const deletedLastMatchState = document.querySelector('#project-search-test-root [data-testid="empty-project-search"]');
+  assert(deletedLastMatchState?.textContent.includes('Geen opgeslagen projecten gevonden'), 'Deleting the last match did not show the no-results explanation.');
+  assert(deletedLastMatchState.textContent.includes('Café Loft'), 'The no-results explanation did not retain the active search.');
+
+  const clearAfterDelete = document.querySelector('#project-search-test-root [data-testid="button-clear-project-search"]');
+  assert(clearAfterDelete instanceof HTMLButtonElement, 'The clear-search action was not rendered after deleting the last match.');
+  flushSync(() => clearAfterDelete.click());
+  assertVisibleProjectOrder(['search-oldest', 'search-alphabetical', 'search-no-road'], 'Clearing search after deletion should show only the projects that still exist.');
+
+  for (const [id, query] of [['search-oldest', 'Garden Apartment'], ['search-alphabetical', 'Aardvark House'], ['search-no-road', 'Lakeside Manor']]) {
+    setSearchQuery(query);
+    const deleteProject = document.querySelector(`#project-search-test-root [data-testid="button-delete-project-${id}"]`);
+    assert(deleteProject instanceof HTMLButtonElement, `The delete action for ${id} was not rendered.`);
+    flushSync(() => deleteProject.click());
+  }
+  const noProjectsWithActiveSearch = document.querySelector('#project-search-test-root [data-testid="empty-project-search"]');
+  assert(noProjectsWithActiveSearch?.textContent.includes('Geen opgeslagen projecten gevonden'), 'An active search did not retain its no-results explanation after the final project was removed.');
+  assert(!document.querySelector('#project-search-test-root [data-testid="empty-project-search"]')?.textContent.includes('Nog geen opgeslagen projecten'), 'The no-results explanation was replaced by the generic empty-project state.');
+  const clearLastSearch = document.querySelector('#project-search-test-root [data-testid="button-clear-project-search"]');
+  assert(clearLastSearch instanceof HTMLButtonElement, 'The active search could not be cleared after the final saved project was removed.');
+  flushSync(() => clearLastSearch.click());
+  assert(!document.querySelector('#project-search-test-root [data-testid="empty-project-search"]'), 'Clearing search did not leave the no-results state after all projects were removed.');
+  assert(document.querySelector('#project-search-test-root')?.textContent.includes('Nog geen opgeslagen projecten'), 'Clearing the query did not show the empty-project explanation.');
   root.unmount();
 }
 
