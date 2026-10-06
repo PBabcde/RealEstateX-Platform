@@ -5,6 +5,7 @@ import {
   deletePropertyProject,
   deletePropertyImage,
   exportPropertyProject,
+  findMatchingSavedPropertyProject,
   importPropertyProject,
   loadPropertyImage,
   loadPropertyProject,
@@ -325,6 +326,7 @@ async function run() {
     const serializedArchive = sessionStorage.getItem('property-transfer-archive');
     assert(serializedArchive, 'Project export fixture was not retained for the import test.');
     const archive = JSON.parse(serializedArchive);
+    assert(!(await findMatchingSavedPropertyProject(archive)), 'A project archive matched an unrelated locally saved project.');
     const incompleteArchive = structuredClone(archive);
     incompleteArchive.images = incompleteArchive.images.filter((image) => image.key !== expectedProjects.alpha.originalKey);
     let incompleteError = '';
@@ -349,6 +351,22 @@ async function run() {
 
     const imported = await importPropertyProject(archive);
     assert(imported.id !== expectedProjects.alpha.id, 'Import overwrote or reused the source project ID.');
+    assert((await findMatchingSavedPropertyProject(archive))?.id === imported.id, 'A saved import was not recognized as a matching project.');
+    const editedArchive = structuredClone(archive);
+    editedArchive.project.notes += ' edited';
+    assert(!(await findMatchingSavedPropertyProject(editedArchive)), 'An archive with different project details was treated as a duplicate.');
+    const changedPhotoArchive = structuredClone(archive);
+    const changedPhotoBytes = new TextEncoder().encode('different but validly checksummed photo data');
+    changedPhotoArchive.images[0].blobBase64 = btoa(String.fromCharCode(...changedPhotoBytes));
+    const changedPhotoDigest = await crypto.subtle.digest('SHA-256', changedPhotoBytes);
+    changedPhotoArchive.images[0].sha256 = [...new Uint8Array(changedPhotoDigest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    assert(!(await findMatchingSavedPropertyProject(changedPhotoArchive)), 'An archive with different photo contents was treated as a duplicate.');
+    const secondCopy = await importPropertyProject(archive);
+    assert(secondCopy.id !== imported.id, 'Importing another copy did not create a separate project.');
+    const matchingCopies = [imported.id, secondCopy.id];
+    assert(matchingCopies.includes((await findMatchingSavedPropertyProject(archive))?.id), 'Duplicate detection failed after an intentional extra copy was imported.');
     const comparable = (project) => {
       const copy = { ...project };
       delete copy.id;
@@ -363,6 +381,7 @@ async function run() {
     assert(importedPhotos.results.stage?.key === imported.resultKeys.stage, 'The imported generated concept could not be reopened.');
     assert((await importedPhotos.results.stage.blob.text()) === imagePayloads['alpha-stage'].text, 'The imported generated concept content changed.');
     sessionStorage.setItem('property-transfer-imported-id', imported.id);
+    sessionStorage.setItem('property-transfer-second-copy-id', secondCopy.id);
     sessionStorage.setItem(phaseKey, 'imported');
     location.reload();
     return;
@@ -370,7 +389,9 @@ async function run() {
 
   if (phase === 'imported') {
     const importedId = sessionStorage.getItem('property-transfer-imported-id');
+    const secondCopyId = sessionStorage.getItem('property-transfer-second-copy-id');
     assert(importedId, 'Imported project ID was not retained across the reload.');
+    assert(secondCopyId, 'Intentional extra-copy ID was not retained across the reload.');
     const imported = await loadPropertyProject(importedId);
     assert(imported, 'Imported project was not available after reload.');
     const comparable = (project) => {
@@ -384,7 +405,8 @@ async function run() {
     const importedPhotos = await loadPropertyProjectImages(imported);
     assert((await importedPhotos.original?.blob.text()) === imagePayloads['alpha-original'].text, 'Imported source photo did not survive reload.');
     assert((await importedPhotos.results.stage?.blob.text()) === imagePayloads['alpha-stage'].text, 'Imported generated concept did not survive reload.');
-    await assertProjectList([expectedProjects.beta.id, importedId]);
+    assert((await loadPropertyProject(secondCopyId)), 'The intentional extra copy was not available after reload.');
+    await assertProjectList([expectedProjects.beta.id, importedId, secondCopyId]);
     runSavedProjectSearchUiChecks();
 
     const recoveryProject = makeProject({

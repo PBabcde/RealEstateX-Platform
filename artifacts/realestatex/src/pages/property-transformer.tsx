@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { loadPropertyProject, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { loadPropertyProject, loadPropertyProjectsWithPhotoHealth, loadPropertyImage, loadPropertyProjectImages, exportPropertyProject, findMatchingSavedPropertyProject, importPropertyProject, savePropertyImage, savePropertyProject, savePropertyProjectWithImage, deletePropertyImage, deletePropertyProject, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -111,6 +111,7 @@ function PropertyTransformer() {
   const [isProjectTransferring, setIsProjectTransferring] = useState(false);
   const [projectTransferError, setProjectTransferError] = useState('');
   const [projectTransferNotice, setProjectTransferNotice] = useState('');
+  const [pendingDuplicateImport, setPendingDuplicateImport] = useState<{ archive: unknown; existing: PropertyProject } | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [notice, setNotice] = useState('');
   const [missingOriginalPhoto, setMissingOriginalPhoto] = useState(false);
@@ -361,6 +362,27 @@ function PropertyTransformer() {
     }
   };
 
+  const restoreImportedProject = async (archive: unknown) => {
+    const restored = await importPropertyProject(archive);
+    const loaded = await loadProjectPreviews(restored);
+    revokeAllObjectUrls();
+    projectRef.current = restored;
+    setProject(restored);
+    setOriginalUrl(loaded.originalUrl);
+    setResults(loaded.results);
+    setMissingOriginalPhoto(loaded.missingSource);
+    setMissingConceptActions(loaded.missingConcepts);
+    setSplitRatio(restored.splitRatio);
+    setActiveTab('studio');
+    setTransferOpen(false);
+    setProjectManagerOpen(false);
+    setPendingDuplicateImport(null);
+    setProjectTransferError('');
+    setUploadError('');
+    setNotice(`“${restored.projectName || 'Transformatiescan'}” is in deze browser hersteld, inclusief de aanwezige foto’s en concepten.`);
+    await refreshProjects();
+  };
+
   const importProjectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
@@ -375,23 +397,32 @@ function PropertyTransformer() {
       } catch {
         throw new Error('Import afgewezen: dit bestand bevat geen geldige JSON-projectexport.');
       }
-      const restored = await importPropertyProject(archive);
-      const loaded = await loadProjectPreviews(restored);
-      revokeAllObjectUrls();
-      projectRef.current = restored;
-      setProject(restored);
-      setOriginalUrl(loaded.originalUrl);
-      setResults(loaded.results);
-      setMissingOriginalPhoto(loaded.missingSource);
-      setMissingConceptActions(loaded.missingConcepts);
-      setSplitRatio(restored.splitRatio);
-      setActiveTab('studio');
-      setTransferOpen(false);
-      setProjectManagerOpen(false);
-      setProjectTransferError('');
-      setUploadError('');
-      setNotice(`“${restored.projectName || 'Transformatiescan'}” is in deze browser hersteld, inclusief de aanwezige foto’s en concepten.`);
-      await refreshProjects();
+      const existing = await findMatchingSavedPropertyProject(archive);
+      if (existing) {
+        setPendingDuplicateImport({ archive, existing });
+        return;
+      }
+      await restoreImportedProject(archive);
+    } catch (error) {
+      setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
+    } finally {
+      setIsProjectTransferring(false);
+    }
+  };
+
+  const openExistingDuplicate = async () => {
+    if (!pendingDuplicateImport) return;
+    const existingId = pendingDuplicateImport.existing.id;
+    setPendingDuplicateImport(null);
+    await openSavedProject(existingId);
+  };
+
+  const importAnotherCopy = async () => {
+    if (!pendingDuplicateImport) return;
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    try {
+      await restoreImportedProject(pendingDuplicateImport.archive);
     } catch (error) {
       setProjectTransferError(error instanceof Error ? error.message : 'Het projectbestand kon niet worden geïmporteerd.');
     } finally {
@@ -593,6 +624,19 @@ function PropertyTransformer() {
      </div>}
     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
     {notice && <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-transform-success"><Check size={15} />{notice}</div>}
+    {pendingDuplicateImport && <div className="fixed inset-0 z-[100] grid place-items-center bg-[#172033]/50 p-4" data-testid="dialog-duplicate-import">
+      <section role="dialog" aria-modal="true" aria-labelledby="duplicate-import-title" aria-describedby="duplicate-import-description" className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <p className="mono text-[9px] uppercase tracking-[.16em] text-[#a95f39]">Projectbestand importeren</p>
+        <h2 id="duplicate-import-title" className="display mt-2 text-2xl font-bold tracking-[-.05em]">Dit project staat al in deze browser</h2>
+        <p id="duplicate-import-description" className="mt-3 text-sm leading-6 text-muted-foreground">“{pendingDuplicateImport.existing.projectName || 'Transformatiescan'}” komt overeen met een opgeslagen project. Open het bestaande project, of importeer bewust nog een kopie.</p>
+        {projectTransferError && <p role="alert" className="mt-4 rounded-lg bg-[#fff1ee] px-3 py-2 text-xs text-[#9e4336]" data-testid="status-duplicate-import-error">{projectTransferError}</p>}
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button onClick={() => { setPendingDuplicateImport(null); setProjectTransferError(''); }} disabled={isProjectTransferring} className="rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary disabled:opacity-50" data-testid="button-cancel-duplicate-import">Annuleren</button>
+          <button onClick={() => void importAnotherCopy()} disabled={isProjectTransferring} className="rounded-xl border border-[#a95f39]/50 px-4 py-3 text-xs font-bold text-[#8c4d2d] hover:bg-[#fff8ef] disabled:opacity-50" data-testid="button-import-another-copy">{isProjectTransferring ? 'Importeren…' : 'Toch een extra kopie importeren'}</button>
+          <button onClick={() => void openExistingDuplicate()} disabled={isProjectTransferring} className="rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] hover:bg-[#30425f] disabled:opacity-50" data-testid="button-open-existing-duplicate">Bestaand project openen</button>
+        </div>
+      </section>
+    </div>}
     <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1" aria-label="Transformer onderdelen">{[{ id: 'studio', label: 'Studio', icon: WandSparkles }, { id: 'split', label: 'Split & flip', icon: Split }, { id: 'roi', label: 'ROI & yield', icon: CircleHelp }].map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActiveTab(id as typeof activeTab)} className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-colors ${activeTab === id ? 'bg-[#24324b] text-[#f7f3ec]' : 'text-muted-foreground hover:bg-secondary'}`} data-testid={`button-tab-${id}`}><Icon size={15} />{label}</button>)}</nav>
     {activeTab === 'studio' && <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,.75fr)]">
       <div className="space-y-6"><Card><CardHeader eyebrow="01 / beeld" title={result ? `${result.label} naast het origineel` : 'Start met één listingfoto'} detail="Selecteer een actie rechts. De vergelijking blijft lokaal beschikbaar zodat je keuzes kunt bespreken." action={result && <ConceptBadge />} /><div className="p-5 sm:p-6">{originalUrl ? <><BeforeAfter originalUrl={originalUrl} result={result} splitRatio={splitRatio} setSplitRatio={(value) => { const next = { ...form, splitRatio: value, updatedAt: new Date().toISOString() }; setSplitRatio(value); updateProject(next); void save(next); }} flipped={form.flipHorizontal} /><div className="mt-3 flex justify-end"><button onClick={() => { const next = { ...form, flipHorizontal: !form.flipHorizontal, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[10px] font-bold text-muted-foreground hover:bg-secondary" data-testid="button-flip-preview"><FlipHorizontal2 size={14} /> {form.flipHorizontal ? 'Spiegeling uit' : 'Spiegel voorbeeld'}</button></div></> : <button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="property-grid flex min-h-[330px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[#cfc8be] bg-[#f3f1ed] p-8 text-center transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-empty-upload"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-[#a95f39] shadow-sm"><ImagePlus size={22} /></div><p className="mt-4 text-sm font-bold">{isUploading ? 'Foto wordt lokaal voorbereid…' : 'Upload de huidige woningfoto'}</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">JPEG of PNG. We verkleinen de foto lokaal tot minder dan 620 KB voor de conceptactie.</p><span className="mt-5 rounded-lg bg-[#a95f39] px-3 py-2 text-[10px] font-bold text-[#fff8ef]">{isUploading ? 'Bezig…' : 'Foto kiezen'}</span></button>}</div></Card>

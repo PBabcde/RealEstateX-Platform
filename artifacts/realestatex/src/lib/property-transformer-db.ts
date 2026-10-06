@@ -317,6 +317,105 @@ export async function loadPropertyProjects(): Promise<PropertyProject[]> {
   }
 }
 
+function duplicateProjectDetails(project: PropertyProject): string {
+  return JSON.stringify({
+    address: project.address,
+    municipality: project.municipality,
+    projectName: project.projectName,
+    notes: project.notes,
+    selectedStyle: project.selectedStyle,
+    selectedResult: project.selectedResult,
+    purchasePrice: project.purchasePrice,
+    renovationCost: project.renovationCost,
+    acquisitionCost: project.acquisitionCost,
+    estimatedValue: project.estimatedValue,
+    monthlyRent: project.monthlyRent,
+    splitRatio: project.splitRatio,
+    flipHorizontal: project.flipHorizontal,
+    roiFields: project.roiFields,
+    units: project.units,
+    checklist: project.checklist,
+  });
+}
+
+function duplicateProjectFingerprint(project: PropertyProject, imageFingerprints: Map<string, string>): string {
+  const imageIdentity = (key: string | undefined) => key
+    ? imageFingerprints.get(key) ?? 'missing'
+    : null;
+  return JSON.stringify({
+    details: duplicateProjectDetails(project),
+    original: imageIdentity(project.originalKey),
+    concepts: Object.fromEntries(PROPERTY_ACTIONS.flatMap((action) => {
+      const key = project.resultKeys[action];
+      return key ? [[action, imageIdentity(key)]] : [];
+    })),
+  });
+}
+
+export async function findMatchingSavedPropertyProject(archiveInput: unknown): Promise<PropertyProject | undefined> {
+  validateArchive(archiveInput);
+  const archive = archiveInput;
+  const archivedDetails = duplicateProjectDetails(archive.project);
+  const archiveImageFingerprints = new Map(archive.images.map((image) => [
+    image.key,
+    JSON.stringify({ sha256: image.sha256, mimeType: image.mimeType, isConcept: image.isConcept }),
+  ]));
+  const archivedFingerprint = duplicateProjectFingerprint(archive.project, archiveImageFingerprints);
+
+  const db = await openDb();
+  try {
+    const { candidates, imageRecords } = await new Promise<{
+      candidates: PropertyProject[];
+      imageRecords: Map<string, PropertyImageRecord | undefined>;
+    }>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readonly');
+      const projectsRequest = transaction.objectStore(PROJECTS).getAll();
+      const imageStore = transaction.objectStore(IMAGES);
+      const imageRecords = new Map<string, PropertyImageRecord | undefined>();
+      let candidates: PropertyProject[] | undefined;
+
+      projectsRequest.onsuccess = () => {
+        candidates = (projectsRequest.result as PropertyProject[])
+          .filter((project) => duplicateProjectDetails(project) === archivedDetails);
+        const imageKeys = new Set(candidates.flatMap((project) => [
+          ...(project.originalKey ? [project.originalKey] : []),
+          ...Object.values(project.resultKeys).filter((key): key is string => Boolean(key)),
+        ]));
+        for (const key of imageKeys) {
+          const request = imageStore.get(key);
+          request.onsuccess = () => { imageRecords.set(key, request.result as PropertyImageRecord | undefined); };
+          request.onerror = () => reject(request.error ?? new Error('De opgeslagen projectfoto’s konden niet worden gelezen.'));
+        }
+      };
+      projectsRequest.onerror = () => reject(projectsRequest.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
+      transaction.oncomplete = () => {
+        if (candidates === undefined) {
+          reject(new Error('De opgeslagen projecten konden niet worden gelezen.'));
+          return;
+        }
+        resolve({ candidates, imageRecords });
+      };
+      transaction.onerror = () => reject(transaction.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
+    });
+
+    const storedImageFingerprints = new Map<string, string>();
+    await Promise.all([...imageRecords].map(async ([key, image]) => {
+      if (!image) return;
+      storedImageFingerprints.set(key, JSON.stringify({
+        sha256: await blobSha256(image.blob),
+        mimeType: image.mimeType || image.blob.type,
+        isConcept: image.isConcept,
+      }));
+    }));
+    return candidates.find((project) =>
+      duplicateProjectFingerprint(project, storedImageFingerprints) === archivedFingerprint,
+    );
+  } finally {
+    db.close();
+  }
+}
+
 export async function loadPropertyProjectsWithPhotoHealth(): Promise<{
   projects: PropertyProject[];
   photoHealthById: Record<string, PropertyProjectPhotoHealth>;
