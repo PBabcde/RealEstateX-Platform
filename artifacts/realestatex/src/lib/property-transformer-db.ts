@@ -325,9 +325,10 @@ function validateProject(project: unknown): asserts project is PropertyProject {
 }
 
 function validateArchive(value: unknown): asserts value is PropertyProjectArchive {
-  if (!isRecord(value) || value.format !== 'realestatex-property-project' || value.version !== 1) {
-    importError('dit is geen ondersteunde RealEstateX-projectexport.');
+  if (!isRecord(value) || value.format !== 'realestatex-property-project') {
+    importError('dit is geen RealEstateX-projectexport.');
   }
+  if (value.version !== 1) importError('deze versie van het RealEstateX-projectbestand wordt niet ondersteund.');
   if (typeof value.exportedAt !== 'string') importError('de exportdatum ontbreekt.');
   validateProject(value.project);
 

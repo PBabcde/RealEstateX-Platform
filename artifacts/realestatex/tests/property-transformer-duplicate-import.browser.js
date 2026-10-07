@@ -128,7 +128,8 @@ function setImportFile(archive, name = 'duplicate-project.realestatex.json') {
   const input = document.querySelector('[data-testid="input-import-project"]');
   assert(input instanceof HTMLInputElement, 'The project import input was not rendered.');
   const transfer = new DataTransfer();
-  transfer.items.add(new File([JSON.stringify(archive)], name, {
+  const contents = typeof archive === 'string' ? archive : JSON.stringify(archive);
+  transfer.items.add(new File([contents], name, {
     type: 'application/json',
   }));
   input.files = transfer.files;
@@ -261,6 +262,16 @@ async function prepareFixture() {
     assert(activeProjectId() === beforeActiveProjectId, `Rejecting the ${label} backup changed which project was open.`);
   };
 
+  await assertRejectedBackup(
+    '{ "format": "realestatex-property-project", "version":',
+    'geen geldige JSON-projectexport',
+    'invalid-json',
+  );
+  await assertRejectedBackup(
+    { ...archive, version: 999 },
+    'versie van het RealEstateX-projectbestand wordt niet ondersteund',
+    'unsupported-version',
+  );
   await assertRejectedBackup(incompleteArchive, 'bronfoto ontbreekt', 'incomplete');
   await assertRejectedBackup(damagedArchive, 'beschadigd', 'checksum-damaged');
 
@@ -406,7 +417,7 @@ async function prepareFixture() {
   }
 
   result.dataset.status = 'passed';
-  result.textContent = 'Passed: the signed-in studio showed recoverable errors for incomplete and checksum-damaged project backups without changing saved projects; a valid import remained available; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
+  result.textContent = 'Passed: the signed-in studio showed recoverable errors for unreadable JSON, unsupported export versions, incomplete backups, and checksum-damaged backups without changing saved projects; a valid import remained available; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
 }
 
 prepareFixture().catch((error) => {
