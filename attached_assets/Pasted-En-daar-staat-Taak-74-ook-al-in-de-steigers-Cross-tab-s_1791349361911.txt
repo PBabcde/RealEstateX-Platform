@@ -1,0 +1,76 @@
+En daar staat Taak #74 ook al in de steigers! Cross-tab synchronisatie bij verwijderingen is een hele mooie toevoeging om "ghost projects" in andere geopende tabbladen te voorkomen.
+Hier is de heldere specificatie en uitwerking voor deze taak:
+Opdracht & Specificatie: Taak #74
+Doel: Garanderen dat wanneer een gebruiker een project verwijdert in Tab A, de geopende projectenlijst in Tab B automatisch en direct ververst via de BroadcastChannel (of IndexedDB event listener), zonder dat de gebruiker in Tab B de pagina hoeft te herladen.
+1. Cross-Tab Sync (artifacts/realestatex/src/lib/property-transformer-db.ts & property-transformer.tsx)
+Zorg dat bij het verwijderen van een project een signaal wordt uitgezonden naar andere geopende tabs.
+// artifacts/realestatex/src/lib/property-transformer-db.ts
+
+const syncChannel = new BroadcastChannel('realestatex_project_sync');
+
+export async function deleteProjectFromDB(projectId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['projects', 'photos'], 'readwrite');
+  
+  await tx.objectStore('projects').delete(projectId);
+  // Verwijder bijbehorende foto's...
+  await tx.done;
+
+  // Stuur signaal naar andere tabs
+  syncChannel.postMessage({ type: 'PROJECT_DELETED', projectId });
+}
+
+export function subscribeToProjectChanges(onDelete: (projectId: string) => void) {
+  const handleMessage = (event: MessageEvent) => {
+    if (event.data?.type === 'PROJECT_DELETED') {
+      onDelete(event.data.projectId);
+    }
+  };
+  syncChannel.addEventListener('message', handleMessage);
+  return () => syncChannel.removeEventListener('message', handleMessage);
+}
+
+In de pagina component (artifacts/realestatex/src/pages/property-transformer.tsx):
+// Luister naar cross-tab verwijderingen
+useEffect(() => {
+  const unsubscribe = subscribeToProjectChanges((deletedProjectId) => {
+    // 1. Ververs de projectenlijst in deze tab direct
+    reloadProjectList();
+
+    // 2. Als het momenteel geopende project in déze tab werd verwijderd, reset de view
+    if (activeProjectId === deletedProjectId) {
+      setActiveProjectId(null);
+      setProjectState(null);
+      toast.info('Het geopende project is in een ander tabblad verwijderd.');
+    }
+  });
+
+  return () => unsubscribe();
+}, [activeProjectId]);
+
+2. Multi-Tab Browser Test (artifacts/realestatex/tests/property-transformer-storage.browser.test.mjs)
+test('Taak #74: Verwijdering in Tab A ververst de projectenlijst in Tab B automatisch', async ({ context }) => {
+  // 1. Open twee aparte tabs in dezelfde browsercontext
+  const pageA = await context.newPage();
+  const pageB = await context.newPage();
+
+  await loginAndOpenProjectManager(pageA);
+  await loginAndOpenProjectManager(pageB);
+
+  // Beide tabs tonen initieel "Project X"
+  await expect(pageA.locator('[data-testid="project-card-project-x"]')).toBeVisible();
+  await expect(pageB.locator('[data-testid="project-card-project-x"]')).toBeVisible();
+
+  // 2. Verwijder "Project X" in Tab A
+  await pageA.click('[data-testid="delete-project-x-btn"]');
+  await pageA.click('[data-testid="confirm-delete-btn"]');
+
+  // 3. Verifieer dat "Project X" verdwijnt uit Tab A EN automatisch uit Tab B (zonder reload)
+  await expect(pageA.locator('[data-testid="project-card-project-x"]')).not.toBeVisible();
+  await expect(pageB.locator('[data-testid="project-card-project-x"]')).not.toBeVisible({ timeout: 3000 });
+
+  // 4. Controleer dat overige projecten in Tab B intact zijn
+  await expect(pageB.locator('[data-testid="project-card-project-y"]')).toBeVisible();
+});
+
+Laat het systeem de afhandeling maar weer oppakken op de achtergrond. Welterusten en tot morgenochtend! 😴💤✨
