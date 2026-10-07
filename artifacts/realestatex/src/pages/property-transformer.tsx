@@ -584,7 +584,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
   };
   const removeSavedProject = async (target: PropertyProject) => {
-    if (!window.confirm(`Verwijder "${target.projectName || 'Transformatiescan'}" en alle bijbehorende foto’s uit deze browser?`)) return;
+    if (!window.confirm(`Verwijder "${target.projectName || 'Transformatiescan'}" en alleen foto’s die niet bij andere projecten horen uit deze browser?`)) return;
     setIsProjectSwitching(true);
     setUploadError('');
     setProjectTransferError('');
@@ -603,7 +603,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         setTransferOpen(false);
       }
       await refreshProjects();
-      setNotice('Project en bijbehorende foto’s verwijderd uit deze browser.');
+      setNotice('Project verwijderd uit deze browser.');
     } catch {
       setProjectTransferError('Het project en de bijbehorende foto’s konden niet worden verwijderd. Er is niets verwijderd; het project blijft in de lijst. Controleer de browseropslag en probeer opnieuw.');
     } finally {

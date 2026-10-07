@@ -610,6 +610,22 @@ async function runCrossTabPhotoHealthChecks() {
       window.addEventListener('message', onMessage);
       writer.postMessage({ operation, requestId, ...payload }, location.origin);
     });
+    const waitForWriter = async (predicate, description) => {
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        if (!writer || writer.closed) throw new Error('The second project-list tab closed unexpectedly.');
+        if (predicate(writer.document)) return;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error(`Timed out waiting for ${description}.`);
+    };
+
+    await runWriterCommand('open-project-list');
+    await waitForWriter(
+      (documentInWriter) => documentInWriter.querySelector(`[data-testid="project-row-${project.id}"]`)
+        && documentInWriter.querySelector(`[data-testid="status-project-photo-health-${project.id}"]`)?.textContent.includes('Conceptfoto ontbreken: Virtual stage'),
+      'the same saved project and photo status to appear in the second tab',
+    );
 
     await runWriterCommand('add-concept', { key: project.resultKeys.stage });
     await waitForStatus(
@@ -735,6 +751,76 @@ async function runCrossTabPhotoHealthChecks() {
       'Cross-tab photo recovery did not update the saved source-photo reference.',
     );
     assert(savedProject.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
+
+    const survivorProject = expectedProjects.beta;
+    await waitForEditor(
+      () => editorRootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
+        && editorRootElement.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
+      'the surviving project to appear with healthy shared-photo status in the first tab',
+    );
+    await waitForWriter(
+      (documentInWriter) => documentInWriter.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
+        && documentInWriter.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
+      'the surviving project to appear with healthy shared-photo status in the second tab',
+    );
+
+    const originalBeforeDelete = await loadPropertyImage(survivorProject.originalKey);
+    const survivorResultAction = Object.keys(survivorProject.resultKeys)[0];
+    const conceptBeforeDelete = await loadPropertyImage(survivorProject.resultKeys[survivorResultAction]);
+    assert(originalBeforeDelete && conceptBeforeDelete, 'The shared-photo deletion fixture did not begin with both referenced images.');
+    const sharedPhotoContentsBeforeDelete = {
+      original: await originalBeforeDelete.blob.text(),
+      concept: await conceptBeforeDelete.blob.text(),
+    };
+
+    await runWriterCommand('delete-project', { id: project.id });
+    await waitForEditor(
+      () => !editorRootElement.querySelector(`[data-testid="project-row-${project.id}"]`)
+        && editorRootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
+        && editorRootElement.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
+      'the first open project list to remove the deleted project and retain the healthy survivor',
+    );
+    await waitForWriter(
+      (documentInWriter) => !documentInWriter.querySelector(`[data-testid="project-row-${project.id}"]`)
+        && documentInWriter.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
+        && documentInWriter.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
+      'the second open project list to remove the deleted project and retain the healthy survivor',
+    );
+    assert(!(await loadPropertyProject(project.id)), 'The project deleted from the second tab remained in browser storage.');
+    assert(
+      JSON.stringify(await loadPropertyProject(survivorProject.id)) === JSON.stringify(survivorProject),
+      'Deleting a project in another tab changed the surviving project.',
+    );
+    const survivingImagesAfterDelete = await loadPropertyProjectImages(survivorProject);
+    assert(
+      survivingImagesAfterDelete.original
+        && (await survivingImagesAfterDelete.original.blob.text()) === sharedPhotoContentsBeforeDelete.original,
+      'Deleting a project in another tab removed or changed a source photo still referenced by the survivor.',
+    );
+    assert(
+      survivingImagesAfterDelete.results[survivorResultAction]
+        && (await survivingImagesAfterDelete.results[survivorResultAction].blob.text()) === sharedPhotoContentsBeforeDelete.concept,
+      'Deleting a project in another tab removed or changed a concept photo still referenced by the survivor.',
+    );
+    const survivorHealthAfterDelete = await loadPropertyProjectsWithPhotoHealth();
+    assert(
+      survivorHealthAfterDelete.photoHealthById[survivorProject.id]?.sourcePhoto === 'available'
+        && survivorHealthAfterDelete.photoHealthById[survivorProject.id]?.missingConcepts.length === 0,
+      'The surviving project showed stale or missing photo-health information after the cross-tab deletion.',
+    );
+
+    const sharedPhotoCopy = {
+      ...survivorProject,
+      id: 'browser-shared-photo-delete-copy',
+      projectName: 'Shared photo deletion copy',
+    };
+    await savePropertyProject(sharedPhotoCopy);
+    await deletePropertyProject(sharedPhotoCopy);
+    assert(
+      JSON.stringify(await loadPropertyProject(survivorProject.id)) === JSON.stringify(survivorProject),
+      'Deleting a project that shared photo references changed the remaining project.',
+    );
+    await assertProjectAndPhotos('beta');
   } finally {
     window.__simulateSleepingPhotoListTab = false;
     if (originalVisibilityDescriptor) {
@@ -1042,7 +1128,7 @@ async function run() {
     await deletePropertyImage('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: the open editor and saved-project list refresh source and concept photo previews and warnings after cross-tab additions, removals, and recovery, while the editor keeps its in-progress form edits, settings, and selected scenario. Portfolio restore rolled back queued projects and images after quota, browser-access, and other IndexedDB failures, with cause-specific guidance shown in the UI. Saved-project search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the remaining project and its photos stayed unchanged, including shared photo references. The open editor and project list also refresh photo previews and warnings after cross-tab additions, removals, and recovery without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';
     return;
   }
 

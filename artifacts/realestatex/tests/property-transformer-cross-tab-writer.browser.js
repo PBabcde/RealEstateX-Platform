@@ -1,10 +1,77 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Router } from 'wouter';
 import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
 import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
+import { PropertyTransformer } from '../src/pages/property-transformer.tsx';
 
-const { deletePropertyImage, savePropertyImage, savePropertyProjectWithImage } =
-  createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
+const storage = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
+const { deletePropertyImage, loadPropertyProject, savePropertyImage, savePropertyProjectWithImage } = storage;
 
 const result = document.querySelector('#test-result');
+const root = createRoot(document.querySelector('#app-root'));
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+});
+
+root.render(
+  React.createElement(QueryClientProvider, { client: queryClient },
+    React.createElement(Router, null,
+      React.createElement(PropertyTransformer, {
+        accountId: PROPERTY_STORAGE_TEST_ACCOUNT_ID,
+        userEmail: '',
+      }),
+    ),
+  ),
+);
+
+function waitFor(predicate, description) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 15_000;
+    const check = () => {
+      if (predicate()) {
+        resolve();
+      } else if (Date.now() >= deadline) {
+        reject(new Error(`Timed out waiting for ${description}.`));
+      } else {
+        setTimeout(check, 50);
+      }
+    };
+    check();
+  });
+}
+
+async function openProjectList() {
+  await waitFor(
+    () => document.querySelector('[data-testid="button-open-projects"]'),
+    'the project-list button in the second tab',
+  );
+  document.querySelector('[data-testid="button-open-projects"]').click();
+  await waitFor(
+    () => document.querySelector('[data-testid="dialog-project-manager"]'),
+    'the saved-project list in the second tab',
+  );
+}
+
+async function deleteProjectFromList(id) {
+  const selector = `[data-testid="button-delete-project-${id}"]`;
+  await waitFor(() => document.querySelector(selector), `the delete action for ${id} in the second tab`);
+  const originalConfirm = window.confirm;
+  window.confirm = () => true;
+  try {
+    document.querySelector(selector).click();
+  } finally {
+    window.confirm = originalConfirm;
+  }
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    const remainingProject = await loadPropertyProject(id);
+    if (!remainingProject && !document.querySelector(`[data-testid="project-row-${id}"]`)) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`The project ${id} did not disappear from the second tab after deletion.`);
+}
 
 async function deleteImageWithoutNotification(key) {
   const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
@@ -40,9 +107,13 @@ function makeImage(key, label, isConcept, content) {
 
 window.addEventListener('message', async (event) => {
   if (event.source !== window.opener || event.origin !== location.origin) return;
-  const { operation, requestId, key, project } = event.data ?? {};
+  const { operation, requestId, key, project, id } = event.data ?? {};
   try {
-    if (operation === 'add-concept') {
+    if (operation === 'open-project-list') {
+      await openProjectList();
+    } else if (operation === 'delete-project') {
+      await deleteProjectFromList(id);
+    } else if (operation === 'add-concept') {
       await savePropertyImage(makeImage(key, 'Virtual stage', true, 'cross-tab concept'));
     } else if (operation === 'remove-image') {
       await deletePropertyImage(key);
@@ -68,6 +139,6 @@ window.addEventListener('message', async (event) => {
 });
 
 if (window.opener) {
-  result.textContent = 'Photo writer ready.';
+  result.textContent = 'Project-list tab ready.';
   window.opener.postMessage({ source: 'photo-writer', type: 'ready' }, location.origin);
 }

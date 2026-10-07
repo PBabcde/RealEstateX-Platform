@@ -664,16 +664,38 @@ export async function loadLatestPropertyProject(scope: StorageScope = null): Pro
 
 export async function deletePropertyProject(project: Pick<PropertyProject, 'id' | 'originalKey' | 'resultKeys'>, scope: StorageScope = null): Promise<void> {
   const db = await openDb(scope);
-  const imageKeys = new Set([project.originalKey, ...Object.values(project.resultKeys)].filter((key): key is string => Boolean(key)));
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
-      transaction.objectStore(PROJECTS).delete(project.id);
+      const projectStore = transaction.objectStore(PROJECTS);
       const imageStore = transaction.objectStore(IMAGES);
-      for (const key of imageKeys) imageStore.delete(key);
+      const projectsRequest = projectStore.getAll();
+      projectsRequest.onsuccess = () => {
+        const storedProjects = projectsRequest.result as PropertyProject[];
+        const projectToDelete = storedProjects.find((storedProject) => storedProject.id === project.id);
+        const imageKeys = new Set([
+          projectToDelete?.originalKey ?? '',
+          ...Object.values(projectToDelete?.resultKeys ?? {}),
+        ].filter((key): key is string => Boolean(key)));
+        const referencedImageKeys = new Set(
+          storedProjects
+            .filter((storedProject) => storedProject.id !== project.id)
+            .flatMap((storedProject) => [
+              storedProject.originalKey,
+              ...Object.values(storedProject.resultKeys),
+            ])
+            .filter((key): key is string => Boolean(key)),
+        );
+
+        projectStore.delete(project.id);
+        for (const key of imageKeys) {
+          if (!referencedImageKeys.has(key)) imageStore.delete(key);
+        }
+      };
+      projectsRequest.onerror = () => reject(projectsRequest.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error);
+      transaction.onerror = () => reject(transaction.error ?? new Error('Het project kon niet worden verwijderd.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('Het project kon niet worden verwijderd.'));
     });
     notifyPropertyStorageChanged(scope);
   } finally {
