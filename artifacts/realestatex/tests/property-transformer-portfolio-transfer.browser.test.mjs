@@ -231,7 +231,7 @@ function assertDownloadedPortfolio(archive, expectedProjects) {
     for (const expectedImage of expected.images) {
       const image = imagesByKey.get(expectedImage.key);
       assert.ok(image, `${expected.project.projectName} is missing ${expectedImage.label} in the download.`);
-      assert.equal(Buffer.from(image.blobBase64, 'base64').toString('utf8'), expectedImage.payload, `${expectedImage.label} bytes changed in the download.`);
+      assert.equal(image.blobBase64, expectedImage.payloadBase64, `${expectedImage.label} bytes changed in the download.`);
       assert.equal(image.mimeType, expectedImage.mimeType, `${expectedImage.label} MIME type changed in the download.`);
       assert.equal(image.isConcept, expectedImage.isConcept, `${expectedImage.label} source/concept flag changed in the download.`);
       assert.equal(image.label, expectedImage.label, `${expectedImage.label} metadata changed in the download.`);
@@ -253,6 +253,7 @@ function assertRestoredPortfolio(snapshot, expectedProjects) {
   for (const expected of expectedProjects) {
     const restored = restoredByName.get(expected.project.projectName);
     assert.ok(restored, `${expected.project.projectName} was not restored.`);
+    assert.notEqual(restored.project.id, expected.project.id, `${expected.project.projectName} was not restored as a new project.`);
     const { id: _id, originalKey: _originalKey, resultKeys: _resultKeys, ...restoredFields } = restored.project;
     const { id: _expectedId, originalKey: _expectedOriginalKey, resultKeys: _expectedResultKeys, ...expectedFields } = expected.project;
     assert.deepEqual(restoredFields, expectedFields, `${expected.project.projectName} project data changed during restore.`);
@@ -266,7 +267,7 @@ function assertRestoredPortfolio(snapshot, expectedProjects) {
       assert.ok(restoredKey, `${expected.project.projectName} no longer references ${expectedImage.label}.`);
       const image = imagesByKey.get(restoredKey);
       assert.ok(image?.found, `${expectedImage.label} is not available in the restored browser profile.`);
-      assert.equal(image.payload, expectedImage.payload, `${expectedImage.label} bytes changed during restore.`);
+      assert.equal(image.payloadBase64, expectedImage.payloadBase64, `${expectedImage.label} bytes changed during restore.`);
       assert.equal(image.mimeType, expectedImage.mimeType, `${expectedImage.label} MIME type changed during restore.`);
       assert.equal(image.isConcept, expectedImage.isConcept, `${expectedImage.label} source/concept flag changed during restore.`);
       assert.equal(image.label, expectedImage.label, `${expectedImage.label} metadata changed during restore.`);
@@ -397,6 +398,42 @@ async function runRestore(restoreDebugPort, restoreBrowser, restoreUrl, backupFi
     assertRestoredPortfolio(beforeReload, expectedProjects);
     assertNoServerUploads(page, 'Portfolio restore');
 
+    const recoveredExpected = expectedProjects.find(({ project }) => project.id === 'portfolio-transfer-river');
+    assert.ok(recoveredExpected, 'The recovered-JPEG project is missing from the export fixture.');
+    const restoredRecoveredProject = beforeReload.find(
+      ({ project }) => project.projectName === recoveredExpected.project.projectName,
+    )?.project;
+    assert.ok(restoredRecoveredProject, 'The recovered-JPEG project is missing after restore.');
+    await page.evaluate(
+      `document.querySelector('[data-testid="button-open-project-${restoredRecoveredProject.id}"]')?.click()`,
+    );
+    const restoredPreview = await page.waitFor(
+      `(async () => {
+        const preview = document.querySelector('img[alt="Originele woningfoto"]');
+        const project = (await window.__portfolioTransferTest.snapshotProjects())
+          .find(({ project }) => project.projectName === ${JSON.stringify(recoveredExpected.project.projectName)})?.project;
+        const scenarioHeading = Array.from(document.querySelectorAll('h2'))
+          .find((heading) => heading.textContent?.includes('Virtual stage naast het origineel'));
+        return {
+          projectId: project?.id,
+          selectedResult: project?.selectedResult,
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+          previewWidth: preview?.naturalWidth ?? 0,
+          previewHeight: preview?.naturalHeight ?? 0,
+          scenarioVisible: Boolean(scenarioHeading),
+          managerOpen: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        };
+      })()`,
+      (value) => value?.previewLoaded
+        && value.projectId === restoredRecoveredProject.id
+        && value.selectedResult === recoveredExpected.project.selectedResult
+        && value.scenarioVisible
+        && !value.managerOpen,
+      'the restored recovered-JPEG source preview and selected scenario to load',
+    );
+    assert.equal(restoredPreview.previewWidth, 2, 'The restored recovered portrait JPEG has an unexpected preview width.');
+    assert.equal(restoredPreview.previewHeight, 3, 'The restored recovered portrait JPEG has an unexpected preview height.');
+
     await page.navigate(restoreUrl);
     await page.waitFor(
       `(() => ({
@@ -483,7 +520,7 @@ try {
   ], { stdio: 'ignore' });
   restoreTimeout = setTimeout(() => restoreBrowser.kill('SIGKILL'), 120_000);
   await runRestore(restoreDebugPort, restoreBrowser, restoreUrl, backupFilePath, expectedProjects);
-  console.log('Passed: exported the signed-in portfolio manager download, restored it in a separate empty Chromium profile, and verified every project, source photo, and concept after reload without server uploads.');
+  console.log('Passed: restored a missing source from an EXIF-rotated phone-camera JPEG, exported it, restored it as a new project in a separate empty Chromium profile, and verified its upright source preview, assumptions, selected scenario, other photos, and post-reload data without server uploads.');
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   if (serverOutput) console.error(`Vite output:\n${serverOutput}`);

@@ -4,6 +4,8 @@ import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-accoun
 const storage = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 const result = document.querySelector('#test-result');
 const mode = new URL(window.location.href).searchParams.get('mode');
+const recoveredJpegProjectId = 'portfolio-transfer-river';
+const recoveredJpegBase64 = '/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAACAAMDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ADoDFU3/2Q==';
 const definitions = [
   {
     id: 'portfolio-transfer-river',
@@ -67,7 +69,9 @@ function buildProject(definition) {
     projectName: definition.name,
     notes: `Backup restore verification for ${definition.name}.`,
     selectedStyle: definition.style,
-    originalKey: `${definition.id}-source`,
+    originalKey: definition.id === recoveredJpegProjectId
+      ? `${definition.id}-recovered-source`
+      : `${definition.id}-source`,
     resultKeys,
     selectedResult: definition.actions[0],
     purchasePrice: definition.purchasePrice,
@@ -103,11 +107,12 @@ const expectedProjects = definitions.map((definition) => {
       key: project.originalKey,
       kind: 'source',
       label: 'Originele foto',
-      mimeType: 'image/png',
+      mimeType: project.id === recoveredJpegProjectId ? 'image/jpeg' : 'image/png',
       isConcept: false,
       disclaimer: 'Original source photo, stored locally.',
       createdAt: '2026-08-01T08:00:00.000Z',
       payload: `${project.id}:source-photo:portfolio-download-restore`,
+      ...(project.id === recoveredJpegProjectId ? { payloadBase64: recoveredJpegBase64 } : {}),
     },
     ...definition.actions.map((action) => ({
       key: project.resultKeys[action],
@@ -120,7 +125,10 @@ const expectedProjects = definitions.map((definition) => {
       createdAt: `2026-08-02T0${definition.actions.indexOf(action) + 8}:00:00.000Z`,
       payload: `${project.id}:${action}:portfolio-download-restore`,
     })),
-  ];
+  ].map((image) => ({
+    ...image,
+    payloadBase64: image.payloadBase64 ?? btoa(image.payload),
+  }));
   return { project, images };
 });
 
@@ -149,6 +157,9 @@ async function snapshotProjects() {
     const images = await Promise.all(keys.map(async (key) => {
       const image = await storage.loadPropertyImage(key);
       if (!image) return { key, found: false };
+      const bytes = new Uint8Array(await image.blob.arrayBuffer());
+      let binary = '';
+      for (const byte of bytes) binary += String.fromCharCode(byte);
       return {
         key,
         found: true,
@@ -157,7 +168,7 @@ async function snapshotProjects() {
         isConcept: image.isConcept,
         disclaimer: image.disclaimer,
         createdAt: image.createdAt,
-        payload: await image.blob.text(),
+        payloadBase64: btoa(binary),
       };
     }));
     return { project, images };
@@ -174,17 +185,57 @@ async function prepare() {
       await storage.deletePropertyProject(existing);
     }
     for (const expected of expectedProjects) {
-      await storage.savePropertyProject(expected.project);
+      const isRecoveredJpegProject = expected.project.id === recoveredJpegProjectId;
+      const initialProject = isRecoveredJpegProject
+        ? { ...expected.project, originalKey: `${expected.project.id}-missing-source` }
+        : expected.project;
+      await storage.savePropertyProject(initialProject);
       for (const image of expected.images) {
+        if (isRecoveredJpegProject && image.kind === 'source') continue;
+        const imageBytes = Uint8Array.from(atob(image.payloadBase64), (character) => character.charCodeAt(0));
         await storage.savePropertyImage({
           key: image.key,
-          blob: new Blob([image.payload], { type: image.mimeType }),
+          blob: new Blob([imageBytes], { type: image.mimeType }),
           label: image.label,
           mimeType: image.mimeType,
           isConcept: image.isConcept,
           disclaimer: image.disclaimer,
           createdAt: image.createdAt,
         });
+      }
+      if (isRecoveredJpegProject) {
+        const missingPhotoState = await storage.loadPropertyProjectImages(initialProject);
+        if (!missingPhotoState.missingOriginal || missingPhotoState.original) {
+          throw new Error('The recovered-JPEG project did not begin with a missing source photo.');
+        }
+        const recoveredImage = expected.images.find((image) => image.kind === 'source');
+        if (!recoveredImage) throw new Error('The recovered-JPEG source fixture is missing.');
+        const imageBytes = Uint8Array.from(atob(recoveredImage.payloadBase64), (character) => character.charCodeAt(0));
+        const recovery = await storage.replacePropertySourceImage(
+          initialProject.id,
+          {
+            key: recoveredImage.key,
+            blob: new Blob([imageBytes], { type: recoveredImage.mimeType }),
+            label: recoveredImage.label,
+            mimeType: recoveredImage.mimeType,
+            isConcept: recoveredImage.isConcept,
+            disclaimer: recoveredImage.disclaimer,
+            createdAt: recoveredImage.createdAt,
+          },
+          true,
+          initialProject.resultKeys,
+        );
+        const expectedSettings = { ...initialProject };
+        delete expectedSettings.originalKey;
+        delete expectedSettings.updatedAt;
+        const recoveredSettings = { ...recovery.project };
+        delete recoveredSettings.originalKey;
+        delete recoveredSettings.updatedAt;
+        if (JSON.stringify(recoveredSettings) !== JSON.stringify(expectedSettings)
+          || recovery.project.selectedResult !== initialProject.selectedResult) {
+          throw new Error('Restoring the missing JPEG source changed project assumptions or the selected scenario.');
+        }
+        expected.project = recovery.project;
       }
     }
   }
