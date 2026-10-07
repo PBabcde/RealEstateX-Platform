@@ -1080,15 +1080,28 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
   onImportPortfolio: () => void;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortPreference, setSortPreference] = useState(() => readPropertyProjectSortOrderPreference(accountId));
+  const [storedSortPreference, setStoredSortPreference] = useState(() => ({
+    accountId,
+    preference: readPropertyProjectSortOrderPreference(accountId),
+  }));
+  const sortPreference = storedSortPreference.accountId === accountId
+    ? storedSortPreference.preference
+    : readPropertyProjectSortOrderPreference(accountId);
   const sortOrder = sortPreference.order;
   const updateSortOrder = (order: PropertyProjectSortOrder) => {
     const storageAvailable = savePropertyProjectSortOrderPreference(order, accountId);
-    setSortPreference({ order, storageAvailable });
+    setStoredSortPreference({ accountId, preference: { order, storageAvailable } });
   };
-  useEffect(() => subscribePropertyProjectSortOrderPreferenceChanges(() => {
-    setSortPreference(readPropertyProjectSortOrderPreference(accountId));
-  }, accountId), [accountId]);
+  useEffect(() => {
+    const refreshSortPreference = () => {
+      setStoredSortPreference({
+        accountId,
+        preference: readPropertyProjectSortOrderPreference(accountId),
+      });
+    };
+    refreshSortPreference();
+    return subscribePropertyProjectSortOrderPreferenceChanges(refreshSortPreference, accountId);
+  }, [accountId]);
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
   const matchingProjects = sortPropertyProjects(projects.filter((item) => {
     const searchableText = [item.projectName || 'Transformatiescan', item.address, item.municipality]

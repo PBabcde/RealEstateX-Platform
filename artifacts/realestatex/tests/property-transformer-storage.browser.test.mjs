@@ -1118,7 +1118,36 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
     if (clearedWarning.text) throw new Error('The storage warning remained after preference storage became available again.');
     await evaluate(firstTab, `window.__propertySortSyncTest.cleanupStorage()`);
 
-    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}).`;
+    const secondAccountId = 'property-sort-order-second-account-browser-test';
+    await evaluate(firstTab, `(() => {
+      window.__propertySortSyncTest.savePreference('name', window.__propertySortSyncTest.accountId);
+      window.__propertySortSyncTest.savePreference('municipality', ${JSON.stringify(secondAccountId)});
+      window.__propertySortSyncTest.switchAccount(${JSON.stringify(secondAccountId)});
+    })()`);
+    await waitForState(firstTab, 'municipality', municipalityOrder, 'the second account to load its own project order');
+
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(window.__propertySortSyncTest.accountId)`);
+    await waitForState(firstTab, 'name', nameOrder, 'the first account to keep its saved project order');
+
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(${JSON.stringify(secondAccountId)})`);
+    await waitForState(firstTab, 'municipality', municipalityOrder, 'the second account to keep its saved project order');
+    await selectOrder(firstTab, 'recent');
+    await waitForState(firstTab, 'recent', recentOrder, 'the second account to save a different project order');
+
+    const accountPreferences = await evaluate(firstTab, `({
+      first: window.__propertySortSyncTest.readPreference(window.__propertySortSyncTest.accountId),
+      second: window.__propertySortSyncTest.readPreference(${JSON.stringify(secondAccountId)}),
+    })`);
+    if (accountPreferences.first !== 'name' || accountPreferences.second !== 'recent') {
+      throw new Error(`Changing one account's order overwrote another account's preference: ${JSON.stringify(accountPreferences)}.`);
+    }
+
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(window.__propertySortSyncTest.accountId)`);
+    await waitForState(firstTab, 'name', nameOrder, 'the first account after changing the second account preference');
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(${JSON.stringify(secondAccountId)})`);
+    await waitForState(firstTab, 'recent', recentOrder, 'the second account after switching back');
+
+    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}); switching accounts loaded and saved each account's separate project order.`;
   } finally {
     for (const { devTools } of targets) devTools.close();
     await Promise.all(targets.map(({ targetId }) =>

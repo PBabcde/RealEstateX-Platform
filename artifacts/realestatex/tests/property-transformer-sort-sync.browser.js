@@ -93,10 +93,16 @@ async function initialize() {
     onImportPortfolio() {},
   };
   let root = createRoot(document.querySelector('#root'));
-  const mountProjectManager = () => root.render(createElement(ProjectManager, managerProps));
+  const mountProjectManager = (scope = accountId) => root.render(createElement(ProjectManager, {
+    ...managerProps,
+    accountId: scope,
+  }));
   window.__propertySortSyncTest = {
     accountId,
+    savePreference: (order, scope) => savePropertyProjectSortOrderPreference(order, scope),
+    readPreference: (scope) => loadPropertyProjectSortOrderPreference(scope),
     preferenceKey: `realestatex.property-project-sort-order:${encodeURIComponent(accountId)}`,
+    switchAccount: (scope) => mountProjectManager(scope),
     readProjects: async () => (await storage.loadPropertyProjects())
       .filter((project) => projectIds.has(project.id))
       .sort((left, right) => left.id.localeCompare(right.id)),
