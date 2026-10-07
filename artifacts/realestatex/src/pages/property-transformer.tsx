@@ -129,12 +129,93 @@ function isHttpStatus(error: unknown, status: number): boolean {
     && error.status === status;
 }
 
-function ProBetaWaitlistDialog({ initialEmail, onClose }: { initialEmail: string; onClose: () => void }) {
+function ProBetaWaitlistDialog({ initialEmail, returnFocusTarget, onClose }: { initialEmail: string; returnFocusTarget: HTMLElement | null; onClose: () => void }) {
   const joinWaitlist = useJoinPropertyProBetaWaitlist();
   const [email, setEmail] = useState(initialEmail);
   const [consent, setConsent] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    returnFocusRef.current = returnFocusTarget?.isConnected
+      ? returnFocusTarget
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const getFocusableElements = () => Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.hidden
+      && element.getAttribute('aria-hidden') !== 'true'
+      && element.getClientRects().length > 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const focusIsOutsideDialog = !dialog.contains(document.activeElement);
+      if (focusIsOutsideDialog
+        || (event.shiftKey && document.activeElement === first)
+        || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      const preferredReturnTarget = returnFocusRef.current;
+      window.requestAnimationFrame(() => {
+        const candidates = [
+          preferredReturnTarget,
+          document.querySelector<HTMLElement>('button[data-testid^="button-transform-"]:not(:disabled)'),
+          document.querySelector<HTMLElement>('[data-testid="button-open-projects"]'),
+        ];
+        const returnTarget = candidates.find((candidate) => candidate?.isConnected
+          && !candidate.matches(':disabled')
+          && candidate.getAttribute('aria-disabled') !== 'true');
+        returnTarget?.focus();
+        if (returnFocusRef.current === preferredReturnTarget) {
+          returnFocusRef.current = null;
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const preferredTarget = registered
+      ? dialog.querySelector<HTMLElement>('[data-testid="button-close-beta-success"]')
+      : dialog.querySelector<HTMLElement>('[data-testid="input-pro-beta-email"]');
+    const focusableTarget = preferredTarget
+      ?? dialog.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])')
+      ?? dialog;
+    focusableTarget.focus();
+  }, [registered]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -149,7 +230,7 @@ function ProBetaWaitlistDialog({ initialEmail, onClose }: { initialEmail: string
     }
   };
 
-  return <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[#1c2739]/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-pro-beta-title" data-testid="dialog-pro-beta">
+  return <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[#1c2739]/65 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-pro-beta-title" data-testid="dialog-pro-beta">
     <div className="my-6 w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
       <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
         <div><p className="mono text-[9px] uppercase tracking-[.18em] text-[#a95f39]">RealEstateX Pro</p><h2 id="property-pro-beta-title" className="display mt-1 text-2xl font-bold tracking-[-.05em]">{registered ? 'Je staat op de lijst' : 'Pro-bèta aanvragen'}</h2></div>
@@ -208,6 +289,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [deletedProjectName, setDeletedProjectName] = useState<string | null>(null);
+  const proBetaDialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectListRefreshSequence = useRef(0);
   const projectManagerReturnFocusRef = useRef<HTMLElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -956,6 +1038,9 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       if (missingOriginalPhoto) setUploadError('Herstel eerst de bronfoto voordat je een ontbrekend concept opnieuw maakt.');
       return;
     }
+    proBetaDialogReturnFocusRef.current = document.querySelector<HTMLElement>(
+      `[data-testid="button-transform-${action}"]`,
+    );
     setUploadError('');
     void (async () => {
       try {
@@ -1142,7 +1227,14 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
     {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
-  </div>{proBetaDialogOpen && <ProBetaWaitlistDialog initialEmail={userEmail} onClose={() => setProBetaDialogOpen(false)} />}</AppShell>;
+  </div>{proBetaDialogOpen && <ProBetaWaitlistDialog
+    initialEmail={userEmail}
+    returnFocusTarget={proBetaDialogReturnFocusRef.current}
+    onClose={() => {
+      setProBetaDialogOpen(false);
+      proBetaDialogReturnFocusRef.current = null;
+    }}
+  />}</AppShell>;
 }
 
 function formatProjectUpdatedAt(value: string): string {
