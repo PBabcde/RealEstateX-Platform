@@ -53,7 +53,7 @@ async function compressImage(file: File): Promise<{ dataUrl: string; blob: Blob 
 
   let bitmap: ImageBitmap;
   try {
-    bitmap = await createImageBitmap(file);
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   } catch {
     throw new Error('Deze afbeelding kan niet worden gelezen. Kies een geldige JPEG- of PNG-afbeelding.');
   }
@@ -113,7 +113,7 @@ function ConceptBadge() {
 }
 
 function BeforeAfter({ originalUrl, result, splitRatio, setSplitRatio, flipped }: { originalUrl: string; result?: ResultMeta; splitRatio: number; setSplitRatio: (value: number) => void; flipped: boolean }) {
-  if (!result) return <div className="property-grid grid min-h-[330px] place-items-center rounded-xl border border-dashed border-border bg-[#f3f1ed] p-8 text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-card text-muted-foreground shadow-sm"><ImagePlus size={20} /></div><p className="mt-4 text-sm font-bold">Kies een actie voor een resultaat</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">Je originele foto blijft lokaal in deze browser. De preview hierna is altijd een concept.</p></div></div>;
+  if (!result) return <div><div className="property-grid flex h-[330px] items-center justify-center overflow-hidden rounded-xl border border-dashed border-border bg-[#f3f1ed] p-4"><img src={originalUrl} alt="Originele woningfoto" className="h-full w-full object-contain" /></div><p className="mt-3 text-xs leading-5 text-muted-foreground">De originele foto blijft lokaal in deze browser. Er is nog geen conceptresultaat beschikbaar.</p></div>;
   return <div className="overflow-hidden rounded-xl border border-[#d9d4cb] bg-[#ebe7e0]"><div className="relative aspect-[4/3] overflow-hidden" style={{ transform: flipped ? 'scaleX(-1)' : undefined }}><img src={originalUrl} alt="Originele woningfoto" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 overflow-hidden" style={{ width: `${splitRatio}%` }}><img src={result.imageUrl} alt={`${result.label} concept`} className="h-full w-full object-cover" style={{ width: `${10000 / (splitRatio || 100)}%`, maxWidth: 'none' }} /></div><div className="absolute inset-y-0 z-10 w-px bg-[#f8f5ef] shadow-[0_0_0_1px_rgba(32,39,51,.24)]" style={{ left: `${splitRatio}%` }}><div className="absolute left-1/2 top-1/2 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-[#f8f5ef] bg-[#24324b] text-white shadow-lg"><ArrowLeftRight size={14} /></div></div><span className="absolute left-3 top-3 rounded bg-[#24324b]/85 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#f7f3ec]">Concept</span><span className="absolute right-3 top-3 rounded bg-[#f7f3ec]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#24324b]">Origineel</span></div><div className="border-t border-[#d9d4cb] bg-card px-4 py-3"><div className="flex items-center justify-between text-[10px] font-bold"><span>Resultaat</span><span className="mono text-muted-foreground">{splitRatio}% concept</span></div><input type="range" min="0" max="100" value={splitRatio} onChange={(event) => setSplitRatio(Number(event.target.value))} className="mt-1 h-5 w-full cursor-ew-resize accent-[#a95f39]" aria-label="Voor en na vergelijking" data-testid="input-before-after-split" /><p className="mt-1 text-[10px] leading-4 text-muted-foreground">Gebruik de schuif met toetsenbord. AI-visualisatie: geen feitelijke representatie van de woning.</p></div></div>;
 }
 

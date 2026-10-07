@@ -354,6 +354,21 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (persisted.project.selectedResult !== 'stage') {
       throw new Error(`Source-photo recovery changed the selected scenario to ${persisted.project.selectedResult}.`);
     }
+    const recoveredPreview = await waitFor(
+      `(() => {
+        const preview = document.querySelector('img[alt="Originele woningfoto"]');
+        return {
+          loaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+          width: preview?.naturalWidth ?? 0,
+          height: preview?.naturalHeight ?? 0,
+        };
+      })()`,
+      (value) => value?.loaded,
+      'the recovered source photo preview to finish loading',
+    );
+    if (recoveredPreview.width !== 2 || recoveredPreview.height !== 3) {
+      throw new Error(`The recovered phone-camera photo preview is not upright portrait: ${recoveredPreview.width}x${recoveredPreview.height}.`);
+    }
     const finalNotice = await evaluate(
       `document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? ''`,
     );
@@ -366,6 +381,41 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     const repairAvailable = await evaluate(`Boolean(document.querySelector('[data-testid="button-repair-concept-stage"]'))`);
     if (!repairAvailable) {
       throw new Error('The missing Virtual stage concept did not offer a targeted repair action after source recovery.');
+    }
+
+    await devTools.send('Page.navigate', { url });
+    const recoveredAfterRefresh = await waitFor(
+      `(async () => {
+        const fixture = window.__propertyRecoveryTest;
+        if (typeof fixture?.readProject !== 'function') return { fixtureReady: false };
+        const project = await fixture.readProject();
+        const preview = document.querySelector('img[alt="Originele woningfoto"]');
+        return {
+          fixtureReady: true,
+          project,
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+          previewWidth: preview?.naturalWidth ?? 0,
+          previewHeight: preview?.naturalHeight ?? 0,
+          notice: document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '',
+        };
+      })()`,
+      (value) => value?.fixtureReady && value.project?.id === 'browser-photo-recovery-project' && value.previewLoaded,
+      'the recovered portrait source preview to return after refresh',
+    );
+    if (recoveredAfterRefresh.previewWidth !== 2 || recoveredAfterRefresh.previewHeight !== 3) {
+      throw new Error(`The recovered phone-camera photo preview is sideways after refresh: ${recoveredAfterRefresh.previewWidth}x${recoveredAfterRefresh.previewHeight}.`);
+    }
+    const refreshedSettings = { ...recoveredAfterRefresh.project };
+    delete refreshedSettings.originalKey;
+    delete refreshedSettings.updatedAt;
+    if (JSON.stringify(refreshedSettings) !== JSON.stringify(originalSettings)) {
+      throw new Error('Refreshing after source-photo recovery changed saved project assumptions or settings.');
+    }
+    if (recoveredAfterRefresh.project.selectedResult !== 'stage') {
+      throw new Error(`Refreshing after source-photo recovery changed the selected scenario to ${recoveredAfterRefresh.project.selectedResult}.`);
+    }
+    if (!recoveredAfterRefresh.notice.includes('Het gekozen scenario blijft Virtual stage')) {
+      throw new Error(`Refreshing after source-photo recovery hid the selected-scenario notice: ${recoveredAfterRefresh.notice}`);
     }
 
     const projectBeforeFailedRepair = await evaluate(`window.__propertyRecoveryTest.readProject()`, true);
@@ -1301,7 +1351,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
     }
 
-    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; quota, blocked-access, and unknown replacement-photo failures showed safe, specific guidance while preserving the saved project and photo contents, and retry succeeded; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
+    return 'Passed: EXIF-rotated phone-camera JPEG recovery kept the source preview upright before and after refresh without changing project assumptions or the selected scenario; quota, blocked-access, and unknown replacement-photo failures showed safe, specific guidance while preserving the saved project and photo contents, and retry succeeded; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
   } finally {
     devTools.close();
   }
@@ -1344,6 +1394,31 @@ function makeTestJpeg() {
     '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAACAAIDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ADoDFU3/2Q==',
     'base64',
   );
+}
+
+function makeOrientationTaggedTestJpeg() {
+  const jpeg = makeTestJpeg();
+  const frameOffset = jpeg.indexOf(Buffer.from([0xff, 0xc0]));
+  if (frameOffset < 0) throw new Error('The JPEG test fixture has no baseline frame header.');
+  // The fixture is smaller than a JPEG block, so widening its frame keeps the encoded scan valid.
+  jpeg.writeUInt16BE(3, frameOffset + 7);
+
+  const tiff = Buffer.alloc(26);
+  tiff.write('MM', 0, 'ascii');
+  tiff.writeUInt16BE(42, 2);
+  tiff.writeUInt32BE(8, 4);
+  tiff.writeUInt16BE(1, 8);
+  tiff.writeUInt16BE(0x0112, 10);
+  tiff.writeUInt16BE(3, 12);
+  tiff.writeUInt32BE(1, 14);
+  tiff.writeUInt16BE(6, 18);
+  tiff.writeUInt32BE(0, 22);
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'ascii'), tiff]);
+  const app1 = Buffer.alloc(4 + payload.length);
+  app1.writeUInt16BE(0xffe1, 0);
+  app1.writeUInt16BE(payload.length + 2, 2);
+  payload.copy(app1, 4);
+  return Buffer.concat([jpeg.subarray(0, 2), app1, jpeg.subarray(2)]);
 }
 
 async function runSortOrderCrossTabTest(debugPort, url, browser) {
@@ -1773,7 +1848,7 @@ await writeFile(
   recoveryImagePath,
   makeTestPng(),
 );
-await writeFile(recoveryJpegImagePath, makeTestJpeg());
+await writeFile(recoveryJpegImagePath, makeOrientationTaggedTestJpeg());
 await writeFile(unreadableImagePath, Buffer.from('This is not a readable PNG image.'));
 await writeFile(unsupportedImagePath, Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=', 'base64'));
 const server = spawn('pnpm', ['exec', 'vite', '--config', 'tests/vite.authenticated.config.ts', '--host', '127.0.0.1'], {
