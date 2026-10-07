@@ -333,6 +333,8 @@ function runSavedProjectSearchUiChecks(transferError = '') {
     onClaimLegacy() {},
     projects: displayedProjects,
     photoHealthByProject,
+    photoHealthError: '',
+    onRetryPhotoHealth() {},
     loading: false,
     busy: false,
     activeProjectId: null,
@@ -519,6 +521,8 @@ async function runCrossTabPhotoHealthChecks() {
     onClaimLegacy() {},
     projects: displayedProjects,
     photoHealthByProject,
+    photoHealthError: '',
+    onRetryPhotoHealth() {},
     loading: false,
     busy: false,
     activeProjectId: null,
@@ -590,12 +594,41 @@ async function runCrossTabPhotoHealthChecks() {
         && editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Virtual stage'),
       'the editor to open the cross-tab photo fixture with its missing-concept warning',
     );
+    const databasePrototype = IDBDatabase.prototype;
+    const originalTransaction = databasePrototype.transaction;
+    let photoHealthReadFailureInjected = false;
+    databasePrototype.transaction = function (storeNames, mode, options) {
+      const requestedStores = typeof storeNames === 'string' ? [storeNames] : Array.from(storeNames);
+      if (mode === 'readonly' && requestedStores.includes('projects') && requestedStores.includes('images')) {
+        photoHealthReadFailureInjected = true;
+        throw new DOMException('Simulated IndexedDB photo-health read failure', 'SecurityError');
+      }
+      return originalTransaction.call(this, storeNames, mode, options);
+    };
     const openProjectListButton = editorRootElement.querySelector('[data-testid="button-open-projects"]');
     assert(openProjectListButton instanceof HTMLButtonElement, 'The project list could not be opened in the editor tab.');
     flushSync(() => openProjectListButton.click());
+    try {
+      await waitForEditor(
+        () => editorRootElement.querySelector('[data-testid="status-project-photo-health-error"]')
+          && editorRootElement.querySelector('[data-testid="button-retry-project-photo-health"]'),
+        'the saved-project list to show a retry action after its IndexedDB photo-health read fails',
+      );
+      assert(photoHealthReadFailureInjected, 'The project list did not reach the forced IndexedDB photo-health read failure.');
+      assert(
+        editorRootElement.querySelector('[data-testid="status-project-photo-health-error"]')?.textContent.includes('Controleer of browseropslag beschikbaar is'),
+        'The photo-health read failure did not explain how to retry after browser storage is available.',
+      );
+    } finally {
+      databasePrototype.transaction = originalTransaction;
+    }
+    const retryPhotoHealthButton = editorRootElement.querySelector('[data-testid="button-retry-project-photo-health"]');
+    assert(retryPhotoHealthButton instanceof HTMLButtonElement, 'The photo-health retry action disappeared before it could be used.');
+    flushSync(() => retryPhotoHealthButton.click());
     await waitForEditor(
-      () => readOpenProjectListStatus().includes('Conceptfoto ontbreken: Virtual stage'),
-      'the open project list to show the cross-tab fixture photo warning',
+      () => !editorRootElement.querySelector('[data-testid="status-project-photo-health-error"]')
+        && readOpenProjectListStatus().includes('Conceptfoto ontbreken: Virtual stage'),
+      'the project list to reload photo health and clear its error after retry',
     );
     assert(
       readStatus().includes('Conceptfoto ontbreken: Virtual stage'),
