@@ -5,6 +5,10 @@ const result = document.querySelector('#test-result');
 const secondAccountId = 'photo-recovery-secondary-test';
 const accountA = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 const accountB = createPropertyProjectStorage(secondAccountId);
+const crossTabAccountIds = {
+  a: 'property-privacy-cross-tab-account-a',
+  b: 'property-privacy-cross-tab-account-b',
+};
 const legacyProject = {
   id: 'legacy-account-claim-project',
   address: '18 Old Harbor Road',
@@ -46,6 +50,37 @@ function image(key, content, isConcept) {
   };
 }
 
+function crossTabProject(accountKey) {
+  const projectId = `privacy-cross-tab-project-${accountKey}`;
+  const label = accountKey === 'a' ? 'Account A' : 'Account B';
+  return {
+    ...legacyProject,
+    id: projectId,
+    address: accountKey === 'a' ? '11 Private A Street' : '22 Private B Street',
+    municipality: accountKey === 'a' ? 'Utrecht' : 'Leiden',
+    projectName: `${label} private project`,
+    originalKey: `${projectId}-source`,
+    resultKeys: { stage: `${projectId}-concept` },
+    selectedResult: 'stage',
+  };
+}
+
+function crossTabImage(key, marker, isConcept) {
+  const color = marker.includes('account-a')
+    ? (isConcept ? '#e06b45' : '#426f9c')
+    : (isConcept ? '#a04c8e' : '#56816a');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" data-marker="${marker}"><rect width="12" height="12" fill="${color}"/></svg>`;
+  return {
+    key,
+    blob: new Blob([svg], { type: 'image/svg+xml' }),
+    label: isConcept ? marker : `${marker} source`,
+    mimeType: 'image/svg+xml',
+    isConcept,
+    disclaimer: isConcept ? 'AI-concept, not a factual representation.' : 'Source photo stored locally.',
+    createdAt: legacyProject.updatedAt,
+  };
+}
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -78,6 +113,81 @@ async function prepare() {
 
   result.dataset.status = 'fixture-ready';
   result.textContent = 'Unclaimed local project prepared; opening the signed-in studio…';
+  history.replaceState(null, '', '/property-transformer');
+  await import('../src/main.tsx');
+  result.dataset.status = 'app-started';
+}
+
+async function runCrossTabAccountScope() {
+  const params = new URLSearchParams(location.search);
+  const accountKey = params.get('account');
+  assert(accountKey === 'a' || accountKey === 'b', 'The cross-tab account fixture received an invalid account scope.');
+  const accountId = crossTabAccountIds[accountKey];
+  const foreignKey = accountKey === 'a' ? 'b' : 'a';
+  const project = crossTabProject(accountKey);
+  const foreignProject = crossTabProject(foreignKey);
+  const storage = createPropertyProjectStorage(accountId);
+
+  if (params.get('seed') === '1') {
+    for (const key of ['a', 'b']) {
+      const fixture = crossTabProject(key);
+      const scopedStorage = createPropertyProjectStorage(crossTabAccountIds[key]);
+      await scopedStorage.deletePropertyProject(fixture);
+      await scopedStorage.deletePropertyImage(fixture.originalKey);
+      await scopedStorage.deletePropertyImage(fixture.resultKeys.stage);
+      const marker = `privacy-${key === 'a' ? 'account-a' : 'account-b'}`;
+      await scopedStorage.savePropertyProjectWithImage(
+        fixture,
+        crossTabImage(fixture.originalKey, `${marker}-source`, false),
+      );
+      await scopedStorage.savePropertyImage(
+        crossTabImage(fixture.resultKeys.stage, `${marker}-concept`, true),
+      );
+    }
+  }
+
+  await import('./signed-in-auth.fixture.ts');
+  assert(typeof window.__setPropertyTestUser === 'function', 'The cross-tab test could not configure its account identity.');
+  window.__setPropertyTestUser(accountId, null);
+
+  let notificationCount = 0;
+  storage.subscribePropertyStorageChanges(() => { notificationCount += 1; });
+  window.__accountIsolationCrossTabTest = {
+    accountId,
+    project,
+    foreignProject,
+    sourceMarker: `privacy-${accountKey === 'a' ? 'account-a' : 'account-b'}-source`,
+    conceptMarker: `privacy-${accountKey === 'a' ? 'account-a' : 'account-b'}-concept`,
+    foreignSourceMarker: `privacy-${foreignKey === 'a' ? 'account-a' : 'account-b'}-source`,
+    foreignConceptMarker: `privacy-${foreignKey === 'a' ? 'account-a' : 'account-b'}-concept`,
+    readForeignReferences: async () => {
+      const [foreignProjectRecord, foreignSource, foreignConcept, projectImages] = await Promise.all([
+        storage.loadPropertyProject(foreignProject.id),
+        storage.loadPropertyImage(foreignProject.originalKey),
+        storage.loadPropertyImage(foreignProject.resultKeys.stage),
+        storage.loadPropertyProjectImages(foreignProject),
+      ]);
+      return {
+        foreignProjectRecord: Boolean(foreignProjectRecord),
+        foreignSource: Boolean(foreignSource),
+        foreignConcept: Boolean(foreignConcept),
+        projectImagesHasOriginal: Boolean(projectImages.original),
+        projectImagesHasConcept: Boolean(projectImages.results.stage),
+        missingOriginal: projectImages.missingOriginal,
+        missingConcepts: projectImages.missingConcepts,
+      };
+    },
+    getNotificationCount: () => notificationCount,
+    resetNotifications: () => { notificationCount = 0; },
+    renameOwnProject: async (projectName) => {
+      const storedProject = await storage.loadPropertyProject(project.id);
+      if (!storedProject) throw new Error('The account-scoped writer could not load its own project.');
+      await storage.savePropertyProject({ ...storedProject, projectName, updatedAt: new Date().toISOString() });
+    },
+  };
+
+  result.dataset.status = 'fixture-ready';
+  result.textContent = `Account ${accountKey.toUpperCase()} project and photo fixture ready; opening its signed-in studio…`;
   history.replaceState(null, '', '/property-transformer');
   await import('../src/main.tsx');
   result.dataset.status = 'app-started';
@@ -161,8 +271,14 @@ async function run() {
   result.textContent = 'Passed: unclaimed legacy projects stayed hidden until the signed-in account explicitly claimed them; projects and image bytes remained isolated between accounts; and active image URLs were revoked on account switch.';
 }
 
-run().catch((error) => {
+const fail = (error) => {
   result.dataset.status = 'failed';
   const reason = error instanceof Error ? error.stack ?? error.message : String(error);
   result.textContent = `${reason}\nPage: ${document.body.innerText.slice(0, 1600)}`;
-});
+};
+
+if (new URLSearchParams(location.search).get('crossTab') === '1') {
+  runCrossTabAccountScope().catch(fail);
+} else {
+  run().catch(fail);
+}

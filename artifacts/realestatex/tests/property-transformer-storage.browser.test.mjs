@@ -1156,11 +1156,233 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
   }
 }
 
+async function runAccountIsolationCrossTabTest(debugPort, url, browser) {
+  const versionResponse = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
+  if (!versionResponse.ok) throw new Error('Could not connect to the Chromium browser debugging endpoint.');
+  const { webSocketDebuggerUrl } = await versionResponse.json();
+  const browserDevTools = await connectDevTools(webSocketDebuggerUrl);
+  const targets = [];
+
+  const openPage = async (account, seed = false) => {
+    const pageUrl = new URL(url);
+    pageUrl.searchParams.set('crossTab', '1');
+    pageUrl.searchParams.set('account', account);
+    pageUrl.searchParams.set('seed', seed ? '1' : '0');
+    const page = await openBrowserPage(debugPort, browser, browserDevTools, pageUrl.toString());
+    targets.push(page);
+    return page.devTools;
+  };
+  const evaluate = async (devTools, expression, awaitPromise = false) => {
+    const response = await devTools.send('Runtime.evaluate', {
+      expression,
+      awaitPromise,
+      returnByValue: true,
+    });
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+    }
+    return response.result?.value;
+  };
+  const waitFor = async (devTools, expression, predicate, description, timeoutMs = 30_000) => {
+    const deadline = Date.now() + timeoutMs;
+    let lastValue;
+    while (Date.now() < deadline) {
+      if (browser.exitCode !== null) throw new Error(`Chromium exited while waiting for ${description}.`);
+      lastValue = await evaluate(devTools, expression, true);
+      if (lastValue?.status === 'failed') {
+        throw new Error(`Account privacy cross-tab fixture failed: ${lastValue.message}`);
+      }
+      if (predicate(lastValue)) return lastValue;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timed out waiting for ${description}. Last state: ${JSON.stringify(lastValue)}`);
+  };
+  const studioExpression = `(() => {
+    const result = document.querySelector('#test-result');
+    return {
+      status: result?.dataset.status,
+      message: result?.textContent ?? '',
+      fixtureReady: Boolean(window.__accountIsolationCrossTabTest),
+      studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+    };
+  })()`;
+  const projectDialogExpression = `(() => {
+    const result = document.querySelector('#test-result');
+    const dialog = document.querySelector('[data-testid="dialog-project-manager"]');
+    const projectIds = Array.from(dialog?.querySelectorAll('li[data-testid^="project-row-"]') ?? [])
+      .map((row) => row.getAttribute('data-testid')?.replace('project-row-', ''));
+    return {
+      status: result?.dataset.status,
+      message: result?.textContent ?? '',
+      open: Boolean(dialog),
+      projectIds,
+      text: dialog?.textContent ?? '',
+    };
+  })()`;
+  const imageStateExpression = `(async () => {
+    const test = window.__accountIsolationCrossTabTest;
+    const source = document.querySelector('img[alt="Originele woningfoto"]');
+    const concept = document.querySelector('img[alt="' + test.conceptMarker + ' concept"]');
+    const readImage = async (image) => image ? (await (await fetch(image.src)).text()) : '';
+    return {
+      sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
+      conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
+      sourceBytes: await readImage(source),
+      conceptBytes: await readImage(concept),
+    };
+  })()`;
+
+  try {
+    const accountATab = await openPage('a', true);
+    await waitFor(
+      accountATab,
+      studioExpression,
+      (state) => state?.fixtureReady && state.status === 'app-started' && state.studioReady,
+      'Account A’s signed-in studio',
+    );
+
+    const accountBTab = await openPage('b');
+    await waitFor(
+      accountBTab,
+      studioExpression,
+      (state) => state?.fixtureReady && state.status === 'app-started' && state.studioReady,
+      'Account B’s signed-in studio',
+    );
+
+    const accountBWriterTab = await openPage('b');
+    await waitFor(
+      accountBWriterTab,
+      studioExpression,
+      (state) => state?.fixtureReady && state.status === 'app-started' && state.studioReady,
+      'the second Account B tab',
+    );
+
+    const accountTest = (devTools) => evaluate(devTools, 'window.__accountIsolationCrossTabTest');
+    const [accountATest, accountBTest] = await Promise.all([
+      accountTest(accountATab),
+      accountTest(accountBTab),
+    ]);
+    if (accountATest.accountId === accountBTest.accountId) {
+      throw new Error('The separate browser tabs did not use distinct account scopes.');
+    }
+
+    const assertImages = async (devTools, test, accountLabel) => {
+      const state = await waitFor(
+        devTools,
+        imageStateExpression,
+        (value) => value?.sourceLoaded && value?.conceptLoaded,
+        `${accountLabel}’s source photo and concept to load in the studio`,
+      );
+      if (!state.sourceBytes.includes(test.sourceMarker) || !state.conceptBytes.includes(test.conceptMarker)) {
+        throw new Error(`${accountLabel} displayed images that did not match its own account’s stored photo bytes.`);
+      }
+      if (state.sourceBytes.includes(test.foreignSourceMarker)
+        || state.sourceBytes.includes(test.foreignConceptMarker)
+        || state.conceptBytes.includes(test.foreignSourceMarker)
+        || state.conceptBytes.includes(test.foreignConceptMarker)) {
+        throw new Error(`${accountLabel} displayed photo data belonging to the other account.`);
+      }
+    };
+    await assertImages(accountATab, accountATest, 'Account A');
+    await assertImages(accountBTab, accountBTest, 'Account B');
+
+    const assertDirectReadsScoped = async (devTools, accountLabel) => {
+      const reads = await evaluate(
+        devTools,
+        'window.__accountIsolationCrossTabTest.readForeignReferences()',
+        true,
+      );
+      if (reads.foreignProjectRecord || reads.foreignSource || reads.foreignConcept
+        || reads.projectImagesHasOriginal || reads.projectImagesHasConcept
+        || !reads.missingOriginal || !reads.missingConcepts.includes('stage')) {
+        throw new Error(`${accountLabel} could load the other account’s project or image records: ${JSON.stringify(reads)}.`);
+      }
+    };
+    await assertDirectReadsScoped(accountATab, 'Account A');
+    await assertDirectReadsScoped(accountBTab, 'Account B');
+
+    await evaluate(accountATab, `document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    await evaluate(accountBTab, `document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const [accountAList, accountBList] = await Promise.all([
+      waitFor(
+        accountATab,
+        projectDialogExpression,
+        (state) => state?.open && state.projectIds?.length === 1,
+        'Account A’s saved-project list',
+      ),
+      waitFor(
+        accountBTab,
+        projectDialogExpression,
+        (state) => state?.open && state.projectIds?.length === 1,
+        'Account B’s saved-project list',
+      ),
+    ]);
+    if (accountAList.projectIds[0] !== accountATest.project.id
+      || accountAList.text.includes(accountATest.foreignProject.projectName)) {
+      throw new Error('Account A’s project list displayed a project from Account B.');
+    }
+    if (accountBList.projectIds[0] !== accountBTest.project.id
+      || accountBList.text.includes(accountBTest.foreignProject.projectName)) {
+      throw new Error('Account B’s project list displayed a project from Account A.');
+    }
+
+    await Promise.all([
+      evaluate(accountATab, 'window.__accountIsolationCrossTabTest.resetNotifications()'),
+      evaluate(accountBTab, 'window.__accountIsolationCrossTabTest.resetNotifications()'),
+    ]);
+    const updatedAccountBProjectName = 'Account B project updated from a separate tab';
+    await evaluate(
+      accountBWriterTab,
+      `window.__accountIsolationCrossTabTest.renameOwnProject(${JSON.stringify(updatedAccountBProjectName)})`,
+      true,
+    );
+    const refreshedAccountBList = await waitFor(
+      accountBTab,
+      projectDialogExpression,
+      (state) => state?.open && state.text.includes(updatedAccountBProjectName),
+      'the matching Account B tab to refresh its saved-project list',
+    );
+    if (!refreshedAccountBList.projectIds.includes(accountBTest.project.id)) {
+      throw new Error('The Account B storage notification removed or replaced its own project.');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const accountANotifications = await evaluate(
+      accountATab,
+      'window.__accountIsolationCrossTabTest.getNotificationCount()',
+    );
+    const accountBNotifications = await evaluate(
+      accountBTab,
+      'window.__accountIsolationCrossTabTest.getNotificationCount()',
+    );
+    const accountAAfterUpdate = await evaluate(accountATab, projectDialogExpression);
+    if (accountANotifications !== 0) {
+      throw new Error(`Account A received ${accountANotifications} storage-change notification(s) from Account B.`);
+    }
+    if (accountBNotifications < 1) {
+      throw new Error('The matching Account B tab did not receive its storage-change notification.');
+    }
+    if (accountAAfterUpdate.text.includes(updatedAccountBProjectName)
+      || accountAAfterUpdate.text.includes(accountATest.foreignProject.projectName)
+      || accountAAfterUpdate.projectIds?.join(',') !== accountATest.project.id) {
+      throw new Error('Account B’s storage change refreshed or exposed project data in Account A’s tab.');
+    }
+
+    return 'Passed: separate Account A and B tabs showed and loaded only their own projects and photo bytes; foreign project/image reads were empty; and an Account B storage update refreshed the matching tab without notifying or exposing data to Account A.';
+  } finally {
+    for (const { devTools } of targets) devTools.close();
+    await Promise.all(targets.map(({ targetId }) =>
+      browserDevTools.send('Target.closeTarget', { targetId }).catch(() => undefined)));
+    browserDevTools.close();
+  }
+}
+
 const chromiumPath = process.env.CHROMIUM_PATH || process.env.CHROME_BIN || '/repl/tools/bin/chromium';
 const port = await getFreePort();
 const debugPort = await getFreePort();
 const storageUrl = `http://127.0.0.1:${port}/tests/property-transformer-storage.html`;
 const accountIsolationUrl = `http://127.0.0.1:${port}/tests/property-transformer-account-isolation.html`;
+const accountIsolationCrossTabUrl = `http://127.0.0.1:${port}/tests/property-transformer-account-isolation.html`;
 const recoveryUrl = `http://127.0.0.1:${port}/tests/property-transformer-recovery.html`;
 const duplicateImportUrl = `http://127.0.0.1:${port}/tests/property-transformer-duplicate-import.html`;
 const searchUrl = `http://127.0.0.1:${port}/tests/property-transformer-search.html`;
@@ -1212,17 +1434,22 @@ try {
     } else if (process.env.PROPERTY_RECOVERY_ONLY === '1') {
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
       console.log(recoveryResult);
+    } else if (process.env.PROPERTY_ACCOUNT_ISOLATION_ONLY === '1') {
+      const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
+      const crossTabResult = await runAccountIsolationCrossTabTest(debugPort, accountIsolationCrossTabUrl, browser);
+      console.log(`${accountIsolationResult}\n${crossTabResult}`);
     } else {
       const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
       if (process.env.PROPERTY_STORAGE_ONLY === '1') {
         console.log(storageResult);
       } else {
         const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
+        const crossTabAccountIsolationResult = await runAccountIsolationCrossTabTest(debugPort, accountIsolationCrossTabUrl, browser);
         const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
         const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
         const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
         const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
-        console.log(`${storageResult}\n${accountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
+        console.log(`${storageResult}\n${accountIsolationResult}\n${crossTabAccountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
       }
     }
   } finally {
