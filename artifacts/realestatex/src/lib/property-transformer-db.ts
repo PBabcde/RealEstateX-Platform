@@ -86,9 +86,11 @@ const PROPERTY_ACTIONS: PropertyAction[] = ['declutter', 'stage', 'makeover', 'd
 const PROPERTY_STYLES: PropertyStyle[] = ['japandi', 'modern', 'industrial'];
 const PROPERTY_STORAGE_CHANNEL_NAME = 'realestatex-property-storage-changes';
 const PROPERTY_PROJECT_IMPORT_LOCK_NAME = 'realestatex-property-project-import';
+const PENDING_PHOTO_CLEANUP_KEY = 'pending-property-photo-cleanup';
 const LEGACY_CLAIM_STALE_AFTER_MS = 5 * 60 * 1000;
 
 type StorageScope = string | null;
+type PendingPhotoCleanupRecord = { key: string; imageKeys: string[] };
 type LegacyClaimRecord = {
   key: string;
   accountId: string;
@@ -576,6 +578,31 @@ function referencedProjectImageKeys(project: Pick<PropertyProject, 'originalKey'
   ].filter((key): key is string => Boolean(key)));
 }
 
+async function rememberPendingPhotoCleanup(imageKeys: string[], scope: StorageScope): Promise<void> {
+  if (imageKeys.length === 0) return;
+  const db = await openDb(scope);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(METADATA, 'readwrite');
+      const store = transaction.objectStore(METADATA);
+      const request = store.get(PENDING_PHOTO_CLEANUP_KEY);
+      request.onsuccess = () => {
+        const pending = request.result as PendingPhotoCleanupRecord | undefined;
+        store.put({
+          key: PENDING_PHOTO_CLEANUP_KEY,
+          imageKeys: [...new Set([...(pending?.imageKeys ?? []), ...imageKeys])],
+        } satisfies PendingPhotoCleanupRecord);
+      };
+      request.onerror = () => reject(request.error ?? new Error('Oude foto’s konden niet voor opruiming worden gemarkeerd.'));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error('Oude foto’s konden niet voor opruiming worden gemarkeerd.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('Oude foto’s konden niet voor opruiming worden gemarkeerd.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 async function commitProjectPhotoMutation(
   projectId: string,
   image: PropertyImageRecord,
@@ -583,9 +610,11 @@ async function commitProjectPhotoMutation(
   cleanupKeys: (current: PropertyProject, next: PropertyProject) => Iterable<string>,
   scope: StorageScope,
   classifyStorageFailure = false,
-): Promise<PropertyProject> {
+  deferCleanup = false,
+): Promise<{ project: PropertyProject; cleanupKeys: string[] }> {
   let db: IDBDatabase | undefined;
   let committedProject: PropertyProject | undefined;
+  let committedCleanupKeys: string[] = [];
   let missingProjectError: Error | undefined;
   let operationError: unknown;
   try {
@@ -608,6 +637,8 @@ async function commitProjectPhotoMutation(
 
           const next = updateProject(current);
           committedProject = next;
+          committedCleanupKeys = [...new Set(cleanupKeys(current, next))]
+            .filter((key) => Boolean(key) && key !== image.key);
           const referencedKeys = new Set(
             projects
               .filter((item) => item.id !== projectId)
@@ -616,8 +647,10 @@ async function commitProjectPhotoMutation(
           for (const key of referencedProjectImageKeys(next)) referencedKeys.add(key);
 
           projectStore.put(next);
-          for (const key of cleanupKeys(current, next)) {
-            if (key !== image.key && !referencedKeys.has(key)) imageStore.delete(key);
+          if (!deferCleanup) {
+            for (const key of committedCleanupKeys) {
+              if (!referencedKeys.has(key)) imageStore.delete(key);
+            }
           }
           imageStore.put(image);
         } catch (error) {
@@ -631,8 +664,11 @@ async function commitProjectPhotoMutation(
       transaction.onabort = () => reject(missingProjectError ?? operationError ?? transaction.error ?? new Error('De foto kon niet samen met het project worden opgeslagen.'));
     });
     if (!committedProject) throw new Error('De foto kon niet samen met het project worden opgeslagen.');
+    if (deferCleanup && committedCleanupKeys.length > 0) {
+      await rememberPendingPhotoCleanup(committedCleanupKeys, scope).catch(() => undefined);
+    }
     notifyPropertyStorageChanged(scope);
-    return committedProject;
+    return { project: committedProject, cleanupKeys: committedCleanupKeys };
   } catch (error) {
     if (missingProjectError) throw missingProjectError;
     const cause = operationError ?? error;
@@ -676,7 +712,7 @@ export async function replacePropertySourceImage(
   preserveConcepts: boolean,
   existingConceptKeys: Partial<Record<PropertyAction, string>>,
   scope: StorageScope = null,
-): Promise<PropertyProject> {
+): Promise<{ project: PropertyProject; cleanupKeys: string[] }> {
   const conceptsPresentAtUploadStart = new Set(
     Object.values(existingConceptKeys).filter((key): key is string => Boolean(key)),
   );
@@ -704,6 +740,7 @@ export async function replacePropertySourceImage(
     ],
     scope,
     true,
+    true,
   );
 }
 
@@ -714,7 +751,7 @@ export async function savePropertyConceptImage(
   splitRatio: number,
   scope: StorageScope = null,
 ): Promise<PropertyProject> {
-  return commitProjectPhotoMutation(
+  const result = await commitProjectPhotoMutation(
     projectId,
     image,
     (current) => ({
@@ -727,6 +764,7 @@ export async function savePropertyConceptImage(
     (current) => [current.resultKeys[action] ?? ''],
     scope,
   );
+  return result.project;
 }
 
 export async function loadPropertyProjects(scope: StorageScope = null): Promise<PropertyProject[]> {
@@ -956,6 +994,82 @@ export async function deletePropertyImage(key: string, scope: StorageScope = nul
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
+    });
+    notifyPropertyStorageChanged(scope);
+  } finally {
+    db.close();
+  }
+}
+
+export async function loadPendingPropertyPhotoCleanup(scope: StorageScope = null): Promise<string[]> {
+  const pending = await get<PendingPhotoCleanupRecord>(METADATA, PENDING_PHOTO_CLEANUP_KEY, scope);
+  return [...new Set((pending?.imageKeys ?? []).filter((key): key is string => typeof key === 'string' && key.length > 0))];
+}
+
+export async function cleanupPendingPropertyImages(
+  additionalKeys: string[] = [],
+  scope: StorageScope = null,
+): Promise<void> {
+  const db = await openDb(scope);
+  let operationError: unknown;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES, METADATA], 'readwrite');
+      const projectStore = transaction.objectStore(PROJECTS);
+      const imageStore = transaction.objectStore(IMAGES);
+      const metadataStore = transaction.objectStore(METADATA);
+      const projectsRequest = projectStore.getAll();
+      const pendingRequest = metadataStore.get(PENDING_PHOTO_CLEANUP_KEY);
+      let projects: PropertyProject[] | undefined;
+      let pending: PendingPhotoCleanupRecord | undefined;
+      let projectsLoaded = false;
+      let pendingLoaded = false;
+      let processed = false;
+
+      const processCleanup = () => {
+        if (!projectsLoaded || !pendingLoaded || processed) return;
+        processed = true;
+        try {
+          const referencedKeys = new Set(projects!.flatMap((project) => [...referencedProjectImageKeys(project)]));
+          const cleanupKeys = new Set([
+            ...(pending?.imageKeys ?? []),
+            ...additionalKeys,
+          ].filter((key): key is string => typeof key === 'string' && key.length > 0));
+          for (const key of cleanupKeys) {
+            if (!referencedKeys.has(key)) imageStore.delete(key);
+          }
+          metadataStore.delete(PENDING_PHOTO_CLEANUP_KEY);
+        } catch (error) {
+          operationError = error;
+          try {
+            transaction.abort();
+          } catch {
+            // The transaction may already have stopped.
+          }
+        }
+      };
+
+      projectsRequest.onsuccess = () => {
+        projects = projectsRequest.result as PropertyProject[];
+        projectsLoaded = true;
+        processCleanup();
+      };
+      pendingRequest.onsuccess = () => {
+        pending = pendingRequest.result as PendingPhotoCleanupRecord | undefined;
+        pendingLoaded = true;
+        processCleanup();
+      };
+      projectsRequest.onerror = () => {
+        operationError = projectsRequest.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.');
+        transaction.abort();
+      };
+      pendingRequest.onerror = () => {
+        operationError = pendingRequest.error ?? new Error('De oude foto’s konden niet voor opruiming worden gelezen.');
+        transaction.abort();
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(operationError ?? transaction.error ?? new Error('Oude foto’s konden niet veilig worden opgeruimd.'));
+      transaction.onabort = () => reject(operationError ?? transaction.error ?? new Error('Oude foto’s konden niet veilig worden opgeruimd.'));
     });
     notifyPropertyStorageChanged(scope);
   } finally {
@@ -1579,6 +1693,9 @@ export function createPropertyProjectStorage(accountId: string) {
       preserveConcepts: boolean,
       existingConceptKeys: Partial<Record<PropertyAction, string>>,
     ) => replacePropertySourceImage(projectId, image, preserveConcepts, existingConceptKeys, accountId),
+    loadPendingPropertyPhotoCleanup: () => loadPendingPropertyPhotoCleanup(accountId),
+    cleanupPendingPropertyImages: (additionalKeys?: string[]) =>
+      cleanupPendingPropertyImages(additionalKeys, accountId),
     savePropertyConceptImage: (projectId: string, action: PropertyAction, image: PropertyImageRecord, splitRatio: number) =>
       savePropertyConceptImage(projectId, action, image, splitRatio, accountId),
     loadPropertyProjects: () => loadPropertyProjects(accountId),

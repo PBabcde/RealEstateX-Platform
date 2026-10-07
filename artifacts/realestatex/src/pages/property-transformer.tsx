@@ -195,6 +195,9 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [projectTransferNotice, setProjectTransferNotice] = useState('');
   const [pendingDuplicateImport, setPendingDuplicateImport] = useState<{ archive: unknown; existing: PropertyProject } | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [photoCleanupKeys, setPhotoCleanupKeys] = useState<string[]>([]);
+  const [photoCleanupError, setPhotoCleanupError] = useState('');
+  const [isPhotoCleanupRunning, setIsPhotoCleanupRunning] = useState(false);
   const [proBetaDialogOpen, setProBetaDialogOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [missingOriginalPhoto, setMissingOriginalPhoto] = useState(false);
@@ -282,6 +285,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     void (async () => {
       try {
         const storedList = await storage.loadPropertyProjectsWithPhotoHealth();
+        const pendingPhotoCleanup = await storage.loadPendingPropertyPhotoCleanup().catch(() => []);
         let claimStatus: LegacyProjectClaimStatus;
         try {
           claimStatus = await storage.getLegacyProjectClaimStatus();
@@ -299,6 +303,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         }
         setProjects(projectList.projects);
         setPhotoHealthByProject(projectList.photoHealthById);
+        setPhotoCleanupKeys(pendingPhotoCleanup);
         setLegacyClaimStatus(claimStatus);
         if (!existing) return;
         try {
@@ -901,18 +906,45 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       const key = `${projectSnapshot.id}-original-${crypto.randomUUID()}`;
       const image: PropertyImageRecord = { key, blob: compressed.blob, label: 'Originele foto', mimeType: compressed.blob.type, isConcept: false, disclaimer: 'Originele foto, lokaal opgeslagen in deze browser.', createdAt: new Date().toISOString() };
       const recoveringMissingSource = missingOriginalPhoto;
-      const next = await storage.replacePropertySourceImage(
+      const replacement = await storage.replacePropertySourceImage(
         projectSnapshot.id,
         image,
         recoveringMissingSource,
         projectSnapshot.resultKeys,
       );
-      await refreshPhotoState(next.id);
+      await refreshPhotoState(replacement.project.id);
       await refreshProjects().catch(() => setUploadError('De foto is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
+      const cleanupKeys = [...new Set([...photoCleanupKeys, ...replacement.cleanupKeys])];
+      try {
+        await storage.cleanupPendingPropertyImages(cleanupKeys);
+        setPhotoCleanupKeys([]);
+        setPhotoCleanupError('');
+      } catch {
+        const pendingKeys = await storage.loadPendingPropertyPhotoCleanup().catch(() => []);
+        setPhotoCleanupKeys([...new Set([...pendingKeys, ...cleanupKeys])]);
+        setPhotoCleanupError('');
+      }
     } catch (error) {
       setUploadError(sourcePhotoSaveErrorMessage(error));
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const retryPhotoCleanup = async () => {
+    if (isPhotoCleanupRunning || photoCleanupKeys.length === 0) return;
+    setIsPhotoCleanupRunning(true);
+    setPhotoCleanupError('');
+    try {
+      await storage.cleanupPendingPropertyImages(photoCleanupKeys);
+      setPhotoCleanupKeys([]);
+      setNotice('Oude fotokopieën zijn gecontroleerd. Foto’s die nog bij een opgeslagen project horen, zijn behouden.');
+    } catch {
+      const pendingKeys = await storage.loadPendingPropertyPhotoCleanup().catch(() => []);
+      setPhotoCleanupKeys([...new Set([...pendingKeys, ...photoCleanupKeys])]);
+      setPhotoCleanupError('De oude foto kon nog niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen; probeer de veilige opruiming opnieuw.');
+    } finally {
+      setIsPhotoCleanupRunning(false);
     }
   };
 
@@ -1040,6 +1072,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         </div>
         : <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Maak een nieuw vastgoedproject of open een eerder opgeslagen project. Projectgegevens en foto’s blijven in deze browser.</p>}
       {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}</p>}
+      {photoCleanupKeys.length > 0 && <div className="mx-auto mt-4 flex max-w-lg flex-col gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-left text-xs leading-5 text-[#9e4336]" role="alert" data-testid="status-photo-cleanup-error">
+        <p>{photoCleanupError || 'Een of meer oude foto’s konden niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen. Probeer de veilige opruiming opnieuw.'}</p>
+        <button type="button" onClick={() => void retryPhotoCleanup()} disabled={isPhotoCleanupRunning} className="self-start rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold hover:bg-[#fbe9e5] disabled:cursor-wait disabled:opacity-60" data-testid="button-retry-photo-cleanup">{isPhotoCleanupRunning ? 'Oude foto’s controleren…' : 'Oude foto’s opnieuw opruimen'}</button>
+      </div>}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw project</button>
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
@@ -1069,7 +1105,11 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
             })}</div>}
         </div>}
      </div>}
-    {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
+     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
+     {photoCleanupKeys.length > 0 && <div className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs leading-5 text-[#9e4336] sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid="status-photo-cleanup-error">
+       <p>{photoCleanupError || 'Een of meer oude foto’s konden niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen. Probeer de veilige opruiming opnieuw.'}</p>
+       <button type="button" onClick={() => void retryPhotoCleanup()} disabled={isPhotoCleanupRunning || isUploading} className="shrink-0 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold hover:bg-[#fbe9e5] disabled:cursor-wait disabled:opacity-60" data-testid="button-retry-photo-cleanup">{isPhotoCleanupRunning ? 'Oude foto’s controleren…' : 'Oude foto’s opnieuw opruimen'}</button>
+     </div>}
     {notice && <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs font-semibold text-[#287b6a]" role="status" data-testid="status-transform-success"><Check size={15} />{notice}</div>}
     {pendingDuplicateImport && <div className="fixed inset-0 z-[100] grid place-items-center bg-[#172033]/50 p-4" data-testid="dialog-duplicate-import">
       <section ref={duplicateImportDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="duplicate-import-title" aria-describedby="duplicate-import-description" className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">

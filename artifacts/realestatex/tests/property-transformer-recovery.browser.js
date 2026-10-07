@@ -119,7 +119,10 @@ async function prepareFixture() {
   let abortNextImageWrite = false;
   let nextImageWriteFailure = null;
   let nextReadwriteTransactionFailure = null;
+  let photoCleanupFailureKeys = new Set();
+  let photoCleanupFailureInjected = false;
   const nativePut = IDBObjectStore.prototype.put;
+  const nativeDelete = IDBObjectStore.prototype.delete;
   const nativeTransaction = IDBDatabase.prototype.transaction;
   IDBObjectStore.prototype.put = function (...args) {
     if (nextImageWriteFailure && this.name === 'images') {
@@ -131,6 +134,16 @@ async function prepareFixture() {
     const request = Reflect.apply(nativePut, this, args);
     if (abortNextImageWrite && this.name === 'images') {
       abortNextImageWrite = false;
+      this.transaction.abort();
+    }
+    return request;
+  };
+  IDBObjectStore.prototype.delete = function (...args) {
+    const request = Reflect.apply(nativeDelete, this, args);
+    const key = String(args[0]);
+    if (this.name === 'images' && photoCleanupFailureKeys.has(key)) {
+      photoCleanupFailureKeys.delete(key);
+      photoCleanupFailureInjected = true;
       this.transaction.abort();
     }
     return request;
@@ -162,6 +175,35 @@ async function prepareFixture() {
     },
     failNextReadwriteTransactionWith(name, message) {
       nextReadwriteTransactionFailure = { name, message };
+    },
+    failNextPhotoCleanup(keys) {
+      photoCleanupFailureKeys = new Set(keys);
+      photoCleanupFailureInjected = false;
+    },
+    didInjectPhotoCleanupFailure() {
+      return photoCleanupFailureInjected;
+    },
+    saveProject(value) {
+      return savePropertyProject(value);
+    },
+    deleteProject(value) {
+      return deletePropertyProject(value);
+    },
+    async readPendingPhotoCleanup() {
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(`realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('Could not open the property metadata store.'));
+      });
+      try {
+        return await new Promise((resolve, reject) => {
+          const request = database.transaction('metadata', 'readonly').objectStore('metadata').get('pending-property-photo-cleanup');
+          request.onsuccess = () => resolve(request.result?.imageKeys ?? []);
+          request.onerror = () => reject(request.error ?? new Error('Could not read pending photo cleanup.'));
+        });
+      } finally {
+        database.close();
+      }
     },
     async readProject(id = project.id) {
       return loadPropertyProject(id);
@@ -236,7 +278,6 @@ async function prepareFixture() {
       }
     },
   };
-
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, ...init) => {
     const url = input instanceof Request ? input.url : String(input);

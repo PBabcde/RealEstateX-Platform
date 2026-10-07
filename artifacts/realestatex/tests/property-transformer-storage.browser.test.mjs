@@ -957,16 +957,182 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       `(() => {
         const source = document.querySelector('img[alt="Originele woningfoto"]');
         const concept = document.querySelector('img[alt="Virtual stage concept"]');
+        const upload = document.querySelector('[data-testid="button-upload-property"]');
+        return {
+          sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
+          conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
+          uploadReady: Boolean(upload && !upload.disabled),
+        };
+      })()`,
+      (value) => value?.sourceLoaded && value.conceptLoaded && value.uploadReady,
+      'the active project to show its regenerated source and concept previews with uploads enabled',
+    );
+    if (!regeneratedActivePreview.sourceLoaded || !regeneratedActivePreview.conceptLoaded) {
+      throw new Error('The active project did not show both photo previews before successful deletion.');
+    }
+
+    const beforeFailedPhotoCleanup = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    const oldSourceKey = beforeFailedPhotoCleanup.project?.originalKey;
+    const oldConceptKey = beforeFailedPhotoCleanup.project?.resultKeys?.stage;
+    if (!oldSourceKey || !oldConceptKey || beforeFailedPhotoCleanup.project.selectedResult !== 'stage') {
+      throw new Error('The cleanup-failure test did not start with a selected scenario and both saved photos.');
+    }
+    const sharedPhotoProject = {
+      ...beforeFailedPhotoCleanup.project,
+      id: 'browser-photo-cleanup-shared-reference',
+      projectName: 'Photo cleanup shared reference',
+      originalKey: oldSourceKey,
+      resultKeys: {},
+      selectedResult: null,
+    };
+    await evaluate(
+      `window.__propertyRecoveryTest.saveProject(${JSON.stringify(sharedPhotoProject)})`,
+      true,
+    );
+    const sharedReferenceReady = await waitFor(
+      `(() => {
+        const source = document.querySelector('img[alt="Originele woningfoto"]');
+        const upload = document.querySelector('[data-testid="button-upload-property"]');
+        return {
+          sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
+          uploadReady: Boolean(upload && !upload.disabled),
+        };
+      })()`,
+      (value) => value?.sourceLoaded && value.uploadReady,
+      'the active source preview to remain ready after saving a second project reference',
+    );
+    if (!sharedReferenceReady.sourceLoaded || !sharedReferenceReady.uploadReady) {
+      throw new Error('Saving a second project reference made the active source photo unavailable.');
+    }
+    await evaluate(
+      `window.__propertyRecoveryTest.failNextPhotoCleanup([${JSON.stringify(oldConceptKey)}])`,
+    );
+    await uploadReplacement(uploadPath);
+
+    const cleanupFailureUi = await waitFor(
+      `(async () => {
+        const alert = document.querySelector('[data-testid="status-photo-cleanup-error"]');
+        const retryButton = document.querySelector('[data-testid="button-retry-photo-cleanup"]');
+        const upload = document.querySelector('[data-testid="button-upload-property"]');
+        const project = await window.__propertyRecoveryTest.readProject();
+        const source = project?.originalKey
+          ? await window.__propertyRecoveryTest.readSourceImage(project.originalKey)
+          : null;
+        return {
+          projectUpdated: Boolean(project?.originalKey && project.originalKey !== ${JSON.stringify(oldSourceKey)}),
+          sourceSaved: Boolean(source?.size > 0 && source.type.startsWith('image/') && !source.isConcept),
+          uploadError: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          alert: alert?.textContent ?? '',
+          alertRole: alert?.getAttribute('role') ?? '',
+          retryEnabled: Boolean(retryButton && !retryButton.disabled),
+          injected: window.__propertyRecoveryTest.didInjectPhotoCleanupFailure(),
+        };
+      })()`,
+      (value) => (value?.alert && value.retryEnabled && value.projectUpdated && value.sourceSaved && value.injected) || value?.uploadError,
+      'a failed old-photo cleanup to keep the replacement project valid and offer retry',
+    );
+    if (!cleanupFailureUi.alert) {
+      throw new Error(`The photo replacement failed before cleanup could be tested: ${cleanupFailureUi.uploadError}`);
+    }
+    if (cleanupFailureUi.alertRole !== 'alert'
+      || !cleanupFailureUi.alert.includes('oude foto')
+      || !cleanupFailureUi.alert.includes('opgeslagen')) {
+      throw new Error(`The cleanup warning did not explain that the old photo could not be removed after saving: ${cleanupFailureUi.alert}`);
+    }
+    const afterFailedPhotoCleanup = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        sharedProject: await window.__propertyRecoveryTest.readProject('browser-photo-cleanup-shared-reference'),
+        source: await window.__propertyRecoveryTest.readSourceImage(
+          (await window.__propertyRecoveryTest.readProject())?.originalKey
+        ),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+      }))()`,
+      true,
+    );
+    if (!afterFailedPhotoCleanup.project
+      || !afterFailedPhotoCleanup.source
+      || afterFailedPhotoCleanup.project.originalKey === oldSourceKey
+      || afterFailedPhotoCleanup.project.selectedResult !== null
+      || Object.keys(afterFailedPhotoCleanup.project.resultKeys).length !== 0) {
+      throw new Error('A cleanup failure invalidated the new source photo or changed the existing selected-scenario behavior.');
+    }
+    if (!afterFailedPhotoCleanup.imageRecords.some((image) => image.key === afterFailedPhotoCleanup.project.originalKey)
+      || !afterFailedPhotoCleanup.imageRecords.some((image) => image.key === oldSourceKey)
+      || !afterFailedPhotoCleanup.imageRecords.some((image) => image.key === oldConceptKey)
+      || afterFailedPhotoCleanup.sharedProject?.originalKey !== oldSourceKey
+      || !afterFailedPhotoCleanup.pendingCleanup.includes(oldSourceKey)
+      || !afterFailedPhotoCleanup.pendingCleanup.includes(oldConceptKey)) {
+      throw new Error('The failed cleanup did not preserve the new image, referenced old image, unused concept, and retry record.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-retry-photo-cleanup"]')?.click()`);
+    const cleanupRetryUi = await waitFor(
+      `(() => ({
+        alertGone: !document.querySelector('[data-testid="status-photo-cleanup-error"]'),
+        notice: document.querySelector('[data-testid="status-transform-success"]')?.textContent ?? '',
+      }))()`,
+      (value) => value?.alertGone && value.notice.includes('opgeslagen project'),
+      'the safe cleanup retry to complete and explain that referenced photos were kept',
+    );
+    if (!cleanupRetryUi.alertGone || !cleanupRetryUi.notice.includes('behouden')) {
+      throw new Error(`The cleanup retry did not explain that photos still used by saved projects are preserved: ${cleanupRetryUi.notice}`);
+    }
+    const afterPhotoCleanupRetry = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        sharedProject: await window.__propertyRecoveryTest.readProject('browser-photo-cleanup-shared-reference'),
+        source: await window.__propertyRecoveryTest.readSourceImage(
+          (await window.__propertyRecoveryTest.readProject())?.originalKey
+        ),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+      }))()`,
+      true,
+    );
+    if (!afterPhotoCleanupRetry.source
+      || afterPhotoCleanupRetry.project?.selectedResult !== null
+      || !afterPhotoCleanupRetry.imageRecords.some((image) => image.key === afterPhotoCleanupRetry.project.originalKey)
+      || !afterPhotoCleanupRetry.imageRecords.some((image) => image.key === oldSourceKey)
+      || afterPhotoCleanupRetry.imageRecords.some((image) => image.key === oldConceptKey)
+      || afterPhotoCleanupRetry.sharedProject?.originalKey !== oldSourceKey
+      || afterPhotoCleanupRetry.pendingCleanup.length !== 0) {
+      throw new Error('The cleanup retry removed a still-referenced photo, retained the unreferenced concept, or changed the saved project.');
+    }
+    await evaluate(
+      `window.__propertyRecoveryTest.deleteProject(${JSON.stringify(sharedPhotoProject)})`,
+      true,
+    );
+    const oldSharedPhoto = await evaluate(
+      `window.__propertyRecoveryTest.readSourceImage(${JSON.stringify(oldSourceKey)})`,
+      true,
+    );
+    if (oldSharedPhoto) {
+      throw new Error('Removing the final project reference did not allow its old photo to be deleted.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
+    const finalActivePreview = await waitFor(
+      `(() => {
+        const source = document.querySelector('img[alt="Originele woningfoto"]');
+        const concept = document.querySelector('img[alt="Virtual stage concept"]');
         return {
           sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
           conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
         };
       })()`,
       (value) => value?.sourceLoaded && value.conceptLoaded,
-      'the active project to show its regenerated source and concept previews',
+      'the active project to restore its source and concept previews after cleanup retry',
     );
-    if (!regeneratedActivePreview.sourceLoaded || !regeneratedActivePreview.conceptLoaded) {
-      throw new Error('The active project did not show both photo previews before successful deletion.');
+    if (!finalActivePreview.sourceLoaded || !finalActivePreview.conceptLoaded) {
+      throw new Error('The active project did not show its source and concept previews after the cleanup retry.');
     }
 
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
