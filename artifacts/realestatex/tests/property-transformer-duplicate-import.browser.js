@@ -110,10 +110,17 @@ function activeProjectId() {
 async function openProjectManager() {
   const button = document.querySelector('[data-testid="button-open-projects"]');
   assert(button instanceof HTMLButtonElement, 'The signed-in Property Transformer did not render its project-list control.');
-  flushSync(() => button.click());
+  flushSync(() => {
+    button.focus();
+    button.click();
+  });
   await waitFor(
     () => Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
     'the authenticated project manager',
+  );
+  await waitFor(
+    () => document.activeElement === document.querySelector('[data-testid="input-search-projects"]'),
+    'keyboard focus to move to project search when the list opens',
   );
 }
 
@@ -185,6 +192,37 @@ async function prepareFixture() {
   await waitFor(
     () => Boolean(document.querySelector('[data-testid="button-open-projects"]')),
     'the authenticated Property Transformer screen',
+  );
+
+  await openProjectManager();
+  await waitFor(
+    () => projectIds().length === 2,
+    'the saved projects to load before checking the project-list Tab boundary',
+  );
+  const projectManagerDialog = document.querySelector('[data-testid="dialog-project-manager"]');
+  const projectManagerFocusables = projectManagerDialog?.querySelectorAll(
+    'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+  );
+  const projectManagerFirstFocus = projectManagerFocusables?.[0];
+  const projectManagerLastFocus = projectManagerFocusables?.[projectManagerFocusables.length - 1];
+  assert(projectManagerFirstFocus?.getAttribute('data-testid') === 'button-close-projects', 'The project list did not expose its close control as the first Tab stop.');
+  assert(projectManagerLastFocus instanceof HTMLElement, 'The project list did not expose a final keyboard control.');
+  flushSync(() => projectManagerFirstFocus.focus());
+  await pressKeyboardKey('Tab', `[data-testid="${projectManagerLastFocus.getAttribute('data-testid')}"]`, true);
+  await pressKeyboardKey('Tab', '[data-testid="button-close-projects"]');
+  const beforeProjectListEscape = JSON.stringify(await loadPropertyProjects());
+  await pressKeyboardKey('Escape');
+  await waitFor(
+    () => !document.querySelector('[data-testid="dialog-project-manager"]'),
+    'the project list to close after Escape',
+  );
+  assert(
+    JSON.stringify(await loadPropertyProjects()) === beforeProjectListEscape,
+    'Closing the project list with Escape changed the saved projects.',
+  );
+  await waitFor(
+    () => document.activeElement === document.querySelector('[data-testid="button-open-projects"]'),
+    'focus to return to the project-list opener after Escape',
   );
 
   await openProjectManager();

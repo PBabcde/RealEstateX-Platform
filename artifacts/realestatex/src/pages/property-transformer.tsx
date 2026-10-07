@@ -209,6 +209,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [isUploading, setIsUploading] = useState(false);
   const [deletedProjectName, setDeletedProjectName] = useState<string | null>(null);
   const projectListRefreshSequence = useRef(0);
+  const projectManagerReturnFocusRef = useRef<HTMLElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
   const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
@@ -548,7 +549,9 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [projectManagerOpen, refreshProjects, storage]);
-  const openProjectManager = () => {
+  const openProjectManager = (trigger?: HTMLElement) => {
+    projectManagerReturnFocusRef.current = trigger
+      ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     setProjectTransferError('');
     setProjectTransferNotice('');
     setProjectManagerOpen(true);
@@ -1078,16 +1081,16 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       </div>}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw project</button>
-        <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
+        <button onClick={(event) => openProjectManager(event.currentTarget)} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
     <header className="mb-7 flex flex-col justify-between gap-5 border-b border-border/70 pb-7 lg:flex-row lg:items-end">
       <div><div className="mb-3 flex items-center gap-2"><span className="mono rounded bg-[#e4eee9] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#287b6a]">Local-first studio</span><span className="text-[10px] text-muted-foreground">Geen projecten verlaten je browser</span></div><h1 className="display max-w-3xl text-4xl font-bold leading-[.98] tracking-[-0.07em] sm:text-6xl">Van foto naar een <span className="text-[#a95f39]">bespreekbaar plan.</span></h1><p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">Maak transformatiekeuzes zichtbaar voor je team, zonder te doen alsof een AI-beeld de werkelijkheid voorspelt.</p></div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={openProjectManager} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2"><button onClick={(event) => openProjectManager(event.currentTarget)} disabled={isUploading || activeMutation || isSaving || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-open-projects"><Layers3 size={16} /> Projecten ({projects.length})</button><button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation || isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-upload-property"><ImagePlus size={16} /> {isUploading ? 'Foto voorbereiden…' : 'Foto vervangen'}</button><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] shadow-sm transition-transform hover:-translate-y-0.5" data-testid="button-open-dossier"><FileText size={16} /> Dossier</button></div>
     </header>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={onFile} className="hidden" data-testid="input-property-image" />
       <input ref={transferFileRef} type="file" accept=".json,application/json" onChange={importProjectFile} className="hidden" data-testid="input-import-project" />
@@ -1138,7 +1141,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     {activeTab === 'roi' && <RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} />}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-    {projectManagerOpen && <ProjectManager accountId={accountId} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div>{proBetaDialogOpen && <ProBetaWaitlistDialog initialEmail={userEmail} onClose={() => setProBetaDialogOpen(false)} />}</AppShell>;
 }
 
@@ -1161,8 +1164,9 @@ function projectPhotoHealthLabel(health: PropertyProjectPhotoHealth): { label: s
   };
 }
 
-export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, onClaimLegacy, projects, photoHealthByProject, photoHealthError, onRetryPhotoHealth, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
+export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus, legacyClaimBusy, onClaimLegacy, projects, photoHealthByProject, photoHealthError, onRetryPhotoHealth, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
   accountId: string;
+  returnFocusTarget: HTMLElement | null;
   legacyClaimStatus: LegacyProjectClaimStatus;
   legacyClaimBusy: boolean;
   onClaimLegacy: () => void;
@@ -1184,6 +1188,12 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
   onImport: () => void;
   onImportPortfolio: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const initialFocusAppliedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const returnFocusTargetRef = useRef(returnFocusTarget);
+  returnFocusTargetRef.current = returnFocusTarget;
   const [searchQuery, setSearchQuery] = useState('');
   const [storedSortPreference, setStoredSortPreference] = useState(() => ({
     accountId,
@@ -1207,6 +1217,81 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
     refreshSortPreference();
     return subscribePropertyProjectSortOrderPreferenceChanges(refreshSortPreference, accountId);
   }, [accountId]);
+  useEffect(() => {
+    if (initialFocusAppliedRef.current) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (loading) {
+      dialog.focus();
+      return;
+    }
+    const initialFocus = dialog.querySelector<HTMLElement>('[data-testid="input-search-projects"]')
+      ?? dialog.querySelector<HTMLElement>('button:not(:disabled)')
+      ?? dialog;
+    initialFocus.focus();
+    initialFocusAppliedRef.current = true;
+  }, [loading]);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const focusableSelector = [
+      'a[href]',
+      'button:not(:disabled)',
+      'input:not(:disabled):not([type="hidden"])',
+      'select:not(:disabled)',
+      'textarea:not(:disabled)',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',');
+    const getFocusableElements = () => Array.from(
+      dialog.querySelectorAll<HTMLElement>(focusableSelector),
+    ).filter((element) => element.tabIndex >= 0
+      && element.getAttribute('aria-hidden') !== 'true'
+      && element.getClientRects().length > 0);
+    const hasHigherPriorityDialog = () => Boolean(
+      document.querySelector('[data-testid="dialog-duplicate-import"]'),
+    );
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (hasHigherPriorityDialog()) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const focusIsOutsideDialog = !dialog.contains(document.activeElement);
+      if ((event.shiftKey && (document.activeElement === first || focusIsOutsideDialog))
+        || (!event.shiftKey && (document.activeElement === last || focusIsOutsideDialog))) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.requestAnimationFrame(() => {
+        if (hasHigherPriorityDialog()) return;
+        const candidates = [
+          returnFocusTargetRef.current,
+          ...Array.from(document.querySelectorAll<HTMLElement>('[data-testid="button-open-projects"]')),
+        ];
+        const returnTarget = candidates.find((candidate) => candidate?.isConnected
+          && candidate.tabIndex >= 0
+          && !(candidate instanceof HTMLButtonElement && candidate.disabled));
+        returnTarget?.focus();
+      });
+    };
+  }, []);
   const queryTerms = searchQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('nl-NL').trim().split(/\s+/).filter(Boolean);
   const matchingProjects = sortPropertyProjects(projects.filter((item) => {
     const searchableText = [item.projectName || 'Transformatiescan', item.address, item.municipality]
@@ -1217,7 +1302,7 @@ export function ProjectManager({ accountId, legacyClaimStatus, legacyClaimBusy, 
     return queryTerms.every((term) => searchableText.includes(term));
   }), sortOrder);
 
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-[#1c2739]/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-project-list-title" data-testid="dialog-project-manager">
+  return <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 overflow-y-auto bg-[#1c2739]/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-project-list-title" data-testid="dialog-project-manager">
     <div className="mx-auto my-6 max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
       <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
         <div><p className="mono text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Browser-only opslag</p><h2 id="property-project-list-title" className="display mt-1 text-2xl font-bold tracking-[-.05em]">Vastgoedprojecten</h2><p className="mt-1 text-xs text-muted-foreground">Projectdetails en foto’s worden alleen in deze browser bewaard.</p></div>
