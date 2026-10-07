@@ -402,6 +402,38 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       setIsSaving(false);
     }
   };
+  const refreshPhotoState = async (projectId: string) => {
+    const sequence = ++activePreviewRefreshSequence.current;
+    const latestProject = await storage.loadPropertyProject(projectId);
+    if (!latestProject) return;
+    const loaded = await loadProjectPreviews(latestProject);
+    if (sequence !== activePreviewRefreshSequence.current || projectRef.current?.id !== projectId) {
+      for (const url of [loaded.originalUrl, ...Object.values(loaded.results).map((item) => item?.imageUrl ?? '')]) {
+        if (url) revokeObjectUrl(url);
+      }
+      return;
+    }
+
+    const nextUrls = new Set([
+      loaded.originalUrl,
+      ...Object.values(loaded.results).map((item) => item?.imageUrl ?? ''),
+    ]);
+    for (const url of [
+      originalPreviewRef.current,
+      ...Object.values(resultPreviewsRef.current).map((item) => item?.imageUrl ?? ''),
+    ]) {
+      if (url && !nextUrls.has(url)) revokeObjectUrl(url);
+    }
+
+    projectRef.current = latestProject;
+    originalPreviewRef.current = loaded.originalUrl;
+    resultPreviewsRef.current = loaded.results;
+    setProject(latestProject);
+    setOriginalUrl(loaded.originalUrl);
+    setResults(loaded.results);
+    setMissingOriginalPhoto(loaded.missingSource);
+    setMissingConceptActions(loaded.missingConcepts);
+  };
   const result = project?.selectedResult ? results[project.selectedResult] : undefined;
   const activeMutation = declutter.isPending || stage.isPending || makeover.isPending || dusk.isPending;
   const totalInvestment = form.purchasePrice + form.renovationCost + form.acquisitionCost;
@@ -804,38 +836,19 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setUploadError('');
     setIsUploading(true);
     try {
+      const projectAtUploadStart = projectRef.current ?? form;
+      const projectSnapshot = await storage.loadPropertyProject(projectAtUploadStart.id) ?? projectAtUploadStart;
       const compressed = await compressImage(file);
-      const latestProject = projectRef.current ?? form;
-      const key = `${latestProject.id}-original-${crypto.randomUUID()}`;
+      const key = `${projectSnapshot.id}-original-${crypto.randomUUID()}`;
       const image: PropertyImageRecord = { key, blob: compressed.blob, label: 'Originele foto', mimeType: compressed.blob.type, isConcept: false, disclaimer: 'Originele foto, lokaal opgeslagen in deze browser.', createdAt: new Date().toISOString() };
       const recoveringMissingSource = missingOriginalPhoto;
-      const oldImageKeys = [...new Set((recoveringMissingSource
-        ? [latestProject.originalKey]
-        : [latestProject.originalKey, ...Object.values(latestProject.resultKeys)]).filter((imageKey): imageKey is string => Boolean(imageKey)))];
-      const next = {
-        ...latestProject,
-        originalKey: key,
-        ...(!recoveringMissingSource ? { resultKeys: {}, selectedResult: null } : {}),
-        updatedAt: new Date().toISOString(),
-      };
-      await storage.savePropertyProjectWithImage(next, image);
-      if (!recoveringMissingSource) {
-        for (const oldResult of Object.values(results)) {
-          if (oldResult) revokeObjectUrl(oldResult.imageUrl);
-        }
-      }
-      if (originalUrl) revokeObjectUrl(originalUrl);
-      projectRef.current = next;
-      setProject(next);
-      setOriginalUrl(createObjectUrl(compressed.blob));
-      if (!recoveringMissingSource) setResults({});
-      setMissingOriginalPhoto(false);
-      if (!recoveringMissingSource) setMissingConceptActions([]);
-      try {
-        await Promise.all(oldImageKeys.map((key) => storage.deletePropertyImage(key)));
-      } catch {
-        setUploadError('De nieuwe foto is opgeslagen, maar de oude bronfoto kon niet worden opgeruimd.');
-      }
+      const next = await storage.replacePropertySourceImage(
+        projectSnapshot.id,
+        image,
+        recoveringMissingSource,
+        projectSnapshot.resultKeys,
+      );
+      await refreshPhotoState(next.id);
       await refreshProjects().catch(() => setUploadError('De foto is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Probeer een andere afbeelding.');
@@ -852,7 +865,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setUploadError('');
     void (async () => {
       try {
-        const image = await storage.loadPropertyImage(project.originalKey);
+        const sourceProject = await storage.loadPropertyProject(project.id) ?? project;
+        const image = await storage.loadPropertyImage(sourceProject.originalKey);
         if (!image) {
           setUploadError('De bronfoto ontbreekt in deze browser. Upload de foto opnieuw.');
           return;
@@ -866,25 +880,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               const key = `${project.id}-${action}-${crypto.randomUUID()}`;
               const blob = await dataUrlToBlob(response.imageDataUrl);
               const imageRecord: PropertyImageRecord = { key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() };
-              const latestProject = projectRef.current ?? project;
-              const next = { ...latestProject, resultKeys: { ...latestProject.resultKeys, [action]: key }, selectedResult: action, splitRatio, updatedAt: new Date().toISOString() };
-              const previousKey = latestProject.resultKeys[action];
-              await storage.savePropertyProjectWithImage(next, imageRecord);
-              const previousResult = results[action];
-              if (previousResult) revokeObjectUrl(previousResult.imageUrl);
-              const meta = { key, label: actions.find((item) => item.id === action)?.label ?? action, imageUrl: createObjectUrl(blob), isConcept: response.isConcept, disclaimer: response.disclaimer };
-              setResults((current) => ({ ...current, [action]: meta }));
-              setMissingConceptActions((current) => current.filter((missingAction) => missingAction !== action));
-              setProject(next);
-              if (previousKey && previousKey !== key) {
-                try {
-                  await storage.deletePropertyImage(previousKey);
-                } catch {
-                  setUploadError('Het concept is opgeslagen, maar een oude versie kon niet worden opgeruimd.');
-                }
-              }
+              const next = await storage.savePropertyConceptImage(project.id, action, imageRecord, splitRatio);
+              await refreshPhotoState(next.id);
               await refreshProjects().catch(() => setUploadError('Het concept is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
-              setNotice(`${meta.label} concept is lokaal opgeslagen.`);
+              setNotice(`${imageRecord.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
             } catch {
               setUploadError('Het resultaat is gemaakt, maar kon niet lokaal worden opgeslagen.');

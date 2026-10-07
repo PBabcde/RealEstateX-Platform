@@ -471,7 +471,40 @@ async function get<T>(storeName: string, key: string, scope: StorageScope = null
 }
 
 export async function savePropertyProject(project: PropertyProject, scope: StorageScope = null): Promise<void> {
-  await put(PROJECTS, project, scope);
+  const db = await openDb(scope);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(PROJECTS, 'readwrite');
+      const store = transaction.objectStore(PROJECTS);
+      const request = store.get(project.id);
+      request.onsuccess = () => {
+        const stored = request.result as PropertyProject | undefined;
+        if (!stored) {
+          store.put(project);
+          return;
+        }
+        const resultKeys = stored.resultKeys ?? {};
+        const selectedResult = project.selectedResult && resultKeys[project.selectedResult]
+          ? project.selectedResult
+          : stored.selectedResult && resultKeys[stored.selectedResult]
+            ? stored.selectedResult
+            : null;
+        store.put({
+          ...project,
+          originalKey: stored.originalKey,
+          resultKeys,
+          selectedResult,
+        });
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  notifyPropertyStorageChanged(scope);
 }
 
 export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
@@ -493,6 +526,127 @@ export async function savePropertyProjectWithImage(project: PropertyProject, ima
   } finally {
     db.close();
   }
+}
+
+function referencedProjectImageKeys(project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>): Set<string> {
+  return new Set([
+    project.originalKey,
+    ...Object.values(project.resultKeys),
+  ].filter((key): key is string => Boolean(key)));
+}
+
+async function commitProjectPhotoMutation(
+  projectId: string,
+  image: PropertyImageRecord,
+  updateProject: (current: PropertyProject) => PropertyProject,
+  cleanupKeys: (current: PropertyProject, next: PropertyProject) => Iterable<string>,
+  scope: StorageScope,
+): Promise<PropertyProject> {
+  const db = await openDb(scope);
+  let committedProject: PropertyProject | undefined;
+  let mutationError: Error | undefined;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      const projectStore = transaction.objectStore(PROJECTS);
+      const imageStore = transaction.objectStore(IMAGES);
+      const projectsRequest = projectStore.getAll();
+      projectsRequest.onsuccess = () => {
+        const projects = projectsRequest.result as PropertyProject[];
+        const current = projects.find((item) => item.id === projectId);
+        if (!current) {
+          mutationError = new Error('Het project bestaat niet meer in deze browser.');
+          transaction.abort();
+          return;
+        }
+
+        const next = updateProject(current);
+        committedProject = next;
+        const referencedKeys = new Set(
+          projects
+            .filter((item) => item.id !== projectId)
+            .flatMap((item) => [...referencedProjectImageKeys(item)]),
+        );
+        for (const key of referencedProjectImageKeys(next)) referencedKeys.add(key);
+
+        projectStore.put(next);
+        for (const key of cleanupKeys(current, next)) {
+          if (key !== image.key && !referencedKeys.has(key)) imageStore.delete(key);
+        }
+        imageStore.put(image);
+      };
+      projectsRequest.onerror = () => reject(projectsRequest.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(mutationError ?? transaction.error);
+      transaction.onabort = () => reject(mutationError ?? transaction.error ?? new Error('De foto kon niet samen met het project worden opgeslagen.'));
+    });
+    if (!committedProject) throw new Error('De foto kon niet samen met het project worden opgeslagen.');
+    notifyPropertyStorageChanged(scope);
+    return committedProject;
+  } catch (error) {
+    if (mutationError) throw mutationError;
+    throw new Error('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.', { cause: error });
+  } finally {
+    db.close();
+  }
+}
+
+export async function replacePropertySourceImage(
+  projectId: string,
+  image: PropertyImageRecord,
+  preserveConcepts: boolean,
+  existingConceptKeys: Partial<Record<PropertyAction, string>>,
+  scope: StorageScope = null,
+): Promise<PropertyProject> {
+  const conceptsPresentAtUploadStart = new Set(
+    Object.values(existingConceptKeys).filter((key): key is string => Boolean(key)),
+  );
+  return commitProjectPhotoMutation(
+    projectId,
+    image,
+    (current) => {
+      const resultKeys = preserveConcepts
+        ? current.resultKeys
+        : Object.fromEntries(Object.entries(current.resultKeys).filter(([, key]) => !conceptsPresentAtUploadStart.has(key))) as PropertyProject['resultKeys'];
+      const selectedResult = current.selectedResult && resultKeys[current.selectedResult]
+        ? current.selectedResult
+        : null;
+      return {
+        ...current,
+        originalKey: image.key,
+        resultKeys,
+        selectedResult,
+        updatedAt: new Date().toISOString(),
+      };
+    },
+    (current, next) => [
+      current.originalKey,
+      ...Object.values(current.resultKeys).filter((key) => !Object.values(next.resultKeys).includes(key)),
+    ],
+    scope,
+  );
+}
+
+export async function savePropertyConceptImage(
+  projectId: string,
+  action: PropertyAction,
+  image: PropertyImageRecord,
+  splitRatio: number,
+  scope: StorageScope = null,
+): Promise<PropertyProject> {
+  return commitProjectPhotoMutation(
+    projectId,
+    image,
+    (current) => ({
+      ...current,
+      resultKeys: { ...current.resultKeys, [action]: image.key },
+      selectedResult: action,
+      splitRatio,
+      updatedAt: new Date().toISOString(),
+    }),
+    (current) => [current.resultKeys[action] ?? ''],
+    scope,
+  );
 }
 
 export async function loadPropertyProjects(scope: StorageScope = null): Promise<PropertyProject[]> {
@@ -711,8 +865,14 @@ export async function deletePropertyImage(key: string, scope: StorageScope = nul
   const db = await openDb(scope);
   try {
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(IMAGES, 'readwrite');
-      transaction.objectStore(IMAGES).delete(key);
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      const projectsRequest = transaction.objectStore(PROJECTS).getAll();
+      projectsRequest.onsuccess = () => {
+        const projects = projectsRequest.result as PropertyProject[];
+        const isReferenced = projects.some((project) => referencedProjectImageKeys(project).has(key));
+        if (!isReferenced) transaction.objectStore(IMAGES).delete(key);
+      };
+      projectsRequest.onerror = () => reject(projectsRequest.error);
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
@@ -1267,6 +1427,14 @@ export function createPropertyProjectStorage(accountId: string) {
     savePropertyProjectSortOrderPreference: (order: PropertyProjectSortOrder) => savePropertyProjectSortOrderPreference(order, accountId),
     savePropertyProject: (project: PropertyProject) => savePropertyProject(project, accountId),
     savePropertyProjectWithImage: (project: PropertyProject, image: PropertyImageRecord) => savePropertyProjectWithImage(project, image, accountId),
+    replacePropertySourceImage: (
+      projectId: string,
+      image: PropertyImageRecord,
+      preserveConcepts: boolean,
+      existingConceptKeys: Partial<Record<PropertyAction, string>>,
+    ) => replacePropertySourceImage(projectId, image, preserveConcepts, existingConceptKeys, accountId),
+    savePropertyConceptImage: (projectId: string, action: PropertyAction, image: PropertyImageRecord, splitRatio: number) =>
+      savePropertyConceptImage(projectId, action, image, splitRatio, accountId),
     loadPropertyProjects: () => loadPropertyProjects(accountId),
     findMatchingSavedPropertyProject: (archive: unknown) => findMatchingSavedPropertyProject(archive, accountId),
     loadPropertyProjectsWithPhotoHealth: () => loadPropertyProjectsWithPhotoHealth(accountId),

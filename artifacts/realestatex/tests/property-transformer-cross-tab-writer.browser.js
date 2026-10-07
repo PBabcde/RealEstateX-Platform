@@ -7,7 +7,15 @@ import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-accoun
 import { PropertyTransformer } from '../src/pages/property-transformer.tsx';
 
 const storage = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
-const { deletePropertyImage, loadPropertyProject, savePropertyImage, savePropertyProjectWithImage } = storage;
+const {
+  deletePropertyImage,
+  loadPropertyImage,
+  loadPropertyProject,
+  replacePropertySourceImage,
+  savePropertyConceptImage,
+  savePropertyImage,
+  savePropertyProjectWithImage,
+} = storage;
 
 const result = document.querySelector('#test-result');
 const root = createRoot(document.querySelector('#app-root'));
@@ -73,7 +81,7 @@ async function deleteProjectFromList(id) {
   throw new Error(`The project ${id} did not disappear from the second tab after deletion.`);
 }
 
-async function deleteImageWithoutNotification(key) {
+async function deleteImageWithoutNotification(key, notify = false) {
   const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
   const database = await new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 2);
@@ -91,6 +99,11 @@ async function deleteImageWithoutNotification(key) {
   } finally {
     database.close();
   }
+  if (notify) {
+    const channel = new BroadcastChannel(`realestatex-property-storage-changes:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
+    channel.postMessage({ type: 'changed' });
+    channel.close();
+  }
 }
 
 function makeImage(key, label, isConcept, content) {
@@ -105,9 +118,24 @@ function makeImage(key, label, isConcept, content) {
   };
 }
 
+window.__photoWriterReadPreviews = async (projectId) => {
+  const readPreview = async (selector, key) => {
+    const image = document.querySelector(selector);
+    if (!image || !image.src.startsWith('blob:')) return null;
+    const record = key ? await loadPropertyImage(key) : undefined;
+    return record ? { content: await record.blob.text(), src: image.src } : null;
+  };
+  const project = await loadPropertyProject(projectId);
+  return {
+    project,
+    source: await readPreview('img[alt="Originele woningfoto"]', project?.originalKey),
+    concept: await readPreview('img[alt="Virtual stage concept"]', project?.resultKeys.stage),
+  };
+};
+
 window.addEventListener('message', async (event) => {
   if (event.source !== window.opener || event.origin !== location.origin) return;
-  const { operation, requestId, key, project, id } = event.data ?? {};
+  const { operation, requestId, key, project, id, action, existingConceptKeys } = event.data ?? {};
   try {
     if (operation === 'open-project-list') {
       await openProjectList();
@@ -116,6 +144,8 @@ window.addEventListener('message', async (event) => {
     } else if (operation === 'add-concept') {
       await savePropertyImage(makeImage(key, 'Virtual stage', true, 'cross-tab concept'));
     } else if (operation === 'remove-image') {
+      await deleteImageWithoutNotification(key, true);
+    } else if (operation === 'safe-delete-image') {
       await deletePropertyImage(key);
     } else if (operation === 'remove-image-without-notification') {
       await deleteImageWithoutNotification(key);
@@ -123,6 +153,20 @@ window.addEventListener('message', async (event) => {
       await savePropertyProjectWithImage(
         project,
         makeImage(project.originalKey, 'Originele foto', false, 'cross-tab replacement source'),
+      );
+    } else if (operation === 'replace-source') {
+      await replacePropertySourceImage(
+        id,
+        makeImage(key, 'Originele foto', false, 'concurrent source replacement'),
+        false,
+        existingConceptKeys,
+      );
+    } else if (operation === 'save-concept') {
+      await savePropertyConceptImage(
+        id,
+        action,
+        makeImage(key, 'Virtual stage', true, 'concurrent generated concept'),
+        50,
       );
     } else {
       throw new Error(`Unknown photo change operation: ${operation}`);

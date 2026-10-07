@@ -20,3 +20,4 @@
 - [Cross-tab project imports](realestatex-cross-tab-imports.md) — keep duplicate lookup and save under one same-origin lock; fail closed if that lock is unavailable.
 - [RealEstateX modal focus](realestatex-modal-focus.md) — restore focus to a connected, enabled control after async dialogs; scripted clicks do not focus like real activation.
 - [RealEstateX cross-tab testing](realestatex-cross-tab-testing.md) — verify storage notifications between separate tabs; a tab does not receive its own BroadcastChannel messages.
+- [RealEstateX photo-reference races](realestatex-photo-reference-races.md) — mutate photo bytes and project references atomically, and guard cleanup against currently referenced keys.

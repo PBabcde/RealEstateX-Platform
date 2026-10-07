@@ -20,7 +20,9 @@ const {
   loadPropertyProjectImages,
   loadPropertyProjects,
   loadPropertyProjectsWithPhotoHealth,
+  replacePropertySourceImage,
   savePropertyImage,
+  savePropertyConceptImage,
   savePropertyProject,
   savePropertyProjectWithImage,
   subscribePropertyStorageChanges,
@@ -146,6 +148,29 @@ async function saveImage(key) {
     disclaimer: key.endsWith('-original') ? 'Source photo stored locally.' : 'AI concept, not a factual representation.',
     createdAt: '2026-03-04T05:06:07.000Z',
   });
+}
+
+async function removeImageForTest(key) {
+  const databaseName = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const database = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 2);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction('images', 'readwrite');
+      transaction.objectStore('images').delete(key);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    database.close();
+  }
+  const channel = new BroadcastChannel(`realestatex-property-storage-changes:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
+  channel.postMessage({ type: 'changed' });
+  channel.close();
 }
 
 async function assertProjectAndPhotos(name) {
@@ -614,7 +639,11 @@ async function runCrossTabPhotoHealthChecks() {
       const deadline = Date.now() + 15_000;
       while (Date.now() < deadline) {
         if (!writer || writer.closed) throw new Error('The second project-list tab closed unexpectedly.');
-        if (predicate(writer.document)) return;
+        try {
+          if (predicate(writer.document)) return;
+        } catch {
+          // A navigation can briefly make the other tab's document unavailable.
+        }
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       throw new Error(`Timed out waiting for ${description}.`);
@@ -745,12 +774,73 @@ async function runCrossTabPhotoHealthChecks() {
     assert(editorNotes.value === 'Unsaved notes from the open editor', 'Refreshing recovered photos replaced the open editor’s in-progress notes.');
     assert(styledButton.className.includes('ring-2'), 'Refreshing recovered photos changed the selected project style.');
 
-    const savedProject = await loadPropertyProject(project.id);
+    const recoveredProjectSnapshot = await loadPropertyProject(project.id);
     assert(
-      savedProject.originalKey === recoveredProject.originalKey,
+      recoveredProjectSnapshot.originalKey === recoveredProject.originalKey,
       'Cross-tab photo recovery did not update the saved source-photo reference.',
     );
-    assert(savedProject.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
+    assert(recoveredProjectSnapshot.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
+
+    const projectBeforeConcurrentWrites = recoveredProjectSnapshot;
+    const concurrentSourceKey = 'browser-cross-tab-race-source';
+    const concurrentConceptKey = 'browser-cross-tab-race-concept';
+    const concurrentConceptRecord = {
+      key: concurrentConceptKey,
+      blob: new Blob(['concurrent generated concept'], { type: 'image/jpeg' }),
+      label: 'Virtual stage',
+      mimeType: 'image/jpeg',
+      isConcept: true,
+      disclaimer: 'AI concept, not a factual representation.',
+      createdAt: new Date().toISOString(),
+    };
+    const conceptWrite = savePropertyConceptImage(project.id, 'stage', concurrentConceptRecord, 50);
+    const sourceWrite = runWriterCommand('replace-source', {
+      id: project.id,
+      key: concurrentSourceKey,
+      existingConceptKeys: projectBeforeConcurrentWrites.resultKeys,
+    });
+    await Promise.all([conceptWrite, sourceWrite]);
+
+    const concurrentProject = await loadPropertyProject(project.id);
+    assert(concurrentProject?.originalKey === concurrentSourceKey, 'The source replacement was lost during a concurrent concept save.');
+    assert(concurrentProject.resultKeys.stage === concurrentConceptKey, 'The regenerated concept reference was lost during a concurrent source replacement.');
+    const concurrentPhotos = await loadPropertyProjectImages(concurrentProject);
+    assert(
+      (await concurrentPhotos.original?.blob.text()) === 'concurrent source replacement',
+      'The replacement source image was deleted or changed after the concurrent writes.',
+    );
+    assert(
+      (await concurrentPhotos.results.stage?.blob.text()) === 'concurrent generated concept',
+      'The regenerated concept image was deleted or changed after the concurrent writes.',
+    );
+    await waitForEditor(async () => {
+      const previews = await readEditorPreviewContents();
+      return previews.source === 'concurrent source replacement'
+        && previews.concept === 'concurrent generated concept';
+    }, 'the open editor to show both concurrent photo updates');
+
+    await Promise.all([
+      deletePropertyImage(concurrentSourceKey),
+      runWriterCommand('safe-delete-image', { key: concurrentConceptKey }),
+    ]);
+    assert(await loadPropertyImage(concurrentSourceKey), 'An older cleanup removed the newly referenced source photo.');
+    assert(await loadPropertyImage(concurrentConceptKey), 'An older cleanup removed the newly referenced concept image.');
+
+    await savePropertyProject({ ...concurrentProject, updatedAt: '2099-10-07T12:00:00.000Z' });
+    writer.__photoWriterReadPreviews = null;
+    writer.location.reload();
+    await waitForWriter(
+      (documentInWriter) => typeof documentInWriter.defaultView.__photoWriterReadPreviews === 'function'
+        && documentInWriter.querySelector('img[alt="Originele woningfoto"]')
+        && documentInWriter.querySelector('img[alt="Virtual stage concept"]'),
+      'the reloaded second tab to render the concurrently updated source and concept previews',
+    );
+    const reloadedPreviews = await writer.__photoWriterReadPreviews(project.id);
+    assert(reloadedPreviews.project?.originalKey === concurrentSourceKey, 'The concurrent source reference did not survive reloading the second tab.');
+    assert(reloadedPreviews.project?.resultKeys.stage === concurrentConceptKey, 'The concurrent concept reference did not survive reloading the second tab.');
+    assert(reloadedPreviews.source?.content === 'concurrent source replacement', 'The replacement source preview could not be read after reloading the second tab.');
+    assert(reloadedPreviews.concept?.content === 'concurrent generated concept', 'The regenerated concept preview could not be read after reloading the second tab.');
+    await runWriterCommand('open-project-list');
 
     const survivorProject = expectedProjects.beta;
     await waitForEditor(
@@ -1079,11 +1169,11 @@ async function run() {
       createdAt: '2026-09-28T00:00:00.000Z',
     });
     await saveImage('recovery-stage');
-    await deletePropertyImage('recovery-stage');
+    await removeImageForTest('recovery-stage');
     const missingConceptHealth = await loadPropertyProjectsWithPhotoHealth();
     assert(missingConceptHealth.photoHealthById[recoveryProject.id]?.sourcePhoto === 'available', 'Removing a concept changed the source-photo status.');
     assert(missingConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.includes('stage'), 'Removing a concept did not refresh the saved-project status.');
-    await deletePropertyImage('recovery-original');
+    await removeImageForTest('recovery-original');
     const missingImages = await loadPropertyProjectImages(recoveryProject);
     assert(missingImages.missingOriginal, 'A missing source image was not identified.');
     assert(missingImages.missingConcepts.includes('stage'), 'A missing concept image was not identified.');
@@ -1125,7 +1215,7 @@ async function run() {
     await saveImage('recovery-stage');
     const addedConceptHealth = await loadPropertyProjectsWithPhotoHealth();
     assert(addedConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.length === 0, 'Adding the concept photo did not clear its missing status.');
-    await deletePropertyImage('recovery-stage');
+    await removeImageForTest('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
     result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the remaining project and its photos stayed unchanged, including shared photo references. The open editor and project list also refresh photo previews and warnings after cross-tab additions, removals, and recovery without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';
