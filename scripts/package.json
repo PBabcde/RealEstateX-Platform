@@ -13,6 +13,7 @@
     "realestatex:release-restore-test": "tsx ./src/realestatex-ops.ts release-restore-test",
     "realestatex:retire-legacy-sessions": "tsx ./src/legacy-session-cleanup.ts",
     "test:legacy-session-cleanup": "tsx ../tests/legacy_session_cleanup.test.js",
+    "test:legacy-session-cleanup:postgres": "tsx ./src/legacy-session-cleanup-integration.ts",
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
     "test:release-integrity": "tsx ../tests/audit_immutability.test.js",
     "test:tenant-isolation": "tsx ../tests/enterprise_tenant_isolation.test.js",
