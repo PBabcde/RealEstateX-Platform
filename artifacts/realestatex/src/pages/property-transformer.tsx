@@ -188,6 +188,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [activeTab, setActiveTab] = useState<'studio' | 'split' | 'roi'>('studio');
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [deletedProjectName, setDeletedProjectName] = useState<string | null>(null);
   const projectListRefreshSequence = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
@@ -198,6 +199,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const originalPreviewRef = useRef(originalUrl);
   const resultPreviewsRef = useRef(results);
   const activePreviewRefreshSequence = useRef(0);
+  const externallyDeletedProjectIdRef = useRef<string | null>(null);
   const objectUrls = useRef(new Set<string>());
   const declutter = useDeclutterPropertyImage();
   const stage = useStagePropertyImage();
@@ -323,7 +325,28 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       let loaded: Awaited<ReturnType<typeof loadProjectPreviews>> | undefined;
       try {
         const latestProject = await storage.loadPropertyProject(projectId);
-        if (!latestProject) return;
+        if (!latestProject) {
+          const currentProject = projectRef.current;
+          if (!active || sequence !== activePreviewRefreshSequence.current || currentProject?.id !== projectId) return;
+          externallyDeletedProjectIdRef.current = projectId;
+          setDeletedProjectName(currentProject.projectName || 'Transformatiescan');
+          activePreviewRefreshSequence.current += 1;
+          revokeAllObjectUrls();
+          projectRef.current = null;
+          originalPreviewRef.current = '';
+          resultPreviewsRef.current = {};
+          setProject(null);
+          setOriginalUrl('');
+          setResults({});
+          setMissingOriginalPhoto(false);
+          setMissingConceptActions([]);
+          setSplitRatio(50);
+          setProjectManagerOpen(false);
+          setTransferOpen(false);
+          setUploadError('');
+          setNotice('');
+          return;
+        }
         loaded = await loadProjectPreviews(latestProject);
         const currentProject = projectRef.current;
         if (!active || sequence !== activePreviewRefreshSequence.current || currentProject?.id !== projectId) {
@@ -392,10 +415,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     void save(next);
   };
   const save = async (nextProject = project) => {
-    if (!nextProject) return;
+    if (!nextProject || externallyDeletedProjectIdRef.current === nextProject.id) return;
     setIsSaving(true);
     try {
-      await storage.savePropertyProject(nextProject);
+      await storage.updatePropertyProject(nextProject);
     } catch {
       setUploadError('Opslaan in deze browser is mislukt. Maak ruimte vrij en probeer opnieuw.');
     } finally {
@@ -573,6 +596,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       if (!selected) throw new Error('Dit project bestaat niet meer in de browseropslag. Vernieuw de projectlijst.');
       const loaded = await loadProjectPreviews(selected);
       revokeAllObjectUrls();
+      externallyDeletedProjectIdRef.current = null;
+      setDeletedProjectName(null);
       projectRef.current = selected;
       setProject(selected);
       setOriginalUrl(loaded.originalUrl);
@@ -597,6 +622,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     try {
       await storage.savePropertyProject(created);
       revokeAllObjectUrls();
+      externallyDeletedProjectIdRef.current = null;
+      setDeletedProjectName(null);
       projectRef.current = created;
       setProject(created);
       setOriginalUrl('');
@@ -671,7 +698,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setProjectTransferNotice('');
     try {
       const current = projectRef.current?.id === target.id ? projectRef.current : target;
-      await storage.savePropertyProject(current);
+      await storage.updatePropertyProject(current);
       const archive = await storage.exportPropertyProject(current);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(file);
@@ -696,7 +723,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setProjectTransferNotice('');
     try {
       const current = projectRef.current;
-      if (current) await storage.savePropertyProject(current);
+      if (current) await storage.updatePropertyProject(current);
       const savedProjects = await storage.loadPropertyProjects();
       const archive = await storage.exportPropertyPortfolio(savedProjects);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
@@ -728,6 +755,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     const restored = result.project;
     const loaded = await loadProjectPreviews(restored);
     revokeAllObjectUrls();
+    externallyDeletedProjectIdRef.current = null;
+    setDeletedProjectName(null);
     projectRef.current = restored;
     setProject(restored);
     setOriginalUrl(loaded.originalUrl);
@@ -974,10 +1003,15 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#f3e7da] text-[#a95f39]"><Layers3 size={23} /></div>
       <p className="mono mt-5 text-[9px] uppercase tracking-[.18em] text-[#a95f39]">Local-first studio</p>
       <h1 className="display mt-2 text-3xl font-bold tracking-[-.06em]">Geen actief project</h1>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Maak een nieuw vastgoedproject of open een eerder opgeslagen project. Projectgegevens en foto’s blijven in deze browser.</p>
+      {deletedProjectName
+        ? <div className="mx-auto mt-4 max-w-lg rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-left text-xs leading-5 text-[#9e4336]" role="alert" data-testid="status-project-deleted-elsewhere">
+          <p className="font-bold">“{deletedProjectName}” is in een ander tabblad verwijderd.</p>
+          <p className="mt-1">Dit project is niet automatisch hersteld. Open een ander opgeslagen project of maak een nieuw project aan.</p>
+        </div>
+        : <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Maak een nieuw vastgoedproject of open een eerder opgeslagen project. Projectgegevens en foto’s blijven in deze browser.</p>}
       {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}</p>}
       <div className="mt-6 flex flex-wrap justify-center gap-2">
-        <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50"><Plus size={15} /> Nieuw project</button>
+        <button onClick={() => void createProject()} disabled={isProjectSwitching} className="inline-flex items-center gap-2 rounded-xl bg-[#24324b] px-4 py-3 text-xs font-bold text-[#f7f3ec] disabled:opacity-50" data-testid="button-create-project"><Plus size={15} /> Nieuw project</button>
         <button onClick={openProjectManager} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>

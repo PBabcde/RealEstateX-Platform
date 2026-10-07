@@ -25,6 +25,7 @@ const {
   savePropertyConceptImage,
   savePropertyProject,
   savePropertyProjectWithImage,
+  updatePropertyProject,
   subscribePropertyStorageChanges,
 } = createPropertyProjectStorage(PROPERTY_STORAGE_TEST_ACCOUNT_ID);
 const result = document.querySelector('#test-result');
@@ -865,6 +866,17 @@ async function runCrossTabPhotoHealthChecks() {
 
     await runWriterCommand('delete-project', { id: project.id });
     await waitForEditor(
+      () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(project.projectName)
+        && editorRootElement.querySelector('[data-testid="button-create-project"]'),
+      'the editor to explain that the active project was deleted in the other tab and offer a new project',
+    );
+    const deletionNotice = editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]');
+    assert(deletionNotice?.getAttribute('role') === 'alert', 'The active-project deletion was not announced as an alert.');
+    assert(deletionNotice.textContent.includes('niet automatisch hersteld'), 'The deletion message did not make clear that the project would not be restored automatically.');
+    const reopenProjectsButton = editorRootElement.querySelector('[data-testid="button-open-projects"]');
+    assert(reopenProjectsButton instanceof HTMLButtonElement, 'The deleted-project screen did not offer access to saved projects.');
+    flushSync(() => reopenProjectsButton.click());
+    await waitForEditor(
       () => !editorRootElement.querySelector(`[data-testid="project-row-${project.id}"]`)
         && editorRootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
         && editorRootElement.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
@@ -877,6 +889,14 @@ async function runCrossTabPhotoHealthChecks() {
       'the second open project list to remove the deleted project and retain the healthy survivor',
     );
     assert(!(await loadPropertyProject(project.id)), 'The project deleted from the second tab remained in browser storage.');
+    let staleProjectUpdateError = '';
+    try {
+      await updatePropertyProject(project);
+    } catch (error) {
+      staleProjectUpdateError = error instanceof Error ? error.message : String(error);
+    }
+    assert(staleProjectUpdateError.includes('bestaat niet meer'), 'Saving stale editor changes after a cross-tab deletion recreated the deleted project.');
+    assert(!(await loadPropertyProject(project.id)), 'The deleted project returned after an update from the stale editor.');
     assert(
       JSON.stringify(await loadPropertyProject(survivorProject.id)) === JSON.stringify(survivorProject),
       'Deleting a project in another tab changed the surviving project.',
@@ -911,6 +931,18 @@ async function runCrossTabPhotoHealthChecks() {
       'Deleting a project that shared photo references changed the remaining project.',
     );
     await assertProjectAndPhotos('beta');
+    const projectIdsBeforeCreate = new Set((await loadPropertyProjects()).map((storedProject) => storedProject.id));
+    const closeProjectsButton = editorRootElement.querySelector('[data-testid="button-close-projects"]');
+    assert(closeProjectsButton instanceof HTMLButtonElement, 'The editor could not return from the saved-project list after the deletion.');
+    flushSync(() => closeProjectsButton.click());
+    const createProjectButton = editorRootElement.querySelector('[data-testid="button-create-project"]');
+    assert(createProjectButton instanceof HTMLButtonElement, 'The deleted-project screen did not offer to create a new project.');
+    flushSync(() => createProjectButton.click());
+    await waitForEditor(async () => {
+      const storedProjects = await loadPropertyProjects();
+      return storedProjects.some((storedProject) => !projectIdsBeforeCreate.has(storedProject.id))
+        && !await loadPropertyProject(project.id);
+    }, 'a new project to be created without restoring the project deleted in the other tab');
   } finally {
     window.__simulateSleepingPhotoListTab = false;
     if (originalVisibilityDescriptor) {
@@ -1218,7 +1250,7 @@ async function run() {
     await removeImageForTest('recovery-stage');
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the remaining project and its photos stayed unchanged, including shared photo references. The open editor and project list also refresh photo previews and warnings after cross-tab additions, removals, and recovery without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the open editor explained the active-project deletion and created a separate new project without restoring it. The remaining project and shared photos stayed unchanged. The open editor and project list also refresh photo previews and warnings after cross-tab changes without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';
     return;
   }
 

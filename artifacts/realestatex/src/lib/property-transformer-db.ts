@@ -507,6 +507,47 @@ export async function savePropertyProject(project: PropertyProject, scope: Stora
   notifyPropertyStorageChanged(scope);
 }
 
+export async function updatePropertyProject(project: PropertyProject, scope: StorageScope = null): Promise<void> {
+  const db = await openDb(scope);
+  let missingProject = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(PROJECTS, 'readwrite');
+      const store = transaction.objectStore(PROJECTS);
+      const request = store.get(project.id);
+      request.onsuccess = () => {
+        const stored = request.result as PropertyProject | undefined;
+        if (!stored) {
+          missingProject = true;
+          transaction.abort();
+          return;
+        }
+        const resultKeys = stored.resultKeys ?? {};
+        const selectedResult = project.selectedResult && resultKeys[project.selectedResult]
+          ? project.selectedResult
+          : stored.selectedResult && resultKeys[stored.selectedResult]
+            ? stored.selectedResult
+            : null;
+        store.put({
+          ...project,
+          originalKey: stored.originalKey,
+          resultKeys,
+          selectedResult,
+        });
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(missingProject
+        ? new Error('Het project bestaat niet meer in deze browser.')
+        : transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  notifyPropertyStorageChanged(scope);
+}
+
 export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
   const db = await openDb(scope);
   try {
@@ -1426,6 +1467,7 @@ export function createPropertyProjectStorage(accountId: string) {
     loadPropertyProjectSortOrderPreference: () => loadPropertyProjectSortOrderPreference(accountId),
     savePropertyProjectSortOrderPreference: (order: PropertyProjectSortOrder) => savePropertyProjectSortOrderPreference(order, accountId),
     savePropertyProject: (project: PropertyProject) => savePropertyProject(project, accountId),
+    updatePropertyProject: (project: PropertyProject) => updatePropertyProject(project, accountId),
     savePropertyProjectWithImage: (project: PropertyProject, image: PropertyImageRecord) => savePropertyProjectWithImage(project, image, accountId),
     replacePropertySourceImage: (
       projectId: string,
