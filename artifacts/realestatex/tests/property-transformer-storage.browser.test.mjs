@@ -838,6 +838,80 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       await evaluate('window.__propertyRecoveryTest.restoreDeleteMethod?.()');
     }
 
+    const assertReplacementSaveFailure = async ({
+      testName,
+      injection,
+      expectedMessage,
+      rawMessage,
+    }) => {
+      const before = await evaluate(
+        `(async () => ({
+          project: await window.__propertyRecoveryTest.readProject(),
+          imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        }))()`,
+        true,
+      );
+      if (!before.project?.originalKey || !before.project?.resultKeys?.stage || !before.imageRecords.length) {
+        throw new Error(`The ${testName} test did not start with saved source and concept photos.`);
+      }
+      await evaluate(`window.__propertyRecoveryTest.${injection}(${JSON.stringify(
+        testName === 'blocked browser storage access' ? 'SecurityError'
+          : testName === 'full browser storage' ? 'QuotaExceededError'
+            : 'Error',
+      )}, ${JSON.stringify(rawMessage)})`);
+      await uploadReplacement(uploadPath);
+
+      const failure = await waitFor(
+        `(() => ({
+          error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          retryEnabled: Boolean(document.querySelector('[data-testid="button-upload-property"]') && !document.querySelector('[data-testid="button-upload-property"]').disabled),
+          actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
+          selectedScenarioVisible: Array.from(document.querySelectorAll('h2'))
+            .some((heading) => heading.textContent?.includes('Virtual stage naast het origineel')),
+        }))()`,
+        (value) => value?.error && value.retryEnabled && value.actionFinished && value.selectedScenarioVisible,
+        `the ${testName} failure to keep the replacement-photo retry available`,
+      );
+      if (!failure.error.includes(expectedMessage)) {
+        throw new Error(`The ${testName} failure showed the wrong guidance: ${failure.error}`);
+      }
+      if (failure.error.includes(rawMessage)) {
+        throw new Error(`The ${testName} failure exposed the raw browser error: ${failure.error}`);
+      }
+      const after = await evaluate(
+        `(async () => ({
+          project: await window.__propertyRecoveryTest.readProject(),
+          imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        }))()`,
+        true,
+      );
+      if (JSON.stringify(after.project) !== JSON.stringify(before.project)) {
+        throw new Error(`The ${testName} failure changed the saved project or selected scenario.`);
+      }
+      if (JSON.stringify(after.imageRecords) !== JSON.stringify(before.imageRecords)) {
+        throw new Error(`The ${testName} failure changed or partially wrote an existing photo.`);
+      }
+    };
+
+    await assertReplacementSaveFailure({
+      testName: 'full browser storage',
+      injection: 'failNextImageWriteWith',
+      expectedMessage: 'Maak ruimte vrij',
+      rawMessage: 'SENSITIVE_QUOTA_DETAILS',
+    });
+    await assertReplacementSaveFailure({
+      testName: 'blocked browser storage access',
+      injection: 'failNextReadwriteTransactionWith',
+      expectedMessage: 'Sta lokale opslag toe',
+      rawMessage: 'SENSITIVE_ACCESS_DETAILS',
+    });
+    await assertReplacementSaveFailure({
+      testName: 'unknown browser storage failure',
+      injection: 'failNextImageWriteWith',
+      expectedMessage: 'Controleer de browseropslag en probeer opnieuw',
+      rawMessage: 'SENSITIVE_UNKNOWN_DETAILS',
+    });
+
     const beforeFailedPhotoSave = await evaluate(
       `(async () => ({
         project: await window.__propertyRecoveryTest.readProject(),
@@ -845,44 +919,6 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       }))()`,
       true,
     );
-    if (!beforeFailedPhotoSave.project?.originalKey
-      || !beforeFailedPhotoSave.project?.resultKeys?.stage
-      || !beforeFailedPhotoSave.imageRecords.length) {
-      throw new Error('The IndexedDB failure test did not start with saved source and concept photos.');
-    }
-    await evaluate(`window.__propertyRecoveryTest.failNextImageWrite()`);
-    await uploadReplacement(uploadPath);
-
-    const failedPhotoSave = await waitFor(
-      `(() => ({
-        error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
-        retryEnabled: Boolean(document.querySelector('[data-testid="button-upload-property"]') && !document.querySelector('[data-testid="button-upload-property"]').disabled),
-        actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
-        selectedScenarioVisible: Array.from(document.querySelectorAll('h2'))
-          .some((heading) => heading.textContent?.includes('Virtual stage naast het origineel')),
-      }))()`,
-      (value) => value?.error && value.retryEnabled && value.actionFinished && value.selectedScenarioVisible,
-      'the replacement photo save to fail while keeping the retry action available',
-    );
-    if (!failedPhotoSave.error.includes('kon niet worden opgeslagen')
-      || !failedPhotoSave.error.includes('ongewijzigd gebleven')
-      || !failedPhotoSave.error.includes('probeer opnieuw')) {
-      throw new Error(`The failed photo save did not explain that the project is unchanged and can be retried: ${failedPhotoSave.error}`);
-    }
-    const afterFailedPhotoSave = await evaluate(
-      `(async () => ({
-        project: await window.__propertyRecoveryTest.readProject(),
-        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
-      }))()`,
-      true,
-    );
-    if (JSON.stringify(afterFailedPhotoSave.project) !== JSON.stringify(beforeFailedPhotoSave.project)) {
-      throw new Error('The failed replacement photo save changed the saved project or selected scenario.');
-    }
-    if (JSON.stringify(afterFailedPhotoSave.imageRecords) !== JSON.stringify(beforeFailedPhotoSave.imageRecords)) {
-      throw new Error('The failed replacement photo save changed or partially wrote existing image records.');
-    }
-
     await uploadReplacement(uploadPath);
     await waitFor(
       `(() => ({
@@ -1099,7 +1135,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
     }
 
-    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
+    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; quota, blocked-access, and unknown replacement-photo failures showed safe, specific guidance while preserving the saved project and photo contents, and retry succeeded; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
   } finally {
     devTools.close();
   }

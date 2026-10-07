@@ -117,14 +117,35 @@ async function prepareFixture() {
   }
 
   let abortNextImageWrite = false;
+  let nextImageWriteFailure = null;
+  let nextReadwriteTransactionFailure = null;
   const nativePut = IDBObjectStore.prototype.put;
+  const nativeTransaction = IDBDatabase.prototype.transaction;
   IDBObjectStore.prototype.put = function (...args) {
+    if (nextImageWriteFailure && this.name === 'images') {
+      const failure = nextImageWriteFailure;
+      nextImageWriteFailure = null;
+      if (failure.name === 'Error') throw new Error(failure.message);
+      throw new DOMException(failure.message, failure.name);
+    }
     const request = Reflect.apply(nativePut, this, args);
     if (abortNextImageWrite && this.name === 'images') {
       abortNextImageWrite = false;
       this.transaction.abort();
     }
     return request;
+  };
+  IDBDatabase.prototype.transaction = function (...args) {
+    const stores = typeof args[0] === 'string' ? [args[0]] : Array.from(args[0]);
+    if (nextReadwriteTransactionFailure
+      && args[1] === 'readwrite'
+      && stores.includes('projects')
+      && stores.includes('images')) {
+      const failure = nextReadwriteTransactionFailure;
+      nextReadwriteTransactionFailure = null;
+      throw new DOMException(failure.message, failure.name);
+    }
+    return Reflect.apply(nativeTransaction, this, args);
   };
 
   window.__propertyRecoveryTest = {
@@ -135,6 +156,12 @@ async function prepareFixture() {
     successfulConceptDataUrl: fixturePngDataUrl,
     failNextImageWrite() {
       abortNextImageWrite = true;
+    },
+    failNextImageWriteWith(name, message) {
+      nextImageWriteFailure = { name, message };
+    },
+    failNextReadwriteTransactionWith(name, message) {
+      nextReadwriteTransactionFailure = { name, message };
     },
     async readProject(id = project.id) {
       return loadPropertyProject(id);
@@ -181,16 +208,27 @@ async function prepareFixture() {
       try {
         return await new Promise((resolve, reject) => {
           const request = database.transaction('images', 'readonly').objectStore('images').getAll();
-          request.onsuccess = () => resolve(request.result.map((image) => ({
-            key: image.key,
-            label: image.label,
-            mimeType: image.mimeType,
-            isConcept: image.isConcept,
-            disclaimer: image.disclaimer,
-            createdAt: image.createdAt,
-            blobSize: image.blob.size,
-            blobType: image.blob.type,
-          })).sort((left, right) => String(left.key).localeCompare(String(right.key))));
+          request.onsuccess = async () => {
+            try {
+              const images = await Promise.all(request.result.map(async (image) => {
+                const digest = await crypto.subtle.digest('SHA-256', await image.blob.arrayBuffer());
+                return {
+                  key: image.key,
+                  label: image.label,
+                  mimeType: image.mimeType,
+                  isConcept: image.isConcept,
+                  disclaimer: image.disclaimer,
+                  createdAt: image.createdAt,
+                  blobSize: image.blob.size,
+                  blobType: image.blob.type,
+                  blobHash: [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+                };
+              }));
+              resolve(images.sort((left, right) => String(left.key).localeCompare(String(right.key))));
+            } catch (error) {
+              reject(error);
+            }
+          };
           request.onerror = () => reject(request.error ?? new Error('Could not read property image records.'));
         });
       } finally {

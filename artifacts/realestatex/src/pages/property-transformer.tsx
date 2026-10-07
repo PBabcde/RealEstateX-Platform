@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, ty
 import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyImage, useConvertPropertyImageToDusk, useJoinPropertyProBetaWaitlist } from '@workspace/api-client-react';
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
-import { createPropertyProjectStorage, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, readPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { createPropertyProjectStorage, getPropertyPhotoSaveFailureKind, PropertyPhotoStorageSaveError, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, readPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -26,6 +26,21 @@ const defaultChecklist = [
 ];
 
 const emptyForm: ProjectForm = { address: '', municipality: '', projectName: 'Nieuwe transformatiescan', notes: '', selectedStyle: 'japandi', purchasePrice: 325000, renovationCost: 28500, acquisitionCost: 9200, estimatedValue: 415000, monthlyRent: 1850 };
+const sourcePhotoSaveErrorMessages = {
+  quota: 'De browseropslag is vol. Maak ruimte vrij in je browseropslag, maar wis de gegevens van deze site niet. Probeer daarna opnieuw. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven.',
+  access: 'Toegang tot lokale browseropslag is geblokkeerd. Sta lokale opslag toe voor deze website in je browserinstellingen en probeer opnieuw. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven.',
+  unknown: 'De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.',
+} satisfies Record<'quota' | 'access' | 'unknown', string>;
+
+function sourcePhotoSaveErrorMessage(error: unknown): string {
+  if (error instanceof PropertyPhotoStorageSaveError) {
+    return sourcePhotoSaveErrorMessages[error.failureKind];
+  }
+  if (error instanceof DOMException) {
+    return sourcePhotoSaveErrorMessages[getPropertyPhotoSaveFailureKind(error)];
+  }
+  return error instanceof Error ? error.message : 'Upload mislukt. Probeer een andere afbeelding.';
+}
 
 function makeProject(originalKey = ''): PropertyProject {
   return { id: crypto.randomUUID(), ...emptyForm, originalKey, resultKeys: {}, selectedResult: null, splitRatio: 50, flipHorizontal: false, roiFields: { purchasePrice: emptyForm.purchasePrice, renovationCost: emptyForm.renovationCost, acquisitionCost: emptyForm.acquisitionCost, estimatedValue: emptyForm.estimatedValue, monthlyRent: emptyForm.monthlyRent }, units: [{ id: crypto.randomUUID(), label: 'Unit A', area: 42, value: 219000, flipped: false }, { id: crypto.randomUUID(), label: 'Unit B', area: 38, value: 196000, flipped: false }], checklist: defaultChecklist, updatedAt: new Date().toISOString() };
@@ -895,7 +910,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       await refreshPhotoState(next.id);
       await refreshProjects().catch(() => setUploadError('De foto is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Probeer een andere afbeelding.');
+      setUploadError(sourcePhotoSaveErrorMessage(error));
     } finally {
       setIsUploading(false);
     }

@@ -582,54 +582,92 @@ async function commitProjectPhotoMutation(
   updateProject: (current: PropertyProject) => PropertyProject,
   cleanupKeys: (current: PropertyProject, next: PropertyProject) => Iterable<string>,
   scope: StorageScope,
+  classifyStorageFailure = false,
 ): Promise<PropertyProject> {
-  const db = await openDb(scope);
+  let db: IDBDatabase | undefined;
   let committedProject: PropertyProject | undefined;
-  let mutationError: Error | undefined;
+  let missingProjectError: Error | undefined;
+  let operationError: unknown;
   try {
+    const database = await openDb(scope);
+    db = database;
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([PROJECTS, IMAGES], 'readwrite');
+      const transaction = database.transaction([PROJECTS, IMAGES], 'readwrite');
       const projectStore = transaction.objectStore(PROJECTS);
       const imageStore = transaction.objectStore(IMAGES);
       const projectsRequest = projectStore.getAll();
       projectsRequest.onsuccess = () => {
-        const projects = projectsRequest.result as PropertyProject[];
-        const current = projects.find((item) => item.id === projectId);
-        if (!current) {
-          mutationError = new Error('Het project bestaat niet meer in deze browser.');
+        try {
+          const projects = projectsRequest.result as PropertyProject[];
+          const current = projects.find((item) => item.id === projectId);
+          if (!current) {
+            missingProjectError = new Error('Het project bestaat niet meer in deze browser.');
+            transaction.abort();
+            return;
+          }
+
+          const next = updateProject(current);
+          committedProject = next;
+          const referencedKeys = new Set(
+            projects
+              .filter((item) => item.id !== projectId)
+              .flatMap((item) => [...referencedProjectImageKeys(item)]),
+          );
+          for (const key of referencedProjectImageKeys(next)) referencedKeys.add(key);
+
+          projectStore.put(next);
+          for (const key of cleanupKeys(current, next)) {
+            if (key !== image.key && !referencedKeys.has(key)) imageStore.delete(key);
+          }
+          imageStore.put(image);
+        } catch (error) {
+          operationError = error;
           transaction.abort();
-          return;
         }
-
-        const next = updateProject(current);
-        committedProject = next;
-        const referencedKeys = new Set(
-          projects
-            .filter((item) => item.id !== projectId)
-            .flatMap((item) => [...referencedProjectImageKeys(item)]),
-        );
-        for (const key of referencedProjectImageKeys(next)) referencedKeys.add(key);
-
-        projectStore.put(next);
-        for (const key of cleanupKeys(current, next)) {
-          if (key !== image.key && !referencedKeys.has(key)) imageStore.delete(key);
-        }
-        imageStore.put(image);
       };
       projectsRequest.onerror = () => reject(projectsRequest.error ?? new Error('De opgeslagen projecten konden niet worden gelezen.'));
       transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(mutationError ?? transaction.error);
-      transaction.onabort = () => reject(mutationError ?? transaction.error ?? new Error('De foto kon niet samen met het project worden opgeslagen.'));
+      transaction.onerror = () => reject(missingProjectError ?? operationError ?? transaction.error);
+      transaction.onabort = () => reject(missingProjectError ?? operationError ?? transaction.error ?? new Error('De foto kon niet samen met het project worden opgeslagen.'));
     });
     if (!committedProject) throw new Error('De foto kon niet samen met het project worden opgeslagen.');
     notifyPropertyStorageChanged(scope);
     return committedProject;
   } catch (error) {
-    if (mutationError) throw mutationError;
-    throw new Error('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.', { cause: error });
+    if (missingProjectError) throw missingProjectError;
+    const cause = operationError ?? error;
+    if (classifyStorageFailure) {
+      throw new PropertyPhotoStorageSaveError(getPropertyPhotoSaveFailureKind(cause), cause);
+    }
+    throw new Error('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.', { cause });
   } finally {
-    db.close();
+    db?.close();
   }
+}
+
+export type PropertyPhotoSaveFailureKind = 'quota' | 'access' | 'unknown';
+
+export class PropertyPhotoStorageSaveError extends Error {
+  constructor(
+    readonly failureKind: PropertyPhotoSaveFailureKind,
+    cause?: unknown,
+  ) {
+    super('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.', { cause });
+    this.name = 'PropertyPhotoStorageSaveError';
+  }
+}
+
+export function getPropertyPhotoSaveFailureKind(error: unknown): PropertyPhotoSaveFailureKind {
+  const seen = new Set<object>();
+  let current: unknown = error;
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const namedError = current as { name?: unknown; cause?: unknown };
+    if (namedError.name === 'QuotaExceededError') return 'quota';
+    if (namedError.name === 'SecurityError' || namedError.name === 'NotAllowedError') return 'access';
+    current = namedError.cause;
+  }
+  return 'unknown';
 }
 
 export async function replacePropertySourceImage(
@@ -665,6 +703,7 @@ export async function replacePropertySourceImage(
       ...Object.values(current.resultKeys).filter((key) => !Object.values(next.resultKeys).includes(key)),
     ],
     scope,
+    true,
   );
 }
 
