@@ -928,6 +928,71 @@ export async function loadPropertyImage(key: string, scope: StorageScope = null)
   return get<PropertyImageRecord>(IMAGES, key, scope);
 }
 
+export async function loadPropertyProjectPhotoState(
+  id: string,
+  scope: StorageScope = null,
+): Promise<{
+  project: PropertyProject;
+  original?: PropertyImageRecord;
+  results: Partial<Record<PropertyAction, PropertyImageRecord>>;
+  missingOriginal: boolean;
+  missingConcepts: PropertyAction[];
+} | undefined> {
+  const db = await openDb(scope);
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction([PROJECTS, IMAGES], 'readonly');
+      const projectStore = transaction.objectStore(PROJECTS);
+      const imageStore = transaction.objectStore(IMAGES);
+      const projectRequest = projectStore.get(id);
+      let project: PropertyProject | undefined;
+      let original: PropertyImageRecord | undefined;
+      const results: Partial<Record<PropertyAction, PropertyImageRecord>> = {};
+
+      projectRequest.onsuccess = () => {
+        project = projectRequest.result as PropertyProject | undefined;
+        if (!project) return;
+
+        if (project.originalKey) {
+          const originalRequest = imageStore.get(project.originalKey);
+          originalRequest.onsuccess = () => {
+            original = originalRequest.result as PropertyImageRecord | undefined;
+          };
+        }
+        for (const [action, key] of Object.entries(project.resultKeys)) {
+          if (!key) continue;
+          const imageRequest = imageStore.get(key);
+          imageRequest.onsuccess = () => {
+            const image = imageRequest.result as PropertyImageRecord | undefined;
+            if (image) results[action as PropertyAction] = image;
+          };
+        }
+      };
+      projectRequest.onerror = () => reject(projectRequest.error ?? new Error('Het opgeslagen project kon niet worden gelezen.'));
+      transaction.oncomplete = () => {
+        if (!project) {
+          resolve(undefined);
+          return;
+        }
+        resolve({
+          project,
+          original,
+          results,
+          missingOriginal: Boolean(project.originalKey) && !original,
+          missingConcepts: PROPERTY_ACTIONS.filter((action) => {
+            const key = project!.resultKeys[action];
+            return Boolean(key) && !results[action];
+          }),
+        });
+      };
+      transaction.onerror = () => reject(transaction.error ?? new Error('De projectfoto’s konden niet worden gelezen.'));
+      transaction.onabort = () => reject(transaction.error ?? new Error('De projectfoto’s konden niet worden gelezen.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function loadPropertyProjectImages(project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>, scope: StorageScope = null): Promise<{
   original?: PropertyImageRecord;
   results: Partial<Record<PropertyAction, PropertyImageRecord>>;
@@ -1486,6 +1551,7 @@ export function createPropertyProjectStorage(accountId: string) {
     savePropertyImage: (record: PropertyImageRecord) => savePropertyImage(record, accountId),
     deletePropertyImage: (key: string) => deletePropertyImage(key, accountId),
     loadPropertyImage: (key: string) => loadPropertyImage(key, accountId),
+    loadPropertyProjectPhotoState: (id: string) => loadPropertyProjectPhotoState(id, accountId),
     loadPropertyProjectImages: (project: Pick<PropertyProject, 'originalKey' | 'resultKeys'>) => loadPropertyProjectImages(project, accountId),
     exportPropertyProject: (project: PropertyProject) => exportPropertyProject(project, accountId),
     exportPropertyPortfolio: (projects: PropertyProject[]) => exportPropertyPortfolio(projects, accountId),

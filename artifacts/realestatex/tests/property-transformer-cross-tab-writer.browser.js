@@ -106,6 +106,38 @@ async function deleteImageWithoutNotification(key, notify = false) {
   }
 }
 
+async function replaceSourceWithoutNotification(id, key) {
+  const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const database = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, 2);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(['projects', 'images'], 'readwrite');
+      const projectStore = transaction.objectStore('projects');
+      const imageStore = transaction.objectStore('images');
+      const request = projectStore.get(id);
+      request.onsuccess = () => {
+        const project = request.result;
+        if (!project) {
+          transaction.abort();
+          return;
+        }
+        projectStore.put({ ...project, originalKey: key, updatedAt: new Date().toISOString() });
+        imageStore.put(makeImage(key, 'Originele foto', false, 'cross-tab source while studio slept'));
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error ?? new Error('The sleeping-tab source replacement was aborted.'));
+    });
+  } finally {
+    database.close();
+  }
+}
+
 function makeImage(key, label, isConcept, content) {
   return {
     key,
@@ -149,6 +181,8 @@ window.addEventListener('message', async (event) => {
       await deletePropertyImage(key);
     } else if (operation === 'remove-image-without-notification') {
       await deleteImageWithoutNotification(key);
+    } else if (operation === 'replace-source-without-notification') {
+      await replaceSourceWithoutNotification(id, key);
     } else if (operation === 'recover-source') {
       await savePropertyProjectWithImage(
         project,

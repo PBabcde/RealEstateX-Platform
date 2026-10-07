@@ -14,7 +14,7 @@
 - [Post-merge setup timing](post-merge-setup-timing.md) — leave enough time for dependency installation and the configured database schema push to finish.
 - [RealEstateX authenticated UI tests](realestatex-authenticated-ui-tests.md) — fresh headless browsers hit the auth gate; IndexedDB-only tests do not validate protected routes.
 - [Vite React upgrade cache](vite-react-cache.md) — matching installed React versions can still crash when Vite retains an older optimized react-dom bundle.
-- [RealEstateX photo health](realestatex-photo-health.md) — derive missing-photo status from current IndexedDB references instead of persisting a cache that can go stale.
+- [RealEstateX photo health](realestatex-photo-health.md) — derive missing-photo status from IndexedDB and refresh active editor references and images from one snapshot.
 - [RealEstateX browser JPEG fixtures](realestatex-browser-jpeg-fixtures.md) — verify photo-upload test JPEGs in Chromium; ImageMagick recognition alone does not guarantee browser decoding.
 - [RealEstateX account privacy](realestatex-account-privacy.md) — accountless browser projects require explicit claim; wait for EnergyX's official API contract.
 - [Cross-tab project imports](realestatex-cross-tab-imports.md) — keep duplicate lookup and save under one same-origin lock; fail closed if that lock is unavailable.

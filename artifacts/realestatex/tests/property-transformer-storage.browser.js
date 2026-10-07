@@ -742,6 +742,11 @@ async function runCrossTabPhotoHealthChecks() {
     window.__simulateSleepingPhotoListTab = true;
     simulatedVisibilityState = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
+    const sleepingSourceKey = 'browser-cross-tab-sleep-source';
+    await runWriterCommand('replace-source-without-notification', {
+      id: project.id,
+      key: sleepingSourceKey,
+    });
     await runWriterCommand('remove-image-without-notification', { key: project.resultKeys.stage });
     const sleepingTabPhotoHealth = await loadPropertyProjectsWithPhotoHealth();
     assert(
@@ -752,12 +757,27 @@ async function runCrossTabPhotoHealthChecks() {
       readOpenProjectListStatus() === 'Geen ontbrekende foto’s',
       `The sleeping project list did not retain its stale status after the cross-tab notification was missed: ${readOpenProjectListStatus()}`,
     );
+    const sleepingEditorPreviews = await readEditorPreviewContents();
+    assert(
+      sleepingEditorPreviews.source === 'cross-tab replacement source'
+        && sleepingEditorPreviews.concept === 'cross-tab concept',
+      'The hidden editor changed its photo previews before returning to the tab.',
+    );
     window.__simulateSleepingPhotoListTab = false;
     simulatedVisibilityState = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
     await waitForEditor(
       () => readOpenProjectListStatus().includes('Conceptfoto ontbreken: Virtual stage'),
       'the project list to refresh its photo warning when the sleeping tab becomes active',
+    );
+    await waitForEditor(async () => {
+      const previews = await readEditorPreviewContents();
+      return previews.concept === null
+        && editorRootElement.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Virtual stage');
+    }, 'the active editor to reload its changed source photo, missing concept preview, and warning after returning');
+    assert(
+      (await loadPropertyProject(project.id))?.originalKey === sleepingSourceKey,
+      'The active editor did not reload its current source-photo reference from IndexedDB.',
     );
     await runWriterCommand('add-concept', { key: project.resultKeys.stage });
     await waitForEditor(
@@ -767,7 +787,7 @@ async function runCrossTabPhotoHealthChecks() {
 
     await waitForEditor(async () => {
       const previews = await readEditorPreviewContents();
-      return previews.source === 'cross-tab replacement source'
+      return previews.source === 'cross-tab source while studio slept'
         && previews.concept === 'cross-tab concept'
         && editorRootElement.textContent.includes('Virtual stage naast het origineel');
     }, 'the open editor to show the recovered source and retained concept previews');
@@ -777,8 +797,8 @@ async function runCrossTabPhotoHealthChecks() {
 
     const recoveredProjectSnapshot = await loadPropertyProject(project.id);
     assert(
-      recoveredProjectSnapshot.originalKey === recoveredProject.originalKey,
-      'Cross-tab photo recovery did not update the saved source-photo reference.',
+      recoveredProjectSnapshot.originalKey === sleepingSourceKey,
+      'The source-photo reference changed while the studio slept was not retained.',
     );
     assert(recoveredProjectSnapshot.selectedResult === null, 'The cross-tab recovery fixture did not change the stored scenario to test editor isolation.');
 

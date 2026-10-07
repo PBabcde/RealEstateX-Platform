@@ -219,11 +219,12 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     for (const url of objectUrls.current) URL.revokeObjectURL(url);
     objectUrls.current.clear();
   };
-  const loadProjectPreviews = async (target: PropertyProject) => {
+  const createProjectPreviewUrls = async (
+    projectImages: Awaited<ReturnType<typeof storage.loadPropertyProjectImages>>,
+  ) => {
     const createdUrls: string[] = [];
     try {
       let loadedOriginalUrl = '';
-      const projectImages = await storage.loadPropertyProjectImages(target);
       if (projectImages.original) {
         loadedOriginalUrl = createObjectUrl(projectImages.original.blob);
         createdUrls.push(loadedOriginalUrl);
@@ -240,6 +241,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       throw error;
     }
   };
+  const loadProjectPreviews = async (target: PropertyProject) =>
+    createProjectPreviewUrls(await storage.loadPropertyProjectImages(target));
 
   useEffect(() => () => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url);
@@ -324,7 +327,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       const sequence = ++activePreviewRefreshSequence.current;
       let loaded: Awaited<ReturnType<typeof loadProjectPreviews>> | undefined;
       try {
-        const latestProject = await storage.loadPropertyProject(projectId);
+        const photoState = await storage.loadPropertyProjectPhotoState(projectId);
+        const latestProject = photoState?.project;
         if (!latestProject) {
           const currentProject = projectRef.current;
           if (!active || sequence !== activePreviewRefreshSequence.current || currentProject?.id !== projectId) return;
@@ -347,7 +351,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
           setNotice('');
           return;
         }
-        loaded = await loadProjectPreviews(latestProject);
+        loaded = await createProjectPreviewUrls(photoState);
         const currentProject = projectRef.current;
         if (!active || sequence !== activePreviewRefreshSequence.current || currentProject?.id !== projectId) {
           for (const url of [loaded.originalUrl, ...Object.values(loaded.results).map((item) => item?.imageUrl ?? '')]) {
@@ -396,14 +400,21 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshActivePhotoPreviews();
+    };
     const unsubscribe = storage.subscribePropertyStorageChanges(() => {
       void refreshActivePhotoPreviews();
     });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', refreshActivePhotoPreviews);
     void refreshActivePhotoPreviews();
     return () => {
       active = false;
       activePreviewRefreshSequence.current += 1;
       unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', refreshActivePhotoPreviews);
     };
   }, [project?.id, storage]);
 
@@ -427,9 +438,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   };
   const refreshPhotoState = async (projectId: string) => {
     const sequence = ++activePreviewRefreshSequence.current;
-    const latestProject = await storage.loadPropertyProject(projectId);
-    if (!latestProject) return;
-    const loaded = await loadProjectPreviews(latestProject);
+    const photoState = await storage.loadPropertyProjectPhotoState(projectId);
+    if (!photoState) return;
+    const latestProject = photoState.project;
+    const loaded = await createProjectPreviewUrls(photoState);
     if (sequence !== activePreviewRefreshSequence.current || projectRef.current?.id !== projectId) {
       for (const url of [loaded.originalUrl, ...Object.values(loaded.results).map((item) => item?.imageUrl ?? '')]) {
         if (url) revokeObjectUrl(url);
