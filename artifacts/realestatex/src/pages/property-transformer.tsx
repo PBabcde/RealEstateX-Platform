@@ -930,7 +930,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               setNotice(`${imageRecord.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
             } catch {
-              setUploadError('Het resultaat is gemaakt, maar kon niet lokaal worden opgeslagen.');
+              setUploadError('Het concept is gegenereerd, maar kon niet in deze browser worden opgeslagen. Je opgeslagen project en foto’s zijn ongewijzigd gebleven en het nieuwe concept is niet bewaard. Controleer de browseropslag en probeer opnieuw.');
             }
           };
           const onError = (error: unknown) => {

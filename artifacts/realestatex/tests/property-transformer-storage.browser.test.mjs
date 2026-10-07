@@ -469,6 +469,48 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
     const beforeSuccessfulRepair = await evaluate('window.__propertyRecoveryTest.readProject()', true);
     if (!beforeSuccessfulRepair?.resultKeys?.stage) throw new Error('The missing Virtual stage result reference was not available before repair.');
+    const beforeFailedRepairSave = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    await evaluate(`(() => {
+      window.__propertyRecoveryTest.failNextImageWrite();
+      document.querySelector('[data-testid="button-repair-concept-stage"]')?.click();
+    })()`);
+    const failedRepairSave = await waitFor(
+      `(() => {
+        const retry = document.querySelector('[data-testid="button-repair-concept-stage"]');
+        return {
+          error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          retryEnabled: Boolean(retry && !retry.disabled),
+          missingConceptVisible: document.querySelector('[data-testid="status-missing-project-images"]')?.textContent.includes('Conceptfoto ontbreekt: Virtual stage') ?? false,
+          actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
+        };
+      })()`,
+      (value) => value?.error && value.retryEnabled && value.missingConceptVisible && value.actionFinished,
+      'the generated concept save to fail while keeping the repair action available',
+    );
+    if (!failedRepairSave.error.includes('opgeslagen project en foto’s zijn ongewijzigd gebleven')
+      || !failedRepairSave.error.includes('het nieuwe concept is niet bewaard')
+      || !failedRepairSave.error.includes('probeer opnieuw')) {
+      throw new Error(`The failed concept save did not explain that the project is unchanged and can be retried: ${failedRepairSave.error}`);
+    }
+    const afterFailedRepairSave = await evaluate(
+      `(async () => ({
+        project: await window.__propertyRecoveryTest.readProject(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (JSON.stringify(afterFailedRepairSave.project) !== JSON.stringify(beforeFailedRepairSave.project)) {
+      throw new Error('A failed concept image save changed the saved project settings or image references.');
+    }
+    if (JSON.stringify(afterFailedRepairSave.imageRecords) !== JSON.stringify(beforeFailedRepairSave.imageRecords)) {
+      throw new Error('A failed concept image save left a partial generated image in browser storage.');
+    }
     await evaluate(`document.querySelector('[data-testid="button-repair-concept-stage"]')?.click()`);
     const successfulRepair = await waitFor(
       `(async () => {
@@ -1057,7 +1099,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
     }
 
-    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
+    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
   } finally {
     devTools.close();
   }
