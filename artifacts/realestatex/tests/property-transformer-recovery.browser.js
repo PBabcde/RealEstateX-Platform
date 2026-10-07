@@ -23,7 +23,10 @@ const project = {
   notes: 'Keep these saved assumptions during source-photo recovery.',
   selectedStyle: 'industrial',
   originalKey: 'browser-photo-recovery-missing-source',
-  resultKeys: { stage: 'browser-photo-recovery-missing-concept' },
+  resultKeys: {
+    stage: 'browser-photo-recovery-missing-concept',
+    makeover: 'browser-photo-recovery-missing-makeover-concept',
+  },
   selectedResult: 'stage',
   purchasePrice: 384000,
   renovationCost: 46250,
@@ -107,8 +110,10 @@ async function prepareFixture() {
     sessionStorage.setItem(recoveryFixtureSessionKey, 'true');
   }
   const missingPhotos = fixtureAlreadyPrepared ? null : await loadPropertyProjectImages(project);
-  if (missingPhotos && (!missingPhotos.missingOriginal || !missingPhotos.missingConcepts.includes('stage'))) {
-    throw new Error('Recovery fixture did not start with both referenced photos missing.');
+  if (missingPhotos && (!missingPhotos.missingOriginal
+    || !missingPhotos.missingConcepts.includes('stage')
+    || !missingPhotos.missingConcepts.includes('makeover'))) {
+    throw new Error('Recovery fixture did not start with its source and both referenced concepts missing.');
   }
 
   let abortNextImageWrite = false;
@@ -143,7 +148,13 @@ async function prepareFixture() {
     },
     async readConceptImage(key) {
       const image = await loadPropertyImage(key);
-      return image ? { type: image.blob.type, size: image.blob.size, isConcept: image.isConcept } : null;
+      return image ? {
+        key: image.key,
+        label: image.label,
+        type: image.blob.type,
+        size: image.blob.size,
+        isConcept: image.isConcept,
+      } : null;
     },
     async readImageKeys() {
       const database = await new Promise((resolve, reject) => {
@@ -196,7 +207,8 @@ async function prepareFixture() {
       window.__propertyRecoveryTest.lastConceptRequestUrl = url;
       return Promise.reject(new TypeError('Failed to fetch'));
     }
-    if (url.includes('/api/property-transformations/virtual-staging')) {
+    if (url.includes('/api/property-transformations/virtual-staging')
+      || url.includes('/api/property-transformations/makeover')) {
       window.__propertyRecoveryTest.lastConceptRequestUrl = url;
       return Promise.resolve(new Response(JSON.stringify({
         imageDataUrl: window.__propertyRecoveryTest.successfulConceptDataUrl,

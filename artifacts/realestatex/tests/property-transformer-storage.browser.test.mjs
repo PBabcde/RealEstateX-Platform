@@ -238,7 +238,8 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (!initial.notice.includes('De bronfoto ontbreekt.')) {
       throw new Error(`The studio did not show the missing source-photo notice: ${initial.notice}`);
     }
-    if (!initial.notice.includes('Conceptfoto ontbreekt: Virtual stage.')) {
+    if (!initial.notice.includes('Conceptfoto ontbreekt: Virtual stage')
+      || !initial.notice.includes('Style makeover')) {
       throw new Error(`The studio did not show the missing concept-photo notice: ${initial.notice}`);
     }
     if (!initial.notice.includes('Het gekozen scenario blijft Virtual stage')) {
@@ -356,7 +357,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     const finalNotice = await evaluate(
       `document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? ''`,
     );
-    if (!finalNotice.includes('Conceptfoto ontbreekt: Virtual stage.')) {
+    if (!finalNotice.includes('Conceptfoto ontbreekt: Virtual stage')) {
       throw new Error(`Recovering the source photo hid the still-missing concept notice: ${finalNotice}`);
     }
     if (!finalNotice.includes('Het gekozen scenario blijft Virtual stage')) {
@@ -480,7 +481,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
           project,
           image,
           request: window.__propertyRecoveryTest.lastConceptRequestUrl,
-          missingConcept: notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
+          missingConcept: notice.includes('Conceptfoto ontbreekt: Virtual stage'),
         };
       })()`,
       (value) => value?.project?.resultKeys?.stage
@@ -549,7 +550,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
         && value.previewLoaded
         && value.sourcePreviewLoaded
         && value.scenarioVisible
-        && !value.notice.includes('Conceptfoto ontbreekt: Virtual stage.'),
+        && !value.notice.includes('Conceptfoto ontbreekt: Virtual stage'),
       'the repaired concept and selected scenario to persist after refresh',
     );
     if (!persistedRepair.project) throw new Error('The repaired concept was not available after refresh.');
@@ -558,6 +559,138 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     }
     if (JSON.stringify(persistedRepair.project.resultKeys) !== JSON.stringify(successfulRepair.project.resultKeys)) {
       throw new Error('The repaired concept references changed after reloading the studio.');
+    }
+
+    if (persistedRepair.project.resultKeys?.makeover !== beforeSuccessfulRepair.resultKeys?.makeover) {
+      throw new Error('Repairing Virtual stage changed the missing Style makeover reference.');
+    }
+    const missingMakeoverImage = await evaluate(
+      `window.__propertyRecoveryTest.readConceptImage(${JSON.stringify(persistedRepair.project.resultKeys.makeover)})`,
+      true,
+    );
+    if (missingMakeoverImage) {
+      throw new Error('The missing Style makeover reference unexpectedly had a saved image before its repair.');
+    }
+    const beforeMakeoverRepair = persistedRepair.project;
+    const makeoverRepairButton = await evaluate(
+      `Boolean(document.querySelector('[data-testid="button-repair-concept-makeover"]'))`,
+    );
+    if (!makeoverRepairButton) throw new Error('The missing Style makeover concept did not offer its targeted repair action.');
+    await evaluate(`(() => {
+      window.__propertyRecoveryTest.lastConceptRequestUrl = '';
+      document.querySelector('[data-testid="button-repair-concept-makeover"]')?.click();
+    })()`);
+    const successfulMakeoverRepair = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        const image = project?.resultKeys?.makeover
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.makeover)
+          : null;
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
+        return {
+          project,
+          image,
+          request: window.__propertyRecoveryTest.lastConceptRequestUrl,
+          missingConcept: notice.includes('Style makeover'),
+        };
+      })()`,
+      (value) => value?.project?.resultKeys?.makeover
+        && value.project.resultKeys.makeover !== beforeMakeoverRepair.resultKeys.makeover
+        && value.image?.isConcept
+        && value.image?.label === 'Style makeover'
+        && value.image?.size > 0
+        && value.request
+        && !value.missingConcept,
+      'the missing Style makeover concept to be repaired',
+    );
+    if (successfulMakeoverRepair.project.selectedResult !== 'makeover') {
+      throw new Error(`The successful Style makeover repair selected ${successfulMakeoverRepair.project.selectedResult} instead.`);
+    }
+    if (!successfulMakeoverRepair.request.includes('/api/property-transformations/makeover')) {
+      throw new Error(`The Style makeover repair used the wrong endpoint: ${successfulMakeoverRepair.request}`);
+    }
+    if (successfulMakeoverRepair.project.resultKeys.stage !== beforeMakeoverRepair.resultKeys.stage) {
+      throw new Error('Repairing Style makeover changed the saved Virtual stage image reference.');
+    }
+    const otherMakeoverKeys = (resultKeys) => Object.fromEntries(
+      Object.entries(resultKeys ?? {}).filter(([action]) => action !== 'makeover'),
+    );
+    if (JSON.stringify(otherMakeoverKeys(successfulMakeoverRepair.project.resultKeys))
+      !== JSON.stringify(otherMakeoverKeys(beforeMakeoverRepair.resultKeys))) {
+      throw new Error('Repairing Style makeover changed another concept image reference.');
+    }
+    if (JSON.stringify(omitRepairFields(successfulMakeoverRepair.project))
+      !== JSON.stringify(omitRepairFields(beforeMakeoverRepair))) {
+      throw new Error('Repairing Style makeover changed unrelated saved project settings.');
+    }
+
+    await devTools.send('Page.navigate', { url });
+    await waitFor(
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixtureReady: typeof window.__propertyRecoveryTest?.readProject === 'function',
+        studioReady: Boolean(document.querySelector('[data-testid="button-open-projects"]')),
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixtureReady && value.studioReady,
+      'the studio after refreshing the repaired Style makeover concept',
+    );
+    const persistedMakeoverRepair = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        const image = project?.resultKeys?.makeover
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.makeover)
+          : null;
+        const stageImage = project?.resultKeys?.stage
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+          : null;
+        const preview = document.querySelector('img[alt="Style makeover concept"]');
+        const scenarioHeading = Array.from(document.querySelectorAll('h2'))
+          .find((heading) => heading.textContent?.includes('Style makeover naast het origineel'));
+        const notice = document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '';
+        return {
+          project,
+          image,
+          stageImage,
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0),
+          scenarioVisible: Boolean(scenarioHeading),
+          notice,
+        };
+      })()`,
+      (value) => value?.project?.selectedResult === 'makeover'
+        && value.project.resultKeys?.makeover === successfulMakeoverRepair.project.resultKeys.makeover
+        && value.image?.isConcept
+        && value.image?.label === 'Style makeover'
+        && value.image?.size > 0
+        && value.stageImage?.isConcept
+        && value.previewLoaded
+        && value.scenarioVisible
+        && !value.notice.includes('Conceptfoto ontbreekt'),
+      'the repaired Style makeover image and selected scenario to persist after refresh',
+    );
+    if (JSON.stringify(persistedMakeoverRepair.project.resultKeys)
+      !== JSON.stringify(successfulMakeoverRepair.project.resultKeys)) {
+      throw new Error('The Style makeover image references changed after reloading the studio.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
+    const restoredStageSelection = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        const image = project?.resultKeys?.stage
+          ? await window.__propertyRecoveryTest.readConceptImage(project.resultKeys.stage)
+          : null;
+        const scenarioHeading = Array.from(document.querySelectorAll('h2'))
+          .find((heading) => heading.textContent?.includes('Virtual stage naast het origineel'));
+        return { project, image, scenarioVisible: Boolean(scenarioHeading) };
+      })()`,
+      (value) => value?.project?.selectedResult === 'stage'
+        && value.image?.isConcept
+        && value.scenarioVisible
+        && value.project.resultKeys?.makeover === successfulMakeoverRepair.project.resultKeys.makeover,
+      'the existing Virtual stage checks to resume with their expected selected scenario',
+    );
+    if (!restoredStageSelection.scenarioVisible) {
+      throw new Error('The Virtual stage scenario was not restored for the remaining recovery checks.');
     }
 
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
@@ -599,7 +732,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       };
       prototype.delete = function (key) {
         const request = originalDelete.call(this, key);
-        if (this.name === 'images' && key === project.resultKeys.stage) {
+        if (this.name === 'images' && key === project.resultKeys.makeover) {
           window.__propertyRecoveryTest.deletionFailureInjected = true;
           this.transaction.abort();
         }
@@ -924,7 +1057,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
     }
 
-    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; the repaired concept and source preview persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
+    return 'Passed: JPEG source recovery stored and displayed the replacement photo without changing project assumptions or the selected scenario; a PNG retry saved after an injected failure; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
   } finally {
     devTools.close();
   }
