@@ -12,6 +12,9 @@ import { Calculators, Dashboard, Market, Properties, Suite } from '@/pages/pages
 import { DealingRoom } from '@/pages/enterprise';
 import { TrainingRoom } from '@/pages/training-room';
 import { PropertyTransformer } from '@/pages/property-transformer';
+import { SalesEngine } from '@/pages/sales';
+import { Landing } from '@/pages/landing';
+import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
 import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -85,24 +88,10 @@ function Loading() {
   return <div className="grid min-h-[100dvh] place-items-center bg-background text-foreground">Werkruimte laden…</div>;
 }
 
-function Home() {
-  return (
-    <div className="grid min-h-[100dvh] place-items-center bg-background px-5 text-foreground">
-      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-sm sm:p-10">
-        <img src={`${basePath}/logo.svg`} alt="RealEstateX" className="mx-auto h-12" />
-        <h1 className="display mt-7 text-3xl font-bold tracking-[-0.06em]">Je portefeuille, privé en beschermd.</h1>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">Meld je aan om je objecten, scenario’s en gesprekken veilig te bekijken.</p>
-        <Link href="/sign-in" className="mt-8 block rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground" data-testid="button-login">Aanmelden</Link>
-        <Link href="/sign-up" className="mt-4 block text-sm font-semibold text-foreground">Account aanmaken</Link>
-      </div>
-    </div>
-  );
-}
-
 function HomeRedirect() {
   const { isLoaded } = useAuth();
   if (!isLoaded) return <Loading />;
-  return <><Show when="signed-in"><Redirect to="/dashboard" /></Show><Show when="signed-out"><Home /></Show></>;
+  return <><Show when="signed-in"><Redirect to="/dashboard" /></Show><Show when="signed-out"><Landing /></Show></>;
 }
 
 function SignInPage() {
@@ -163,6 +152,7 @@ function Router() {
     <Route path="/suite"><ProtectedPage><Suite /></ProtectedPage></Route>
     <Route path="/dealing-room"><ProtectedPage><DealingRoom /></ProtectedPage></Route>
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
+    <Route path="/sales"><ProtectedPage><SalesEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
@@ -203,7 +193,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
-        <TooltipProvider><Router /><Toaster /></TooltipProvider>
+        <TooltipProvider><Router /><Toaster /><TrafficTracker /><MeasurementConsentBanner /></TooltipProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );

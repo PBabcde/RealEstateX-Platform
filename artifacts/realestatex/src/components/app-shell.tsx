@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LineChart, LogOut, Menu, Plus, Search, Sparkles, X } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/react';
@@ -14,6 +14,9 @@ const navItems = [
   { href: '/training-room', label: 'Training Room', note: 'Scenario simulator', icon: GraduationCap },
   { href: '/property-transformer', label: 'Property Transformer', note: 'Foto naar plan', icon: Sparkles },
 ];
+const adminNavItems = [
+  { href: '/sales', label: 'Sales & CRM', note: 'Leads & verkeer', icon: LineChart },
+];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {
   const { user } = useUser();
@@ -23,7 +26,8 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
   const logout = () => signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const current = navItems.find((item) => item.href === location) ?? navItems[0];
+  const visibleNavItems = account?.role === 'admin' ? [...navItems, ...adminNavItems] : navItems;
+  const current = visibleNavItems.find((item) => item.href === location) ?? navItems[0];
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
@@ -44,7 +48,7 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
         <div className="mt-14 px-2">
           <p className="mono mb-3 text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/40">Werkruimte</p>
           <nav className="space-y-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = location === item.href;
               const Icon = item.icon;
               return (

@@ -1,2 +1,16 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /properties
+Disallow: /calculators
+Disallow: /market
+Disallow: /suite
+Disallow: /dealing-room
+Disallow: /training-room
+Disallow: /property-transformer
+Disallow: /sales
+Disallow: /sign-in
+Disallow: /sign-up
+
+Sitemap: https://realestatex.nl/sitemap.xml
