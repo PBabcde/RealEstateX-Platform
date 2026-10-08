@@ -29,7 +29,6 @@ test("payment and checkout endpoints return 410 while billing status remains ava
     "/saas/billing/checkout",
     "/saas/billing/portal",
     "/saas/billing/webhook",
-    "/stripe/checkout",
     "/checkout",
     "/billing/portal",
   ]) {

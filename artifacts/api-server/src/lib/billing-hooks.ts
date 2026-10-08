@@ -24,6 +24,6 @@ export function getBillingReadiness(): BillingReadiness {
     supportedTiers: Object.keys(SAAS_TIERS) as SaaSTier[],
     message: configured
       ? "Provider-configuratie is aanwezig; webhook readiness wordt apart gecontroleerd."
-      : "Kies Stripe of Whop en configureer de provider via de secure environment flow.",
+      : "Kies een betaalprovider en configureer de provider via de secure environment flow.",
   };
 }

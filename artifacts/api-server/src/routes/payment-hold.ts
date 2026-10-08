@@ -17,7 +17,6 @@ router.use("/saas/billing", (req, res, next: NextFunction): void => {
   paymentsOnHold(req, res);
 });
 
-router.use("/stripe", paymentsOnHold);
 router.use("/checkout", paymentsOnHold);
 router.use("/billing", paymentsOnHold);
 
