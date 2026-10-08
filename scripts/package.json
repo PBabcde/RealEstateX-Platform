@@ -15,6 +15,7 @@
     "test:legacy-session-cleanup": "tsx ../tests/legacy_session_cleanup.test.js",
     "test:legacy-session-cleanup:postgres": "tsx ./src/legacy-session-cleanup-integration.ts",
     "test:sales-crm": "tsx ../tests/sales_crm.test.js",
+    "test:energyx": "tsx ../tests/energyx.test.js",
     "test:audit-immutability": "tsx ../tests/audit_immutability.test.js",
     "test:release-integrity": "tsx ../tests/audit_immutability.test.js",
     "test:tenant-isolation": "tsx ../tests/enterprise_tenant_isolation.test.js",

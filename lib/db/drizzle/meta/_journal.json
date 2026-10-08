@@ -64,6 +64,13 @@
       "when": 1791440000000,
       "tag": "0008_sales_crm_traffic",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0009_energyx_syncs",
+      "breakpoints": true
     }
   ]
 }

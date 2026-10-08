@@ -13,6 +13,7 @@ import trainingRouter from "./training";
 import intelligenceRouter from "./intelligence";
 import { publicSalesRouter, salesRouter } from "./sales";
 import propertyTransformationsRouter from "./property-transformations";
+import energyxRouter from "./energyx";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use(enterpriseRouter);
 router.use(trainingRouter);
 router.use(intelligenceRouter);
 router.use(propertyTransformationsRouter);
+router.use(energyxRouter);
 
 export default router;

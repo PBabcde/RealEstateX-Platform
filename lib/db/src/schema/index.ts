@@ -16,6 +16,7 @@ import { DEFAULT_TENANT_ID, tenantsTable } from "./auth";
 export * from "./auth";
 export * from "./property-beta";
 export * from "./sales";
+export * from "./energyx";
 
 export type PropertyFeatures = Record<string, string>;
 
