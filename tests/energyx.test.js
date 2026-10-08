@@ -59,11 +59,14 @@ test("sync needs consent, valid specs and an accessible property", async () => {
 test("sync stores a snapshot and serves distinct B2B and B2C views", async () => {
   assert.equal((await (await call(`/status/${marker}`)).json()).status, "not_synced");
   assert.equal((await call(`/metrics/${marker}`)).status, 409);
-  const sync = await call("/sync", { propertyId: marker, consent: true, specs: { glazing: "dubbel", roofAreaM2: 80 } });
+  const sync = await call("/sync", { propertyId: marker, consent: true, specs: { glazing: "dubbel", roofAreaM2: 80, wwsPoints: 140, wwsPointsGain: 12 } });
   assert.equal(sync.status, 200);
   assert.equal((await (await call(`/status/${marker}`)).json()).status, "synced");
   const b2b = await (await call(`/metrics/${marker}?view=b2b`)).json();
   assert.equal(b2b.view, "b2b");
+  assert.equal(b2b.building.areaM2, 100);
+  assert.equal(b2b.building.energyLabel, "D");
+  assert.equal(b2b.specs.wwsPointsGain, 12);
   assert.ok(b2b.specs.heatingKw > 0 && b2b.metrics.solar.panels > 0 && b2b.quoteIndication.max > b2b.quoteIndication.min);
   const b2c = await (await call(`/metrics/${marker}?view=b2c`)).json();
   assert.equal(b2c.view, "b2c");
@@ -75,9 +78,11 @@ test("sync stores a snapshot and serves distinct B2B and B2C views", async () =>
 test("portfolio aggregates synced properties and service requests are audited", async () => {
   const portfolio = await (await call("/portfolio")).json();
   assert.ok(portfolio.properties >= 1 && portfolio.totalAnnualSavings > 0);
-  const response = await call("/service-request", { propertyId: marker, kind: "service" });
+  const response = await call("/service-request", { propertyId: marker, kind: "maintenance", note: "Controle van de warmtepomp" });
   assert.equal(response.status, 201);
   const { requestId } = await response.json();
-  const audit = await pool.query("SELECT 1 FROM audit_events WHERE action='energyx.service_request' AND metadata->>'requestId' = $1", [requestId]);
+  const audit = await pool.query("SELECT metadata FROM audit_events WHERE action='energyx.service_request' AND metadata->>'requestId' = $1", [requestId]);
   assert.equal(audit.rowCount, 1);
+  assert.equal(audit.rows[0].metadata.kind, "maintenance");
+  assert.equal(audit.rows[0].metadata.note, "Controle van de warmtepomp");
 });

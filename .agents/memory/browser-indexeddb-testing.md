@@ -9,4 +9,4 @@ Cold Chromium startup here can take nearly 30 seconds before DevTools is availab
 
 **Why:** Property data and image writes complete through IndexedDB events, and the current Replit runtime adds variable Chromium startup and profile-cleanup delays.
 
-**How to apply:** For browser tests that use the app's browser storage, allow ample time to discover DevTools and poll an explicit page status. If the browser never exposes DevTools, capture its process output and report it as an environment startup failure rather than an app assertion; after the browser does start, wait for it to close and retry temporary-profile cleanup.
+**How to apply:** For browser tests that use the app's browser storage, allow ample time to discover DevTools and poll an explicit page status. Even fixture-backed async UI renders need generous per-assertion deadlines in this loaded runtime; mocked network responses do not make React Query updates immediate. If the browser never exposes DevTools, capture its process output and report it as an environment startup failure rather than an app assertion; after the browser does start, wait for it to close and retry temporary-profile cleanup.

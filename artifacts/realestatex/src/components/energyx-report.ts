@@ -38,7 +38,7 @@ const euro = (value: number) =>
   }).format(value);
 
 const valueOrDash = (value: number | null, suffix = "") =>
-  value === null ? "Nog niet ingevuld" : `${value}${suffix}`;
+  value == null ? "Nog niet ingevuld" : `${value}${suffix}`;
 
 export function buildEnergyxReportHtml(
   address: string,
@@ -52,6 +52,8 @@ export function buildEnergyxReportHtml(
     ["Huidig energielabel", data.building.energyLabel],
     ["Verwarmingsbehoefte", `${data.specs.heatingKw} kW`],
     ["Koelbehoefte", `${data.specs.coolingKw} kW`],
+    ["Aanbevolen warmtepompcapaciteit", `${data.specs.heatingKw} kW`],
+    ["Aanbevolen aircocapaciteit", `${data.specs.coolingKw} kW`],
     ["Aanbevolen zonnepanelen", `${data.metrics.solar.panels} panelen · ${data.metrics.solar.kwp} kWp`],
     ["Aanbevolen batterij", `${data.metrics.battery.kwh} kWh`],
     ["Investeringsindicatie", euro(data.metrics.investments.total)],

@@ -88,6 +88,7 @@ export function b2bView(snapshot: SyncSnapshot, metrics: EnergyXMetrics, syncedA
     },
     specs: {
       ...snapshot.specs,
+      wwsPointsGain: snapshot.specs.wwsPointsGain ?? null,
       heatingKw: metrics.heatPump.heatingKw,
       coolingKw: metrics.heatPump.coolingKw,
       roofAreaM2: metrics.solar.roofAreaM2,
