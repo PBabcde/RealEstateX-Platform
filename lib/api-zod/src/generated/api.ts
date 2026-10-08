@@ -2732,7 +2732,7 @@ export const GetSaasEntitlementsResponse = zod.object({
  * @summary Report provider-neutral SaaS billing readiness
  */
 export const GetSaasBillingStatusResponse = zod.object({
-  "provider": zod.enum(['stripe', 'whop', 'unconfigured']),
+  "provider": zod.enum(['whop', 'unconfigured']),
   "configured": zod.boolean(),
   "webhookReady": zod.boolean(),
   "supportedTiers": zod.array(zod.string()),
@@ -2750,12 +2750,6 @@ export const CreateSaasBillingCheckoutResponse = zod.void()
  * @summary Payment management is unavailable during the RealEstateX beta
  */
 export const CreateSaasBillingPortalResponse = zod.void()
-
-
-/**
- * @summary Stripe checkout is unavailable during the RealEstateX beta
- */
-export const CreateStripeCheckoutResponse = zod.void()
 
 
 /**

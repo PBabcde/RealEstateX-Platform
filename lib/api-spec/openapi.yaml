@@ -1434,18 +1434,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaymentHoldResponse"
-  /stripe/checkout:
-    post:
-      operationId: createStripeCheckout
-      tags: [enterprise]
-      summary: Stripe checkout is unavailable during the RealEstateX beta
-      responses:
-        "410":
-          description: Payments are paused while RealEstateX Pro is in beta
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PaymentHoldResponse"
   /account:
     get:
       tags: [Account]
@@ -1859,7 +1847,7 @@ components:
       type: object
       required: [provider, configured, webhookReady, supportedTiers, message]
       properties:
-        provider: { type: string, enum: [stripe, whop, unconfigured] }
+        provider: { type: string, enum: [whop, unconfigured] }
         configured: { type: boolean }
         webhookReady: { type: boolean }
         supportedTiers: { type: array, items: { type: string } }

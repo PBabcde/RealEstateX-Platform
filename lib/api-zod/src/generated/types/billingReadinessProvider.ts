@@ -10,7 +10,6 @@ export type BillingReadinessProvider = typeof BillingReadinessProvider[keyof typ
 
 
 export const BillingReadinessProvider = {
-  stripe: 'stripe',
   whop: 'whop',
   unconfigured: 'unconfigured',
 } as const;

@@ -288,7 +288,7 @@ function phase8(): Phase {
   ];
   const provider = process.env.BILLING_PROVIDER?.toLowerCase();
   const webhookReady =
-    (provider === "stripe" || provider === "whop") &&
+    provider === "whop" &&
     Boolean(process.env.BILLING_WEBHOOK_SECRET);
   checks.push({
     name: "Billing provider and webhook",
@@ -298,7 +298,7 @@ function phase8(): Phase {
       : "No supported billing provider and webhook secret were configured through the secure environment flow.",
   });
   return createPhase("Fase 8", "SaaS & tiering", checks, webhookReady ? [] : [
-    "SaaS tiering is implemented, but a real Stripe or Whop billing provider and webhook secret are not configured.",
+    "SaaS tiering is implemented, but a real billing provider and webhook secret are not configured.",
   ]);
 }
 
@@ -542,7 +542,7 @@ function main(): void {
       "Media endpoints provide provider-neutral prompts only; image and video rendering remain unavailable until a renderer is configured.",
     ],
     nextActions: [
-      "Connect Stripe or Whop through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
+      "Connect a billing provider through the Replit integration flow, then implement and verify its checkout, webhooks and subscription sync.",
       "Configure the pinned Contabo host, secret-backed SSH-key path, known-hosts file and approved recovery dry-run path through secure environment settings.",
       "Run the master build again after provider and VPS configuration are supplied.",
       "Connect a rendering provider before claiming generated property images or video loops.",

@@ -1,6 +1,6 @@
 import { SAAS_TIERS, type SaaSTier } from "./saas-entitlements";
 
-export type BillingProvider = "stripe" | "whop" | "unconfigured";
+export type BillingProvider = "whop" | "unconfigured";
 
 export type BillingReadiness = {
   provider: BillingProvider;
@@ -13,7 +13,7 @@ export type BillingReadiness = {
 export function getBillingReadiness(): BillingReadiness {
   const configuredProvider = process.env.BILLING_PROVIDER?.toLowerCase();
   const provider: BillingProvider =
-    configuredProvider === "stripe" || configuredProvider === "whop"
+    configuredProvider === "whop"
       ? configuredProvider
       : "unconfigured";
   const configured = provider !== "unconfigured";
