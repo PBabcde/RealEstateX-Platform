@@ -3,6 +3,7 @@ import { analyseEnergy } from "./energy-analysis";
 export type EnergyXSpecs = {
   woz: number | null;
   wwsPoints: number | null;
+  wwsPointsGain: number | null;
   glazing: "enkel" | "dubbel" | "hr++" | "drievoudig" | null;
   heatingKw: number | null;
   coolingKw: number | null;
@@ -79,6 +80,12 @@ export function b2bView(snapshot: SyncSnapshot, metrics: EnergyXMetrics, syncedA
   return {
     view: "b2b" as const,
     syncedAt,
+    building: {
+      type: snapshot.type,
+      areaM2: snapshot.woonoppervlak,
+      buildYear: snapshot.bouwjaar,
+      energyLabel: snapshot.energielabel,
+    },
     specs: {
       ...snapshot.specs,
       heatingKw: metrics.heatPump.heatingKw,

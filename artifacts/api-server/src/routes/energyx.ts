@@ -39,6 +39,7 @@ function parseSpecs(raw: unknown): EnergyXSpecs {
   return {
     woz: optionalNumber(body.woz, "woz", 100_000_000),
     wwsPoints: optionalNumber(body.wwsPoints, "wwsPoints", 1000),
+    wwsPointsGain: optionalNumber(body.wwsPointsGain, "wwsPointsGain", 1000),
     glazing: glazing as EnergyXSpecs["glazing"],
     heatingKw: optionalNumber(body.heatingKw, "heatingKw", 5000),
     coolingKw: optionalNumber(body.coolingKw, "coolingKw", 5000),
