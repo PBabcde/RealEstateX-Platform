@@ -1,5 +1,7 @@
 import { analyseEnergy } from "./energy-analysis";
 
+import { BASELINE_HEAT_PUMP_COST, BASELINE_HEAT_PUMP_KW } from "@workspace/investment-policy";
+
 export type EnergyXSpecs = {
   woz: number | null;
   wwsPoints: number | null;
@@ -54,16 +56,16 @@ export function computeMetrics(snapshot: SyncSnapshot) {
   const batteryKwh = solarKwhYear > 0 ? Math.max(0, Math.round((solarKwhYear / 365) * 0.5)) : 0;
   const solarSavings = Math.round(solarKwhYear * 0.6 * KWH_PRICE);
   const insulation = analysis.measures.find((measure) => measure.name === "Isolatie en kierdichting");
-  const heatPumpSavings = analysis.measures.find((measure) => measure.name === "Warmtepomp of hybride installatie")?.annualSavings ?? 0;
+  const heatPumpSavings = analysis.measures.find((measure) => measure.name.startsWith("Warmtepomp"))?.annualSavings ?? 0;
   const solarInvestment = Math.round(solarKwp * 1450);
-  const heatPumpInvestment = Math.round(heatingKw * 1100 + 3500);
+  const heatPumpInvestment = BASELINE_HEAT_PUMP_COST;
   const batteryInvestment = Math.round(batteryKwh * 650);
   // Replace the generic solar measure with the roof-sized estimate rather than adding both.
   // Savings and investments use the same component list, including heat pump exactly once.
   const measures = [
     ...(insulation ? [insulation] : []),
-    { name: "Warmtepomp of hybride installatie", investment: heatPumpInvestment, annualSavings: heatPumpSavings },
-    { name: "Zonnepanelen en monitoring", investment: solarInvestment, annualSavings: solarSavings },
+    { name: "Warmtepomp 5 kW (rekenbaseline)", investment: heatPumpInvestment, annualSavings: heatPumpSavings },
+    { name: "Glas-op-glas-zonnepanelen", investment: solarInvestment, annualSavings: solarSavings },
     { name: "Batterij", investment: batteryInvestment, annualSavings: 0 },
   ];
   const annualSavings = measures.reduce((total, measure) => total + measure.annualSavings, 0);
@@ -72,7 +74,7 @@ export function computeMetrics(snapshot: SyncSnapshot) {
   return {
     sustainabilityScore: analysis.labelScore,
     solar: { panels, kwp: solarKwp, kwhPerYear: solarKwhYear, roofAreaM2: roofArea },
-    heatPump: { heatingKw, coolingKw },
+    heatPump: { heatingKw, coolingKw, capacityKw: BASELINE_HEAT_PUMP_KW },
     battery: { kwh: batteryKwh },
     annualSavings,
     monthlySavings: Math.round(annualSavings / 12),

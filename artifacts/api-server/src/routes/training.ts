@@ -61,6 +61,7 @@ function scoreScenario(scenario: TrainingScenarioRecord): TrainingScenarioRecord
       }
     : undefined;
   const draft: DealRecord = {
+    investmentAssumptions: scenario.investmentAssumptions,
     dealId: `training-${scenario.scenarioId}`,
     propertyId: scenario.propertyId,
     title: scenario.title,
@@ -88,7 +89,7 @@ function scoreScenario(scenario: TrainingScenarioRecord): TrainingScenarioRecord
     updatedAt: scenario.updatedAt,
   };
   const score = enrichDeal(draft).deal.score;
-  const qualityGatePassed = hasTrainingQualityGatePassed(score.totalScore);
+  const qualityGatePassed = hasTrainingQualityGatePassed(score.totalScore) && score.assessment?.eligible === true;
   return {
     ...scenario,
     ...(scenario.gutFeeling ? { gutFeeling: scenario.gutFeeling } : {}),
@@ -118,6 +119,7 @@ function scenarioAsDeal(
       }
     : undefined;
   return enrichDeal({
+    investmentAssumptions: scenario.investmentAssumptions,
     dealId,
     propertyId: scenario.propertyId,
     title: scenario.title,
@@ -145,7 +147,7 @@ router.get("/training/scenarios", async (request, response): Promise<void> => {
     "training-scenario",
     tenantId,
   );
-  response.json(scenarios.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
+  response.json(scenarios.map(scoreScenario).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)));
 });
 
 router.post("/training/scenarios", async (request, response): Promise<void> => {
@@ -162,6 +164,7 @@ router.post("/training/scenarios", async (request, response): Promise<void> => {
   }
   const now = new Date().toISOString();
   const scenario = scoreScenario({
+    investmentAssumptions: parsed.data.investmentAssumptions,
     scenarioId: createId(),
     propertyId: property.propertyId,
     title: parsed.data.title.trim(),
@@ -218,7 +221,7 @@ router.get(
       response.status(404).json({ error: "Simulatie niet gevonden." });
       return;
     }
-    response.json(TrainingGetScenarioResponse.parse(scenario));
+    response.json(TrainingGetScenarioResponse.parse(scoreScenario(scenario)));
   },
 );
 
@@ -285,12 +288,10 @@ router.post(
       response.status(404).json({ error: "Simulatie niet gevonden." });
       return;
     }
-    if (
-      !hasTrainingQualityGatePassed(scenario.score.totalScore) ||
-      !scenario.qualityGatePassed
-    ) {
+    const current = scoreScenario(scenario);
+    if (!current.qualityGatePassed) {
       response.status(403).json({
-        error: `Quality Gate vereist minimaal 80 punten; deze simulatie scoort ${scenario.score.totalScore}.`,
+        error: `Quality Gate vereist minimaal 80 punten én de investeringstoets. Score: ${current.score.totalScore}. ${(current.score.assessment?.reasons ?? []).join(" ")}`,
       });
       return;
     }
@@ -301,11 +302,11 @@ router.post(
       return;
     }
     if (!deal) {
-      deal = scenarioAsDeal(scenario, dealId);
+      deal = scenarioAsDeal(current, dealId);
       await saveEntity("deal", deal, tenant.tenantId, tenant.actorId, "created");
     }
     const updatedScenario: TrainingScenarioRecord = {
-      ...scenario,
+      ...current,
       status: "PROMOTED",
       qualityGatePassed: true,
       promotedDealId: dealId,

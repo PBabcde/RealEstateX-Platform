@@ -5,6 +5,7 @@
  * RealEstateX property intelligence API
  * OpenAPI spec version: 0.1.0
  */
+import type { InvestmentAssumptions } from './investmentAssumptions';
 
 export interface DealInput {
   /** @minLength 1 */
@@ -22,4 +23,5 @@ export interface DealInput {
   /** @minimum 0 */
   monthlyRent?: number;
   municipality?: string;
+  investmentAssumptions?: InvestmentAssumptions;
 }

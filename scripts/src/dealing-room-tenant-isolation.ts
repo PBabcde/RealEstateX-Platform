@@ -81,7 +81,9 @@ async function main(): Promise<void> {
 
     await run(
       path.join(root, "scripts/node_modules/.bin/tsx"),
-      [path.join(root, "tests/dealing_room_tenant_isolation.test.js")],
+      [path.join(root, process.env.INVESTMENT_POLICY_TEST === "1"
+        ? "tests/investment-policy-api.test.js"
+        : "tests/dealing_room_tenant_isolation.test.js")],
       {
         ...process.env,
         DATABASE_URL: targetUrl,

@@ -186,6 +186,9 @@ importers:
       '@workspace/integrations-openai-ai-server':
         specifier: workspace:*
         version: link:../../lib/integrations-openai-ai-server
+      '@workspace/investment-policy':
+        specifier: workspace:*
+        version: link:../../lib/investment-policy
       cors:
         specifier: ^2.8.6
         version: 2.8.6
@@ -535,6 +538,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/investment-policy':
+        specifier: workspace:*
+        version: link:../../lib/investment-policy
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -666,6 +672,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.6
+
+  lib/investment-policy: {}
 
   scripts:
     dependencies:

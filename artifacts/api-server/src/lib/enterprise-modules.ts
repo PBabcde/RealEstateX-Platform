@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { InvestmentAssumptions } from "@workspace/investment-policy";
 import { and, eq, like } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { moduleDataTable } from "@workspace/db/schema";
@@ -17,6 +18,7 @@ import {
 } from "./subsidy-engine";
 
 export type DealRecord = {
+  investmentAssumptions?: InvestmentAssumptions;
   dealId: string;
   propertyId: string;
   title: string;
@@ -46,6 +48,7 @@ export type DealRecord = {
 };
 
 export type TrainingScenarioRecord = {
+  investmentAssumptions?: InvestmentAssumptions;
   scenarioId: string;
   propertyId: string;
   title: string;
@@ -341,6 +344,8 @@ export function enrichDeal(deal: DealRecord): {
   netRoi: ReturnType<typeof calculateNetRoi>;
 } {
   const energy = analyseEnergy({
+    heatPumpCosts: deal.investmentAssumptions?.heatPumpCosts,
+    pvCosts: deal.investmentAssumptions?.pvCosts,
     energyLabel: deal.energyLabel,
     woonoppervlak: deal.woonoppervlak,
     renovationCost: deal.renovationCost,
@@ -352,12 +357,16 @@ export function enrichDeal(deal: DealRecord): {
     municipality: deal.municipality,
   });
   const netRoi = calculateNetRoi({
+    acquisitionCosts: deal.investmentAssumptions?.acquisitionCosts,
+    heatPumpCosts: deal.investmentAssumptions?.heatPumpCosts,
+    pvCosts: deal.investmentAssumptions?.pvCosts,
     askingPrice: deal.askingPrice,
     renovationCost: deal.renovationCost,
     expectedValue: energy.revisedValue,
     subsidyAmount: subsidies.totalEstimatedAmount,
   });
   const score = calculateDealScore({
+    investmentAssumptions: deal.investmentAssumptions,
     askingPrice: deal.askingPrice,
     renovationCost: deal.renovationCost,
     expectedValue: energy.revisedValue,
@@ -368,7 +377,7 @@ export function enrichDeal(deal: DealRecord): {
     gutFeelingConfidence: deal.gutFeeling?.confidence,
   });
   return {
-    deal: { ...deal, score },
+    deal: { ...deal, score, status: deal.status === "GO" && !score.assessment?.eligible ? "HOLD" : deal.status },
     energy,
     subsidies,
     netRoi,

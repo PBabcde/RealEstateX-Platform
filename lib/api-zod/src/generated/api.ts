@@ -235,6 +235,8 @@ export const CalculateRentalOverviewBody = zod.object({
 })
 
 export const CalculateRentalOverviewResponse = zod.object({
+  "netYield": zod.number().nullish(),
+  "barEligible": zod.boolean().nullish(),
   "status": zod.string(),
   "annualRendement": zod.number(),
   "grossYield": zod.number()
@@ -517,6 +519,24 @@ export const listDealsResponseOneRenovationCostMin = 0;
 
 export const listDealsResponseOneMonthlyRentMin = 0;
 
+export const listDealsResponseOneInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const listDealsResponseOneInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const listDealsResponseOneInvestmentAssumptionsPvCostsMin = 0;
+
+export const listDealsResponseOneInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const listDealsResponseOneInvestmentAssumptionsVacancyPercentMin = 0;
+export const listDealsResponseOneInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const listDealsResponseOneInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const listDealsResponseOneInvestmentAssumptionsRadiusKmMin = 50;
+export const listDealsResponseOneInvestmentAssumptionsRadiusKmMax = 60;
+
+export const listDealsResponseOneInvestmentAssumptionsDistanceKmMin = 0;
+
 export const listDealsResponseTwoScoreGutFeelingScoreMin = 0;
 export const listDealsResponseTwoScoreGutFeelingScoreMax = 100;
 
@@ -541,7 +561,19 @@ export const ListDealsResponseItem = zod.object({
   "renovationCost": zod.number().min(listDealsResponseOneRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(listDealsResponseOneMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(listDealsResponseOneInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(listDealsResponseOneInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(listDealsResponseOneInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(listDealsResponseOneInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(listDealsResponseOneInvestmentAssumptionsVacancyPercentMin).max(listDealsResponseOneInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(listDealsResponseOneInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(listDealsResponseOneInvestmentAssumptionsRadiusKmMin).max(listDealsResponseOneInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(listDealsResponseOneInvestmentAssumptionsDistanceKmMin)
+}).optional()
 }).and(zod.object({
   "dealId": zod.string(),
   "propertyType": zod.string(),
@@ -561,7 +593,18 @@ export const ListDealsResponseItem = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(listDealsResponseTwoScoreGutFeelingScoreMin).max(listDealsResponseTwoScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(listDealsResponseTwoScoreGutFeelingConfidenceMin).max(listDealsResponseTwoScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.object({
   "score": zod.number().min(listDealsResponseTwoGutFeelingScoreMin).max(listDealsResponseTwoGutFeelingScoreMax),
@@ -590,6 +633,24 @@ export const createDealBodyRenovationCostMin = 0;
 
 export const createDealBodyMonthlyRentMin = 0;
 
+export const createDealBodyInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const createDealBodyInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const createDealBodyInvestmentAssumptionsPvCostsMin = 0;
+
+export const createDealBodyInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const createDealBodyInvestmentAssumptionsVacancyPercentMin = 0;
+export const createDealBodyInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const createDealBodyInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const createDealBodyInvestmentAssumptionsRadiusKmMin = 50;
+export const createDealBodyInvestmentAssumptionsRadiusKmMax = 60;
+
+export const createDealBodyInvestmentAssumptionsDistanceKmMin = 0;
+
 
 
 export const CreateDealBody = zod.object({
@@ -600,7 +661,19 @@ export const CreateDealBody = zod.object({
   "renovationCost": zod.number().min(createDealBodyRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(createDealBodyMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(createDealBodyInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(createDealBodyInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(createDealBodyInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(createDealBodyInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(createDealBodyInvestmentAssumptionsVacancyPercentMin).max(createDealBodyInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(createDealBodyInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(createDealBodyInvestmentAssumptionsRadiusKmMin).max(createDealBodyInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(createDealBodyInvestmentAssumptionsDistanceKmMin)
+}).optional()
 })
 
 
@@ -611,6 +684,24 @@ export const createDealResponseOneRenovationCostMin = 0;
 
 
 export const createDealResponseOneMonthlyRentMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsPvCostsMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsVacancyPercentMin = 0;
+export const createDealResponseOneInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const createDealResponseOneInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const createDealResponseOneInvestmentAssumptionsRadiusKmMin = 50;
+export const createDealResponseOneInvestmentAssumptionsRadiusKmMax = 60;
+
+export const createDealResponseOneInvestmentAssumptionsDistanceKmMin = 0;
 
 export const createDealResponseTwoScoreGutFeelingScoreMin = 0;
 export const createDealResponseTwoScoreGutFeelingScoreMax = 100;
@@ -636,7 +727,19 @@ export const CreateDealResponse = zod.object({
   "renovationCost": zod.number().min(createDealResponseOneRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(createDealResponseOneMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(createDealResponseOneInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(createDealResponseOneInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(createDealResponseOneInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(createDealResponseOneInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(createDealResponseOneInvestmentAssumptionsVacancyPercentMin).max(createDealResponseOneInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(createDealResponseOneInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(createDealResponseOneInvestmentAssumptionsRadiusKmMin).max(createDealResponseOneInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(createDealResponseOneInvestmentAssumptionsDistanceKmMin)
+}).optional()
 }).and(zod.object({
   "dealId": zod.string(),
   "propertyType": zod.string(),
@@ -656,7 +759,18 @@ export const CreateDealResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(createDealResponseTwoScoreGutFeelingScoreMin).max(createDealResponseTwoScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(createDealResponseTwoScoreGutFeelingConfidenceMin).max(createDealResponseTwoScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.object({
   "score": zod.number().min(createDealResponseTwoGutFeelingScoreMin).max(createDealResponseTwoGutFeelingScoreMax),
@@ -691,6 +805,24 @@ export const getDealResponseDealOneRenovationCostMin = 0;
 
 export const getDealResponseDealOneMonthlyRentMin = 0;
 
+export const getDealResponseDealOneInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const getDealResponseDealOneInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const getDealResponseDealOneInvestmentAssumptionsPvCostsMin = 0;
+
+export const getDealResponseDealOneInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const getDealResponseDealOneInvestmentAssumptionsVacancyPercentMin = 0;
+export const getDealResponseDealOneInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const getDealResponseDealOneInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const getDealResponseDealOneInvestmentAssumptionsRadiusKmMin = 50;
+export const getDealResponseDealOneInvestmentAssumptionsRadiusKmMax = 60;
+
+export const getDealResponseDealOneInvestmentAssumptionsDistanceKmMin = 0;
+
 export const getDealResponseDealTwoScoreGutFeelingScoreMin = 0;
 export const getDealResponseDealTwoScoreGutFeelingScoreMax = 100;
 
@@ -716,7 +848,19 @@ export const GetDealResponse = zod.object({
   "renovationCost": zod.number().min(getDealResponseDealOneRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(getDealResponseDealOneMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(getDealResponseDealOneInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(getDealResponseDealOneInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(getDealResponseDealOneInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(getDealResponseDealOneInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(getDealResponseDealOneInvestmentAssumptionsVacancyPercentMin).max(getDealResponseDealOneInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(getDealResponseDealOneInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(getDealResponseDealOneInvestmentAssumptionsRadiusKmMin).max(getDealResponseDealOneInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(getDealResponseDealOneInvestmentAssumptionsDistanceKmMin)
+}).optional()
 }).and(zod.object({
   "dealId": zod.string(),
   "propertyType": zod.string(),
@@ -736,7 +880,18 @@ export const GetDealResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(getDealResponseDealTwoScoreGutFeelingScoreMin).max(getDealResponseDealTwoScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(getDealResponseDealTwoScoreGutFeelingConfidenceMin).max(getDealResponseDealTwoScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.object({
   "score": zod.number().min(getDealResponseDealTwoGutFeelingScoreMin).max(getDealResponseDealTwoGutFeelingScoreMax),
@@ -800,17 +955,47 @@ export const updateDealBodyRenovationCostMin = 0;
 
 export const updateDealBodyMonthlyRentMin = 0;
 
+export const updateDealBodyInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const updateDealBodyInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const updateDealBodyInvestmentAssumptionsPvCostsMin = 0;
+
+export const updateDealBodyInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const updateDealBodyInvestmentAssumptionsVacancyPercentMin = 0;
+export const updateDealBodyInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const updateDealBodyInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const updateDealBodyInvestmentAssumptionsRadiusKmMin = 50;
+export const updateDealBodyInvestmentAssumptionsRadiusKmMax = 60;
+
+export const updateDealBodyInvestmentAssumptionsDistanceKmMin = 0;
+
 
 
 export const UpdateDealBody = zod.object({
-  "propertyId": zod.string().min(1),
-  "title": zod.string().min(1),
-  "region": zod.string().min(1),
-  "askingPrice": zod.number().min(1),
+  "propertyId": zod.string().min(1).optional(),
+  "title": zod.string().min(1).optional(),
+  "region": zod.string().min(1).optional(),
+  "askingPrice": zod.number().min(1).optional(),
   "renovationCost": zod.number().min(updateDealBodyRenovationCostMin).optional(),
-  "expectedValue": zod.number().min(1),
+  "expectedValue": zod.number().min(1).optional(),
   "monthlyRent": zod.number().min(updateDealBodyMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(updateDealBodyInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(updateDealBodyInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(updateDealBodyInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(updateDealBodyInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(updateDealBodyInvestmentAssumptionsVacancyPercentMin).max(updateDealBodyInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(updateDealBodyInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(updateDealBodyInvestmentAssumptionsRadiusKmMin).max(updateDealBodyInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(updateDealBodyInvestmentAssumptionsDistanceKmMin)
+}).optional()
 })
 
 
@@ -821,6 +1006,24 @@ export const updateDealResponseOneRenovationCostMin = 0;
 
 
 export const updateDealResponseOneMonthlyRentMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsPvCostsMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsVacancyPercentMin = 0;
+export const updateDealResponseOneInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const updateDealResponseOneInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const updateDealResponseOneInvestmentAssumptionsRadiusKmMin = 50;
+export const updateDealResponseOneInvestmentAssumptionsRadiusKmMax = 60;
+
+export const updateDealResponseOneInvestmentAssumptionsDistanceKmMin = 0;
 
 export const updateDealResponseTwoScoreGutFeelingScoreMin = 0;
 export const updateDealResponseTwoScoreGutFeelingScoreMax = 100;
@@ -846,7 +1049,19 @@ export const UpdateDealResponse = zod.object({
   "renovationCost": zod.number().min(updateDealResponseOneRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(updateDealResponseOneMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(updateDealResponseOneInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(updateDealResponseOneInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(updateDealResponseOneInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(updateDealResponseOneInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(updateDealResponseOneInvestmentAssumptionsVacancyPercentMin).max(updateDealResponseOneInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(updateDealResponseOneInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(updateDealResponseOneInvestmentAssumptionsRadiusKmMin).max(updateDealResponseOneInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(updateDealResponseOneInvestmentAssumptionsDistanceKmMin)
+}).optional()
 }).and(zod.object({
   "dealId": zod.string(),
   "propertyType": zod.string(),
@@ -866,7 +1081,18 @@ export const UpdateDealResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(updateDealResponseTwoScoreGutFeelingScoreMin).max(updateDealResponseTwoScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(updateDealResponseTwoScoreGutFeelingConfidenceMin).max(updateDealResponseTwoScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.object({
   "score": zod.number().min(updateDealResponseTwoGutFeelingScoreMin).max(updateDealResponseTwoGutFeelingScoreMax),
@@ -925,7 +1151,18 @@ export const ScoreDealResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(scoreDealResponseGutFeelingScoreMin).max(scoreDealResponseGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(scoreDealResponseGutFeelingConfidenceMin).max(scoreDealResponseGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 })
 
 
@@ -1266,6 +1503,24 @@ export const GetDealMediaBriefResponse = zod.object({
 /**
  * @summary List tenant-scoped Training Room scenarios
  */
+export const trainingListScenariosResponseInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingListScenariosResponseInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingListScenariosResponseInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingListScenariosResponseInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingListScenariosResponseInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingListScenariosResponseInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingListScenariosResponseInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingListScenariosResponseInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingListScenariosResponseInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingListScenariosResponseInvestmentAssumptionsDistanceKmMin = 0;
+
 export const trainingListScenariosResponseScoreGutFeelingScoreMin = 0;
 export const trainingListScenariosResponseScoreGutFeelingScoreMax = 100;
 
@@ -1305,6 +1560,18 @@ export const TrainingListScenariosResponseItem = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsVacancyPercentMin).max(trainingListScenariosResponseInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsRadiusKmMin).max(trainingListScenariosResponseInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingListScenariosResponseInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1319,7 +1586,18 @@ export const TrainingListScenariosResponseItem = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingListScenariosResponseScoreGutFeelingScoreMin).max(trainingListScenariosResponseScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingListScenariosResponseScoreGutFeelingConfidenceMin).max(trainingListScenariosResponseScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),
@@ -1376,6 +1654,24 @@ export const trainingCreateScenarioBodyMonthlyRentMin = 0;
 
 export const trainingCreateScenarioBodyMunicipalityMax = 120;
 
+export const trainingCreateScenarioBodyInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingCreateScenarioBodyInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingCreateScenarioBodyInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingCreateScenarioBodyInvestmentAssumptionsDistanceKmMin = 0;
+
 
 
 export const TrainingCreateScenarioBody = zod.object({
@@ -1386,8 +1682,38 @@ export const TrainingCreateScenarioBody = zod.object({
   "renovationCost": zod.number().min(trainingCreateScenarioBodyRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(trainingCreateScenarioBodyMonthlyRentMin).optional(),
-  "municipality": zod.string().max(trainingCreateScenarioBodyMunicipalityMax).optional()
+  "municipality": zod.string().max(trainingCreateScenarioBodyMunicipalityMax).optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsVacancyPercentMin).max(trainingCreateScenarioBodyInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsRadiusKmMin).max(trainingCreateScenarioBodyInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingCreateScenarioBodyInvestmentAssumptionsDistanceKmMin)
+}).optional()
 })
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingCreateScenarioResponseInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingCreateScenarioResponseInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingCreateScenarioResponseInvestmentAssumptionsDistanceKmMin = 0;
 
 export const trainingCreateScenarioResponseScoreGutFeelingScoreMin = 0;
 export const trainingCreateScenarioResponseScoreGutFeelingScoreMax = 100;
@@ -1428,6 +1754,18 @@ export const TrainingCreateScenarioResponse = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsVacancyPercentMin).max(trainingCreateScenarioResponseInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsRadiusKmMin).max(trainingCreateScenarioResponseInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingCreateScenarioResponseInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1442,7 +1780,18 @@ export const TrainingCreateScenarioResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingCreateScenarioResponseScoreGutFeelingScoreMin).max(trainingCreateScenarioResponseScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingCreateScenarioResponseScoreGutFeelingConfidenceMin).max(trainingCreateScenarioResponseScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),
@@ -1492,6 +1841,24 @@ export const TrainingGetScenarioParams = zod.object({
   "scenarioId": zod.coerce.string().min(1)
 })
 
+export const trainingGetScenarioResponseInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingGetScenarioResponseInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingGetScenarioResponseInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingGetScenarioResponseInvestmentAssumptionsDistanceKmMin = 0;
+
 export const trainingGetScenarioResponseScoreGutFeelingScoreMin = 0;
 export const trainingGetScenarioResponseScoreGutFeelingScoreMax = 100;
 
@@ -1531,6 +1898,18 @@ export const TrainingGetScenarioResponse = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsVacancyPercentMin).max(trainingGetScenarioResponseInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsRadiusKmMin).max(trainingGetScenarioResponseInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingGetScenarioResponseInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1545,7 +1924,18 @@ export const TrainingGetScenarioResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingGetScenarioResponseScoreGutFeelingScoreMin).max(trainingGetScenarioResponseScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingGetScenarioResponseScoreGutFeelingConfidenceMin).max(trainingGetScenarioResponseScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),
@@ -1607,6 +1997,24 @@ export const trainingUpdateScenarioBodyMonthlyRentMin = 0;
 
 export const trainingUpdateScenarioBodyMunicipalityMax = 120;
 
+export const trainingUpdateScenarioBodyInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingUpdateScenarioBodyInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingUpdateScenarioBodyInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingUpdateScenarioBodyInvestmentAssumptionsDistanceKmMin = 0;
+
 
 
 export const TrainingUpdateScenarioBody = zod.object({
@@ -1616,8 +2024,38 @@ export const TrainingUpdateScenarioBody = zod.object({
   "renovationCost": zod.number().min(trainingUpdateScenarioBodyRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1).optional(),
   "monthlyRent": zod.number().min(trainingUpdateScenarioBodyMonthlyRentMin).optional(),
-  "municipality": zod.string().max(trainingUpdateScenarioBodyMunicipalityMax).optional()
+  "municipality": zod.string().max(trainingUpdateScenarioBodyMunicipalityMax).optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsVacancyPercentMin).max(trainingUpdateScenarioBodyInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsRadiusKmMin).max(trainingUpdateScenarioBodyInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingUpdateScenarioBodyInvestmentAssumptionsDistanceKmMin)
+}).optional()
 })
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingUpdateScenarioResponseInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingUpdateScenarioResponseInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingUpdateScenarioResponseInvestmentAssumptionsDistanceKmMin = 0;
 
 export const trainingUpdateScenarioResponseScoreGutFeelingScoreMin = 0;
 export const trainingUpdateScenarioResponseScoreGutFeelingScoreMax = 100;
@@ -1658,6 +2096,18 @@ export const TrainingUpdateScenarioResponse = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsVacancyPercentMin).max(trainingUpdateScenarioResponseInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsRadiusKmMin).max(trainingUpdateScenarioResponseInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingUpdateScenarioResponseInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1672,7 +2122,18 @@ export const TrainingUpdateScenarioResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingUpdateScenarioResponseScoreGutFeelingScoreMin).max(trainingUpdateScenarioResponseScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingUpdateScenarioResponseScoreGutFeelingConfidenceMin).max(trainingUpdateScenarioResponseScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),
@@ -1722,6 +2183,24 @@ export const TrainingPromoteScenarioParams = zod.object({
   "scenarioId": zod.coerce.string().min(1)
 })
 
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingPromoteScenarioResponseScenarioInvestmentAssumptionsDistanceKmMin = 0;
+
 export const trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMin = 0;
 export const trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMax = 100;
 
@@ -1755,6 +2234,24 @@ export const trainingPromoteScenarioResponseDealOneRenovationCostMin = 0;
 
 export const trainingPromoteScenarioResponseDealOneMonthlyRentMin = 0;
 
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingPromoteScenarioResponseDealOneInvestmentAssumptionsDistanceKmMin = 0;
+
 export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMin = 0;
 export const trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMax = 100;
 
@@ -1785,6 +2282,18 @@ export const TrainingPromoteScenarioResponse = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsVacancyPercentMin).max(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsRadiusKmMin).max(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingPromoteScenarioResponseScenarioInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1799,7 +2308,18 @@ export const TrainingPromoteScenarioResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMin).max(trainingPromoteScenarioResponseScenarioScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMin).max(trainingPromoteScenarioResponseScenarioScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),
@@ -1845,7 +2365,19 @@ export const TrainingPromoteScenarioResponse = zod.object({
   "renovationCost": zod.number().min(trainingPromoteScenarioResponseDealOneRenovationCostMin).optional(),
   "expectedValue": zod.number().min(1),
   "monthlyRent": zod.number().min(trainingPromoteScenarioResponseDealOneMonthlyRentMin).optional(),
-  "municipality": zod.string().optional()
+  "municipality": zod.string().optional(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsVacancyPercentMin).max(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsRadiusKmMin).max(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingPromoteScenarioResponseDealOneInvestmentAssumptionsDistanceKmMin)
+}).optional()
 }).and(zod.object({
   "dealId": zod.string(),
   "propertyType": zod.string(),
@@ -1865,7 +2397,18 @@ export const TrainingPromoteScenarioResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMin).max(trainingPromoteScenarioResponseDealTwoScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMin).max(trainingPromoteScenarioResponseDealTwoScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.object({
   "score": zod.number().min(trainingPromoteScenarioResponseDealTwoGutFeelingScoreMin).max(trainingPromoteScenarioResponseDealTwoGutFeelingScoreMax),
@@ -1905,6 +2448,24 @@ export const TrainingDownloadInvestorReadySheetResponse = zod.unknown()
 export const TrainingRefreshScenarioSentimentParams = zod.object({
   "scenarioId": zod.coerce.string().min(1)
 })
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsAcquisitionCostsMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsHeatPumpCostsMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsPvCostsMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsHeatPumpKwMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsVacancyPercentMin = 0;
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsVacancyPercentMax = 100;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsAnnualOperatingCostsMin = 0;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsRadiusKmMin = 50;
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsRadiusKmMax = 60;
+
+export const trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsDistanceKmMin = 0;
 
 export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMin = 0;
 export const trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMax = 100;
@@ -1964,6 +2525,18 @@ export const TrainingRefreshScenarioSentimentResponse = zod.object({
   "expectedValue": zod.number(),
   "monthlyRent": zod.number(),
   "municipality": zod.string().nullish(),
+  "investmentAssumptions": zod.object({
+  "acquisitionCosts": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsAcquisitionCostsMin),
+  "heatPumpCosts": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsHeatPumpCostsMin),
+  "pvCosts": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsPvCostsMin),
+  "heatPumpKw": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsHeatPumpKwMin),
+  "glassGlassPv": zod.boolean(),
+  "vacancyPercent": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsVacancyPercentMin).max(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsVacancyPercentMax),
+  "annualOperatingCosts": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsAnnualOperatingCostsMin),
+  "region": zod.enum(['gorinchem', 'gooi', 'vlaanderen', 'outside']),
+  "radiusKm": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsRadiusKmMin).max(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsRadiusKmMax),
+  "distanceKm": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioInvestmentAssumptionsDistanceKmMin)
+}).optional(),
   "status": zod.enum(['DRAFT', 'READY', 'PROMOTED']),
   "qualityGatePassed": zod.boolean(),
   "score": zod.object({
@@ -1978,7 +2551,18 @@ export const TrainingRefreshScenarioSentimentResponse = zod.object({
   "grossYield": zod.number(),
   "gutFeelingScore": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMin).max(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingScoreMax).nullish(),
   "gutFeelingConfidence": zod.number().min(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMin).max(trainingRefreshScenarioSentimentResponseScenarioScoreGutFeelingConfidenceMax).optional(),
-  "gutFeelingContribution": zod.number().optional()
+  "gutFeelingContribution": zod.number().optional(),
+  "assessment": zod.object({
+  "version": zod.string(),
+  "eligible": zod.boolean(),
+  "reasons": zod.array(zod.string()),
+  "circle": zod.number().nullable(),
+  "totalInvestment": zod.number().nullable(),
+  "grossYieldPercent": zod.number().nullable(),
+  "netYieldPercent": zod.number().nullable(),
+  "baselineHeatPumpKw": zod.number(),
+  "regionVerification": zod.string()
+}).optional()
 }),
   "gutFeeling": zod.union([zod.object({
   "snapshotId": zod.string(),

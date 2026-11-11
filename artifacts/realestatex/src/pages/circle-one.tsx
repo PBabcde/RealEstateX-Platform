@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, Check, Compass, RotateCcw, Snowflake, Sun, X 
 import { AppShell } from '@/components/app-shell';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { CIRCLE_ONE_AIRCO_KW, CIRCLE_ONE_MIN_YIELD, calculateCircleOne, circleOneExample, type CircleOneInput } from '@/lib/circle-one';
+import { CIRCLE_ONE_HEAT_PUMP_KW, CIRCLE_ONE_MIN_YIELD, calculateCircleOne, circleOneExample, type CircleOneInput } from '@/lib/circle-one';
 import { parseCircleOneNumber as parseField } from '@/lib/circle-one-form';
 
 type NumKey = Exclude<keyof CircleOneInput, 'region'>;
@@ -23,8 +23,8 @@ const groups: { title: string; caption: string; fields: FieldDef[] }[] = [
     { key: 'acquisitionCosts', label: 'Bijkomende aankoopkosten', unit: 'EUR', hint: 'Overdrachtsbelasting, notaris, makelaar.' },
     { key: 'renovationCosts', label: 'Renovatiekosten', unit: 'EUR' },
   ] },
-  { title: 'Verplichte kit', caption: `${CIRCLE_ONE_AIRCO_KW} kW-airco en glas-glas-PV, precies één keer in de investering.`, fields: [
-    { key: 'aircoCosts', label: `Airco ${CIRCLE_ONE_AIRCO_KW} kW, geïnstalleerd`, unit: 'EUR', hint: `${CIRCLE_ONE_AIRCO_KW} kW is thermisch vermogen (koel/verwarm), geen elektrisch verbruik.` },
+  { title: 'Verplichte kit', caption: `${CIRCLE_ONE_HEAT_PUMP_KW} kW-warmtepomp en glas-op-glas-PV, precies één keer in de investering. Renovatiekosten zijn exclusief deze kit.`, fields: [
+    { key: 'heatPumpCosts', label: `Warmtepomp ${CIRCLE_ONE_HEAT_PUMP_KW} kW, geïnstalleerd`, unit: 'EUR', hint: 'Rekenbaseline; geschiktheid voor het gebouw vereist een installatieberekening.' },
     { key: 'pvCosts', label: 'Glas-glas-PV, geïnstalleerd', unit: 'EUR' },
     { key: 'panelCount', label: 'Aantal panelen', unit: 'st.', integer: true, hint: 'Geheel getal groter dan nul.' },
     { key: 'panelWp', label: 'Vermogen per paneel', unit: 'Wp' },
@@ -89,9 +89,9 @@ export function CircleOneCalculator() {
       <div className="grid-paper absolute inset-0 opacity-10" />
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl">
-          <p className="mono text-[10px] uppercase tracking-[0.2em] text-[#f5b84a]">Cirkel 1 / handmatige toets</p>
-          <h2 className="display mt-3 text-3xl font-bold tracking-[-0.05em] sm:text-4xl">Netto BAR van minimaal {num(CIRCLE_ONE_MIN_YIELD)}%, binnen de cirkel.</h2>
-          <p className="mt-3 text-sm leading-6 text-primary-foreground/70">Gorinchem binnen een instelbare straal van 50 tot 70 km, of Het Gooi apart. Elke deal draagt verplicht een {CIRCLE_ONE_AIRCO_KW} kW-airco en een glas-glas-PV-kit.</p>
+          <p className="mono text-[10px] uppercase tracking-[0.2em] text-[#f5b84a]">Drie cirkels / handmatige investeringstoets</p>
+          <h2 className="display mt-3 text-3xl font-bold tracking-[-0.05em] sm:text-4xl">Bruto BAR van minimaal {num(CIRCLE_ONE_MIN_YIELD)}%, netto rendement apart.</h2>
+          <p className="mt-3 text-sm leading-6 text-primary-foreground/70">Cirkel 1: Gorinchem, 50–60 km. Cirkel 2: Het Gooi/Randstad-transitiezones. Cirkel 3: Vlaanderen. Elke deal bevat een {CIRCLE_ONE_HEAT_PUMP_KW} kW-warmtepomp en glas-op-glas-PV.</p>
         </div>
         <button type="button" onClick={() => form.reset(toForm(circleOneExample))} className="flex items-center gap-2 self-start rounded-xl border border-white/20 px-4 py-2.5 text-xs font-bold hover:bg-white/10 lg:self-auto" data-testid="button-reset-example"><RotateCcw size={14} /> Voorbeeld herstellen</button>
       </div>
@@ -112,7 +112,7 @@ export function CircleOneCalculator() {
              <p className="mt-1 text-xs leading-5 text-muted-foreground">Getallen zonder duizendtalscheiding, maximaal 2 decimalen: bijvoorbeeld 1900 of 1900,50.</p>
             <FormField control={form.control} name="region" render={({ field }) => (
               <div role="radiogroup" aria-label="Regio" className="mt-4 grid gap-2 sm:grid-cols-3">
-                {([['gorinchem', 'Cirkel Gorinchem', 'Binnen de straal, ook dichterbij'], ['gooi', 'Het Gooi', 'Aparte regio, geen straal'], ['outside', 'Daarbuiten', 'Valt buiten Cirkel 1']] as const).map(([v, l, n]) => (
+                {([['gorinchem', 'Cirkel 1', 'Gorinchem, binnen 50–60 km'], ['gooi', 'Cirkel 2', 'Het Gooi / Randstad-transitiezones'], ['vlaanderen', 'Cirkel 3', 'Vlaanderen'], ['outside', 'Daarbuiten', 'Geen toegewezen cirkel']] as const).map(([v, l, n]) => (
                   <label key={v} className={`cursor-pointer rounded-xl border p-3 text-left transition-colors focus-within:ring-2 focus-within:ring-ring ${field.value === v ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-muted'}`}>
                     <input type="radio" name={field.name} value={v} checked={field.value === v} onChange={() => field.onChange(v)} className="sr-only" data-testid={`radio-region-${v}`} />
                     <span className="block text-sm font-bold">{l}</span><span className={`block text-[11px] ${field.value === v ? 'text-primary-foreground/65' : 'text-muted-foreground'}`}>{n}</span>
@@ -121,7 +121,7 @@ export function CircleOneCalculator() {
               </div>
             )} />
             {values.region === 'gorinchem' && <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <NumField form={form} def={{ key: 'radiusKm', label: 'Zoekstraal', unit: 'km', hint: `Instelbaar van 50 tot 70 km. Alles op of binnen ${radius !== undefined ? num(radius) : '…'} km telt mee.` }} />
+              <NumField form={form} def={{ key: 'radiusKm', label: 'Zoekstraal', unit: 'km', hint: `Instelbaar van 50 tot 60 km. Alles op of binnen ${radius !== undefined ? num(radius) : '…'} km telt mee.` }} />
               <NumField form={form} def={{ key: 'distanceKm', label: 'Afstand tot Gorinchem (hemelsbreed)', unit: 'km', hint: 'Door jou opgegeven, niet geverifieerd.' }} />
             </div>}
             {values.region !== 'gorinchem' && <p className="mt-4 text-[11px] text-muted-foreground">Straal en afstand blijven bewaard maar tellen niet mee voor {values.region === 'gooi' ? 'Het Gooi' : 'deze keuze'}.</p>}
@@ -144,22 +144,22 @@ export function CircleOneCalculator() {
             </ul>
           </div> : (() => {
             const r = result;
-            const nearBoundary = pct(r.netYieldPercent) === pct(CIRCLE_ONE_MIN_YIELD);
+            const nearBoundary = pct(r.grossYieldPercent) === pct(CIRCLE_ONE_MIN_YIELD);
             return <>
               <div className={`rounded-2xl p-5 ${r.eligible ? 'bg-[#1f4f46] text-white' : 'bg-[#5a2621] text-white'}`} data-testid="status-qualification">
-                <p className="mono text-[10px] uppercase tracking-[0.2em] opacity-70">Uitkomst Cirkel 1</p>
+                <p className="mono text-[10px] uppercase tracking-[0.2em] opacity-70">Uitkomst {r.circle ? `Cirkel ${r.circle}` : 'buiten de cirkels'}</p>
                 <p className="display mt-2 text-3xl font-bold tracking-[-0.04em]" data-testid="text-qualifies">{r.eligible ? 'Kwalificeert' : 'Kwalificeert niet'}</p>
-                <p className="mt-3 text-xs opacity-75">Netto BAR</p>
-                <p className="display text-5xl font-bold tracking-[-0.06em]" data-testid="text-net-yield">{pct(r.netYieldPercent)}</p>
+                <p className="mt-3 text-xs opacity-75">Bruto BAR</p>
+                <p className="display text-5xl font-bold tracking-[-0.06em]" data-testid="text-gross-yield">{pct(r.grossYieldPercent)}</p>
                 {nearBoundary && <p className="mt-2 text-xs opacity-80" data-testid="text-rounding-note">Afgerond lijkt dit gelijk aan {num(CIRCLE_ONE_MIN_YIELD)}%. De beslissing gebruikt het onafgeronde bedrag ({r.yieldEligible ? 'net wel' : 'net niet'} gehaald).</p>}
               </div>
-              <Gate ok={r.regionEligible} label="Regio" testId="status-region-gate" detail={values.region === 'gooi' ? 'Het Gooi telt apart mee, zonder straal. Keuze niet geverifieerd.' : values.region === 'gorinchem' ? `${num(input!.distanceKm)} km opgegeven tegen een straal van ${num(input!.radiusKm)} km. Niet geverifieerd.` : 'Buiten Gorinchem-cirkel en Het Gooi.'} />
-              <Gate ok={r.yieldEligible} label={`Netto BAR minimaal ${num(CIRCLE_ONE_MIN_YIELD)}%`} testId="status-yield-gate" detail="Getoetst op het exacte, onafgeronde cijfer." />
+              <Gate ok={r.regionEligible} label="Regio" testId="status-region-gate" detail={r.circle ? `Cirkel ${r.circle}. Handmatige regio-invoer, niet geografisch geverifieerd.` : 'Buiten de drie cirkels of buiten de opgegeven Gorinchem-straal.'} />
+              <Gate ok={r.yieldEligible} label={`Bruto BAR minimaal ${num(CIRCLE_ONE_MIN_YIELD)}%`} testId="status-yield-gate" detail="Getoetst op het exacte, onafgeronde cijfer. Geen WWS- of juridische goedkeuring." />
               <div className="rounded-2xl border border-border bg-card p-5">
                 <div className="grid grid-cols-2 gap-3">
                   <div><p className="text-[11px] text-muted-foreground">Totale investering</p><p className="display text-xl font-bold" data-testid="text-total-investment">{eur(r.totalInvestment)}</p></div>
                   <div><p className="text-[11px] text-muted-foreground">Netto jaarinkomen</p><p className="display text-xl font-bold" data-testid="text-net-income">{eur(r.netAnnualRent)}</p></div>
-                  <div><p className="text-[11px] text-muted-foreground">Bruto BAR (apart)</p><p className="display text-xl font-bold" data-testid="text-gross-yield">{pct(r.grossYieldPercent)}</p></div>
+                  <div><p className="text-[11px] text-muted-foreground">Netto huurrendement (apart)</p><p className="display text-xl font-bold" data-testid="text-net-yield">{pct(r.netYieldPercent)}</p></div>
                   <div><p className="text-[11px] text-muted-foreground">Huur nodig voor {num(CIRCLE_ONE_MIN_YIELD)}%</p><p className="display text-xl font-bold" data-testid="text-required-rent">{r.requiredMonthlyRent === null ? 'Niet te bepalen' : `${eur2(r.requiredMonthlyRent)} p/m`}</p></div>
                 </div>
                 {r.requiredMonthlyRent === null && <p className="mt-2 text-[11px] text-muted-foreground">Bij 100% leegstand levert geen enkele huur inkomen op.</p>}
@@ -171,7 +171,7 @@ export function CircleOneCalculator() {
                 <Row label="Aankoopprijs" value={eur(input!.purchasePrice)} testId="text-breakdown-purchase" />
                 <Row label="Bijkomende kosten" value={eur(input!.acquisitionCosts)} testId="text-breakdown-acquisition" />
                 <Row label="Renovatie" value={eur(input!.renovationCosts)} testId="text-breakdown-renovation" />
-                <Row label={`Kit: airco ${CIRCLE_ONE_AIRCO_KW} kW + glas-glas-PV (${num(r.pvKwp)} kWp)`} value={eur(r.kitInvestment)} testId="text-breakdown-kit" />
+                <Row label={`Kit: warmtepomp ${CIRCLE_ONE_HEAT_PUMP_KW} kW + glas-op-glas-PV (${num(r.pvKwp)} kWp)`} value={eur(r.kitInvestment)} testId="text-breakdown-kit" />
                 <Row label="Totale investering" value={eur(r.totalInvestment)} strong testId="text-breakdown-total" />
                 <p className="text-[11px] text-muted-foreground">PV: {num(input!.panelCount, 0)} panelen x {num(input!.panelWp)} Wp = <span data-testid="text-pv-kwp">{num(r.pvKwp)} kWp</span>. De kit telt één keer mee.</p>
                 <p className="mono mt-4 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Inkomen</p>
@@ -181,8 +181,8 @@ export function CircleOneCalculator() {
                 <Row label="Operationele kosten" value={`- ${eur(input!.annualOperatingCosts)}`} testId="text-breakdown-opex" />
                 <Row label="Netto jaarhuur" value={eur(r.netAnnualRent)} strong testId="text-breakdown-net" />
                 <div className="mt-4 space-y-2 rounded-xl bg-muted p-3 text-[11px] leading-5 text-muted-foreground">
-                  <p><strong className="text-foreground">Netto BAR</strong> = netto jaarhuur / totale investering x 100. Netto jaarhuur = maandhuur x 12 na leegstand, min jaarlijkse operationele kosten.</p>
-                  <p><strong className="text-foreground">Bruto BAR</strong> = brutohuur zonder leegstand en kosten / totale investering x 100; alleen ter vergelijking.</p>
+                  <p><strong className="text-foreground">Netto huurrendement</strong> = netto jaarhuur / totale investering x 100. Netto jaarhuur = maandhuur x 12 na leegstand, min jaarlijkse operationele kosten.</p>
+                  <p><strong className="text-foreground">Bruto BAR</strong> = brutohuur zonder leegstand en kosten / totale investering x 100; de harde ondergrens is 7,5%.</p>
                   <p>Niet inbegrepen: financiering, inkomsten- of vermogensbelasting, energiebesparing, subsidies, energielabel- of WWS-puntenstijging. Kosten zijn door jou ingevoerde geïnstalleerde bedragen.</p>
                 </div>
               </div>

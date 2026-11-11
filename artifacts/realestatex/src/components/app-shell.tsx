@@ -8,7 +8,7 @@ const navItems = [
   { href: '/dashboard', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
   { href: '/properties', label: 'Objecten', note: 'Je vastgoed', icon: ChevronRight },
   { href: '/calculators', label: 'Rekentools', note: 'Scenario’s', icon: Calculator },
-  { href: '/cirkel-1', label: 'Cirkel 1', note: 'Netto BAR-toets', icon: CircleDot },
+  { href: '/cirkel-1', label: 'Cirkel 1', note: 'Bruto BAR & regiotoets', icon: CircleDot },
   { href: '/market', label: 'Markt', note: 'Richting & tempo', icon: BarChart3 },
   { href: '/suite', label: 'Suite', note: '20 verbonden modules', icon: Boxes },
   { href: '/dealing-room', label: 'Dealing Room', note: 'Deals & matching', icon: Handshake },

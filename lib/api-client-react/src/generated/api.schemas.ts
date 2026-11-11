@@ -94,6 +94,59 @@ export interface PaymentHoldResponse {
   error: string;
 }
 
+export type InvestmentAssumptionsRegion = typeof InvestmentAssumptionsRegion[keyof typeof InvestmentAssumptionsRegion];
+
+
+export const InvestmentAssumptionsRegion = {
+  gorinchem: 'gorinchem',
+  gooi: 'gooi',
+  vlaanderen: 'vlaanderen',
+  outside: 'outside',
+} as const;
+
+export interface InvestmentAssumptions {
+  /** @minimum 0 */
+  acquisitionCosts: number;
+  /** @minimum 0 */
+  heatPumpCosts: number;
+  /** @minimum 0 */
+  pvCosts: number;
+  /** @minimum 0 */
+  heatPumpKw: number;
+  glassGlassPv: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  vacancyPercent: number;
+  /** @minimum 0 */
+  annualOperatingCosts: number;
+  region: InvestmentAssumptionsRegion;
+  /**
+     * @minimum 50
+     * @maximum 60
+     */
+  radiusKm: number;
+  /** @minimum 0 */
+  distanceKm: number;
+}
+
+export interface InvestmentAssessment {
+  version: string;
+  eligible: boolean;
+  reasons: string[];
+  /** @nullable */
+  circle: number | null;
+  /** @nullable */
+  totalInvestment: number | null;
+  /** @nullable */
+  grossYieldPercent: number | null;
+  /** @nullable */
+  netYieldPercent: number | null;
+  baselineHeatPumpKw: number;
+  regionVerification: string;
+}
+
 export interface DealInput {
   /** @minLength 1 */
   propertyId: string;
@@ -110,6 +163,26 @@ export interface DealInput {
   /** @minimum 0 */
   monthlyRent?: number;
   municipality?: string;
+  investmentAssumptions?: InvestmentAssumptions;
+}
+
+export interface DealUpdate {
+  /** @minLength 1 */
+  propertyId?: string;
+  /** @minLength 1 */
+  title?: string;
+  /** @minLength 1 */
+  region?: string;
+  /** @minimum 1 */
+  askingPrice?: number;
+  /** @minimum 0 */
+  renovationCost?: number;
+  /** @minimum 1 */
+  expectedValue?: number;
+  /** @minimum 0 */
+  monthlyRent?: number;
+  municipality?: string;
+  investmentAssumptions?: InvestmentAssumptions;
 }
 
 export type DealScoreDecision = typeof DealScoreDecision[keyof typeof DealScoreDecision];
@@ -143,6 +216,7 @@ export interface DealScore {
      */
   gutFeelingConfidence?: number;
   gutFeelingContribution?: number;
+  assessment?: InvestmentAssessment;
 }
 
 export type DealRecordStatus = typeof DealRecordStatus[keyof typeof DealRecordStatus];
@@ -452,6 +526,7 @@ export interface TrainingScenarioInput {
   monthlyRent?: number;
   /** @maxLength 120 */
   municipality?: string;
+  investmentAssumptions?: InvestmentAssumptions;
 }
 
 export interface TrainingScenarioUpdate {
@@ -475,6 +550,7 @@ export interface TrainingScenarioUpdate {
   monthlyRent?: number;
   /** @maxLength 120 */
   municipality?: string;
+  investmentAssumptions?: InvestmentAssumptions;
 }
 
 export type TrainingScenarioStatus = typeof TrainingScenarioStatus[keyof typeof TrainingScenarioStatus];
@@ -567,6 +643,7 @@ export interface TrainingScenario {
   monthlyRent: number;
   /** @nullable */
   municipality?: string | null;
+  investmentAssumptions?: InvestmentAssumptions;
   status: TrainingScenarioStatus;
   qualityGatePassed: boolean;
   score: DealScore;
@@ -831,6 +908,10 @@ export interface RentalInput {
 }
 
 export interface RentalResult {
+  /** @nullable */
+  netYield?: number | null;
+  /** @nullable */
+  barEligible?: boolean | null;
   status: string;
   annualRendement: number;
   grossYield: number;

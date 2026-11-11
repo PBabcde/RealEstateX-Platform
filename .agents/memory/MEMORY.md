@@ -22,3 +22,4 @@
 - [RealEstateX cross-tab testing](realestatex-cross-tab-testing.md) — verify storage notifications between separate tabs; a tab does not receive its own BroadcastChannel messages.
 - [RealEstateX photo-reference races](realestatex-photo-reference-races.md) — mutate photo bytes and project references atomically, and guard cleanup against currently referenced keys.
 - [RealEstateX project deletion](realestatex-project-deletion.md) — edits must update an existing project; only explicit create/restore flows may insert, so late writes cannot revive deleted records.
+- [Investment policy](investment-policy.md) — align gross BAR, total investment, 5 kW heat pump/PV and three regional circles before adding screens.

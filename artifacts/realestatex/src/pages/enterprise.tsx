@@ -72,6 +72,9 @@ import type {
   InvestorInput,
 } from "@workspace/api-client-react";
 import { AppShell } from "@/components/app-shell";
+import { InvestmentFields, InvestmentResult } from "@/components/investment-fields";
+import { DealAssumptionsEditor } from "@/components/deal-assumptions-editor";
+import type { InvestmentAssumptions } from "@workspace/api-client-react";
 import {
   EmptyBlock,
   ErrorBlock,
@@ -120,6 +123,7 @@ function Metric({
 }
 
 function DealForm({ onCreated }: { onCreated: (dealId: string) => void }) {
+  const [assumptions, setAssumptions] = useState<InvestmentAssumptions>();
   const properties = useListProperties();
   const create = useCreateDeal();
   const client = useQueryClient();
@@ -140,6 +144,7 @@ function DealForm({ onCreated }: { onCreated: (dealId: string) => void }) {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const payload: DealInput = {
+      investmentAssumptions: assumptions,
       propertyId: form.propertyId,
       title: form.title || selectedProperty?.adres || "Nieuwe deal",
       region: form.region || selectedProperty?.adres || "Nederland",
@@ -153,6 +158,7 @@ function DealForm({ onCreated }: { onCreated: (dealId: string) => void }) {
       { data: payload },
       {
         onSuccess: (deal) => {
+          setAssumptions(undefined);
           client.invalidateQueries({ queryKey: getListDealsQueryKey() });
           client.invalidateQueries({ queryKey: getGetEnterpriseOverviewQueryKey() });
           onCreated(deal.dealId);
@@ -232,6 +238,7 @@ function DealForm({ onCreated }: { onCreated: (dealId: string) => void }) {
           </label>
         </div>
       </div>
+      <InvestmentFields value={assumptions} onChange={setAssumptions} />
       {create.isError && <p className="mt-4 text-xs font-semibold text-[#a4443b]">Deal kon niet worden opgeslagen. Controleer objecttoegang en bedragen.</p>}
       <div className="mt-5">
         <SubmitButton pending={create.isPending}>Deal opslaan</SubmitButton>
@@ -296,6 +303,8 @@ function DealDetail({ dealId }: { dealId: string }) {
         ))}
       </div>
       {data.deal.score.gutFeelingScore != null && <div className="rounded-2xl border border-[#d7e6e0] bg-[#f5faf7] p-4" data-testid="panel-gut-feeling"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#287b6a]">Gut Feeling</p><p className="mt-1 text-sm font-bold">{data.deal.gutFeeling?.summary ?? "Buurt- en contextsignaal toegevoegd aan de score."}</p></div><div className="flex gap-5 text-right"><div><p className="text-[10px] text-muted-foreground">Score</p><p className="mono text-xl text-[#287b6a]">{data.deal.score.gutFeelingScore}/100</p></div><div><p className="text-[10px] text-muted-foreground">Zekerheid</p><p className="mono text-xl">{data.deal.score.gutFeelingConfidence ?? data.deal.gutFeeling?.sourceCount ?? 0}%</p></div><div><p className="text-[10px] text-muted-foreground">Bijdrage</p><p className="mono text-xl">{data.deal.score.gutFeelingContribution ?? 0}</p></div></div></div></div>}
+      <InvestmentResult assessment={data.deal.score.assessment} />
+      <DealAssumptionsEditor key={`${data.deal.dealId}:${data.deal.updatedAt}`} deal={data.deal} />
       <div className="grid gap-5 lg:grid-cols-2">
         <div className={cardClass}>
           <div className="flex items-center gap-2"><Leaf size={16} className="text-[#287b6a]" /><h4 className="display text-xl font-bold">Energy → waarde</h4></div>
@@ -303,7 +312,7 @@ function DealDetail({ dealId }: { dealId: string }) {
             <div><p className="text-[11px] text-muted-foreground">Jaarlijkse besparing</p><p className="mono mt-1 text-lg">{formatEuro(data.energy.annualSavings)}</p></div>
             <div><p className="text-[11px] text-muted-foreground">Terugverdientijd</p><p className="mono mt-1 text-lg">{data.energy.paybackYears} jaar</p></div>
             <div><p className="text-[11px] text-muted-foreground">Herziene waarde</p><p className="mono mt-1 text-lg">{formatEuro(data.energy.revisedValue)}</p></div>
-            <div><p className="text-[11px] text-muted-foreground">Netto ROI</p><p className="mono mt-1 text-lg text-[#287b6a]">{data.netRoi.netRoi.toFixed(1)}%</p></div>
+            <div><p className="text-[11px] text-muted-foreground">Waardegroei-ROI (geen huurrendement)</p><p className="mono mt-1 text-lg text-[#287b6a]">{data.deal.score.assessment?.totalInvestment == null ? "Onvolledige kosten" : `${data.netRoi.netRoi.toFixed(1)}%`}</p></div>
           </div>
           <div className="mt-5 space-y-2">
             {data.energy.measures.map((measure) => <div key={measure.name} className="flex items-center justify-between rounded-xl bg-secondary px-3 py-2 text-xs"><span>{measure.name}</span><span className="mono text-[#287b6a]">+{formatEuro(measure.annualSavings)}/jr</span></div>)}

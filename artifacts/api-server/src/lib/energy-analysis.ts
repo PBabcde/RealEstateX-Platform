@@ -1,4 +1,8 @@
+import { BASELINE_HEAT_PUMP_COST } from "@workspace/investment-policy";
+
 export type EnergyAnalysisInput = {
+  heatPumpCosts?: number;
+  pvCosts?: number;
   energyLabel: string;
   woonoppervlak: number;
   renovationCost: number;
@@ -37,27 +41,21 @@ export function analyseEnergy(input: EnergyAnalysisInput): EnergyAnalysis {
   const label = input.energyLabel.trim().toUpperCase();
   const labelScore = LABEL_SCORES[label] ?? 50;
   const baseCost = Math.max(0, Math.round(input.woonoppervlak * (120 - labelScore)));
-  const measures =
-    labelScore < 75
-      ? [
+  const measures = [
+    ...(labelScore < 75 ? [
           {
             name: "Isolatie en kierdichting",
             investment: Math.round(input.woonoppervlak * 85),
             annualSavings: Math.round(input.woonoppervlak * 17),
           },
-          {
-            name: "Warmtepomp of hybride installatie",
-            investment: 9_500,
-            annualSavings: 1_150,
-          },
-        ]
-      : [
-          {
-            name: "Zonnepanelen en monitoring",
-            investment: Math.round(input.woonoppervlak * 45),
-            annualSavings: Math.round(input.woonoppervlak * 10),
-          },
-        ];
+        ] : []),
+    { name: "Warmtepomp 5 kW (rekenbaseline)",
+      investment: input.heatPumpCosts ?? BASELINE_HEAT_PUMP_COST,
+      annualSavings: labelScore < 75 ? 1150 : 0 },
+    { name: "Glas-op-glas-zonnepanelen",
+      investment: input.pvCosts ?? Math.round(input.woonoppervlak * 45),
+      annualSavings: Math.round(input.woonoppervlak * 10) },
+  ];
   const annualSavings = measures.reduce(
     (total, measure) => total + measure.annualSavings,
     0,

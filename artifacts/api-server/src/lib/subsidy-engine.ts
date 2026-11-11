@@ -1,4 +1,5 @@
 import type { EnergyAnalysis } from "./energy-analysis";
+import { calculateReturns } from "@workspace/investment-policy";
 
 export type SubsidyTrigger = {
   code: string;
@@ -48,6 +49,9 @@ export function calculateSubsidies(input: {
 }
 
 export function calculateNetRoi(input: {
+  acquisitionCosts?: number;
+  heatPumpCosts?: number;
+  pvCosts?: number;
   askingPrice: number;
   renovationCost: number;
   expectedValue: number;
@@ -58,10 +62,11 @@ export function calculateNetRoi(input: {
   netRoi: number;
   revisedValue: number;
 } {
-  const totalInvestment = Math.max(
-    0,
-    input.askingPrice + input.renovationCost - input.subsidyAmount,
-  );
+  const { totalInvestment } = calculateReturns({
+    purchasePrice: input.askingPrice, renovationCosts: input.renovationCost,
+    acquisitionCosts: input.acquisitionCosts ?? 0, heatPumpCosts: input.heatPumpCosts ?? 0,
+    pvCosts: input.pvCosts ?? 0, monthlyRent: 0, vacancyPercent: 0, annualOperatingCosts: 0,
+  });
   const valueCreation = input.expectedValue - totalInvestment;
   return {
     totalInvestment,

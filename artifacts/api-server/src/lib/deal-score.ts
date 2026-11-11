@@ -1,4 +1,7 @@
+import { assessInvestment, type InvestmentAssumptions } from "@workspace/investment-policy";
+
 export type DealScoreInput = {
+  investmentAssumptions?: InvestmentAssumptions;
   askingPrice: number;
   renovationCost: number;
   expectedValue: number;
@@ -11,6 +14,7 @@ export type DealScoreInput = {
 };
 
 export type DealScore = {
+  assessment?: ReturnType<typeof assessInvestment>;
   flitsScore: number;
   splitScore: number;
   transformationScore: number;
@@ -29,12 +33,10 @@ const clamp = (value: number, minimum = 0, maximum = 100): number =>
   Math.max(minimum, Math.min(maximum, Math.round(value)));
 
 export function calculateDealScore(input: DealScoreInput): DealScore {
-  const margin = input.expectedValue - input.askingPrice - input.renovationCost;
+  const assessment = assessInvestment(input, input.investmentAssumptions);
+  const margin = input.expectedValue - (assessment.totalInvestment ?? (input.askingPrice + input.renovationCost));
   const marginRate = input.askingPrice > 0 ? (margin / input.askingPrice) * 100 : 0;
-  const grossYield =
-    input.expectedValue > 0
-      ? ((input.monthlyRent * 12) / input.expectedValue) * 100
-      : 0;
+  const grossYield = assessment.grossYieldPercent ?? 0;
 
   const flitsScore = clamp(50 + marginRate * 2.2);
   const splitScore = clamp(
@@ -70,13 +72,14 @@ export function calculateDealScore(input: DealScoreInput): DealScore {
   );
 
   return {
+    assessment,
     flitsScore,
     splitScore,
     transformationScore,
     energyScore,
     subsidyScore,
     totalScore,
-    decision: totalScore >= 70 ? "GO" : totalScore >= 50 ? "HOLD" : "REJECT",
+    decision: totalScore >= 70 && assessment.eligible ? "GO" : totalScore >= 50 ? "HOLD" : "REJECT",
     margin: Math.round(margin),
     grossYield: Number(grossYield.toFixed(2)),
     gutFeelingScore,

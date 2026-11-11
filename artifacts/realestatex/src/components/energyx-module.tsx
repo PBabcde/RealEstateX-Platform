@@ -6,6 +6,7 @@ import { Download, Loader2, RefreshCw, X, Zap } from 'lucide-react';
 import { ErrorBlock, formatEuro, formatNumber, LoadingBlock } from '@/components/ui-elements';
 import { exportEnergyxReport } from '@/components/energyx-report';
 import { EnergyxServiceDialog } from '@/components/energyx-service-dialog';
+import { BASELINE_HEAT_PUMP_KW } from '@workspace/investment-policy';
 
 type Status = { propertyId: string; status: 'not_synced' | 'synced' | 'outdated' | 'failed'; syncedAt?: string; specs?: Record<string, string | number | null> };
 type B2B = {
@@ -150,7 +151,8 @@ function B2BPanel({ adres, data, onRequest }: { adres: string; data: B2B; onRequ
       <Stat label="Zonnepanelen" value={`${m.solar.panels} st · ${m.solar.kwp} kWp`} />
       <Stat label="Opbrengst" value={`${formatNumber(m.solar.kwhPerYear)} kWh/jaar`} />
       <Stat label="Batterij" value={`${m.battery.kwh} kWh`} />
-      <Stat label="Verwarming" value={`${data.specs.heatingKw} kW`} />
+      <Stat label="Verwarmingsbehoefte" value={`${data.specs.heatingKw} kW`} />
+      <Stat label="Warmtepompbaseline" value={`${BASELINE_HEAT_PUMP_KW} kW`} />
       <Stat label="Koeling" value={`${data.specs.coolingKw} kW`} />
       <Stat label="Dakoppervlak" value={`${formatNumber(data.specs.roofAreaM2)} m²`} />
       <Stat label="Besparing" value={`${formatEuro(m.annualSavings)}/jaar`} />

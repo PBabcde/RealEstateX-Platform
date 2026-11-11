@@ -1,4 +1,5 @@
 import type { PropertyRecord } from "./realestatex-storage";
+import { calculateReturns } from "@workspace/investment-policy";
 
 export function calculateValuation(input: {
   woonoppervlak: number;
@@ -22,17 +23,22 @@ export function calculateRental(input: {
   huurprijs: number;
   kosten: number;
   investering?: number;
-}): { status: string; annualRendement: number; grossYield: number } {
-  const annualRendement = Math.round(input.huurprijs * 12 - input.kosten);
-  const grossYield =
-    input.investering && input.investering > 0
-      ? Number(((input.huurprijs * 12) / input.investering) * 100).toFixed(2)
-      : 0;
+}): { status: string; annualRendement: number; grossYield: number; netYield: number | null; barEligible: boolean | null } {
+  // This quick calculator receives the already-totalled investment, not a valuation.
+  const result = input.investering && input.investering > 0 ? calculateReturns({
+    purchasePrice: input.investering, acquisitionCosts: 0, renovationCosts: 0,
+    heatPumpCosts: 0, pvCosts: 0, monthlyRent: input.huurprijs,
+    vacancyPercent: 0, annualOperatingCosts: input.kosten,
+  }) : null;
+  const annualRendement = Math.round(result?.netAnnualRent ?? (input.huurprijs * 12 - input.kosten));
+  const grossYield = result ? Number(result.grossYieldPercent.toFixed(2)) : 0;
 
   return {
     status: "ok",
     annualRendement,
     grossYield: Number(grossYield),
+    netYield: result?.netYieldPercent ?? null,
+    barEligible: result?.yieldEligible ?? null,
   };
 }
 

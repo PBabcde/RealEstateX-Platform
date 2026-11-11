@@ -1,3 +1,5 @@
+import { BASELINE_HEAT_PUMP_KW } from "@workspace/investment-policy";
+
 export type EnergyxReportData = {
   syncedAt: string;
   building: {
@@ -52,11 +54,11 @@ export function buildEnergyxReportHtml(
     ["Huidig energielabel", data.building.energyLabel],
     ["Verwarmingsbehoefte", `${data.specs.heatingKw} kW`],
     ["Koelbehoefte", `${data.specs.coolingKw} kW`],
-    ["Aanbevolen warmtepompcapaciteit", `${data.specs.heatingKw} kW`],
+    ["Warmtepompbaseline (geen dimensioneringsadvies)", `${BASELINE_HEAT_PUMP_KW} kW`],
     ["Aanbevolen aircocapaciteit", `${data.specs.coolingKw} kW`],
     ["Aanbevolen zonnepanelen", `${data.metrics.solar.panels} panelen · ${data.metrics.solar.kwp} kWp`],
     ["Aanbevolen batterij", `${data.metrics.battery.kwh} kWh`],
-    ["Investeringsindicatie", euro(data.metrics.investments.total)],
+    ["Investering alleen verduurzaming (geen totale objectinvestering)", euro(data.metrics.investments.total)],
     ["Geschatte jaarlijkse energiebesparing", euro(data.metrics.annualSavings)],
     ["Terugverdientijd", valueOrDash(data.metrics.paybackYears, " jaar")],
     ["Huidige WWS-punten", valueOrDash(data.specs.wwsPoints)],
@@ -103,7 +105,7 @@ export function buildEnergyxReportHtml(
 <div class="actions"><button class="secondary" onclick="window.close()">Sluiten</button><button onclick="window.print()">Afdrukken / opslaan als PDF</button></div>
 <main>
   <header><div class="eyebrow">RealEstateX · B2B</div><h1>Verduurzamingsrapport</h1><div class="address">${safeAddress}</div></header>
-  <div class="notice">Indicatieve berekening op basis van de beschikbare objectgegevens. Geen live EnergyX-rapport of officiële WWS-puntentelling. De WWS-puntenwinst hieronder is alleen een handmatige indicatie indien ingevuld.</div>
+  <div class="notice">Indicatieve berekening, geen live EnergyX-rapport of officiële WWS-puntentelling. Rekenbaseline: 5 kW-warmtepomp en glas-op-glas-zonnepanelen; geschiktheid vereist een installatieberekening. WWS-puntenwinst is alleen een handmatige indicatie. Dit installatierapport bevat geen BAR-goedkeuring: gebruik voor de totale objectinvestering en regiotoets de Investor Ready Sheet in de dealroom.</div>
   <table><tbody>${tableRows}</tbody></table>
   <footer>Rapport aangemaakt op ${createdAt}. Bronstatus: RealEstateX-berekening; laatste synchronisatie ${escapeHtml(new Date(data.syncedAt).toLocaleString("nl-NL"))}.</footer>
 </main>

@@ -44,6 +44,7 @@ import type {
   DealRecord,
   DealSalesIntelligence,
   DealScore,
+  DealUpdate,
   DocumentInput,
   DocumentListResponse,
   DocumentResponse,
@@ -2027,7 +2028,7 @@ export const getUpdateDealUrl = (dealId: string,) => {
  * @summary Update a deal
  */
 export const updateDeal = async (dealId: string,
-    dealInput: DealInput, options?: Parameters<typeof customFetch>[1]): Promise<DealRecord> => {
+    dealUpdate: DealUpdate, options?: Parameters<typeof customFetch>[1]): Promise<DealRecord> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -2048,7 +2049,7 @@ return customFetch<DealRecord>(getUpdateDealUrl(dealId),
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(dealInput)
+    body: JSON.stringify(dealUpdate)
   }
 );}
 
@@ -2086,9 +2087,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type UpdateDealMutationResult = NonNullable<Awaited<ReturnType<typeof updateDeal>>>
-    export type UpdateDealMutationBody = BodyType<DealInput>
+    export type UpdateDealMutationBody = BodyType<DealUpdate>
     export type UpdateDealMutationError = ErrorType<BadRequestResponse | NotFoundResponse>
-    export type UpdateDealMutationVariables = {dealId: string;data: BodyType<DealInput>}
+    export type UpdateDealMutationVariables = {dealId: string;data: BodyType<DealUpdate>}
 
     /**
  * @summary Update a deal

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DealScore } from './dealScore';
+import type { InvestmentAssumptions } from './investmentAssumptions';
 import type { NeighborhoodSentimentSnapshot } from './neighborhoodSentimentSnapshot';
 import type { TrainingScenarioStatus } from './trainingScenarioStatus';
 
@@ -23,6 +24,7 @@ export interface TrainingScenario {
   monthlyRent: number;
   /** @nullable */
   municipality?: string | null;
+  investmentAssumptions?: InvestmentAssumptions;
   status: TrainingScenarioStatus;
   qualityGatePassed: boolean;
   score: DealScore;

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
-import { listEntities, type CrmContactRecord, type DealRecord, type InvestorRecord } from "../lib/enterprise-modules";
+import { enrichDeal, listEntities, type CrmContactRecord, type DealRecord, type InvestorRecord } from "../lib/enterprise-modules";
 import { getSaaSEntitlements, SAAS_TIERS, type SaaSTier } from "../lib/saas-entitlements";
 import { getBillingReadiness } from "../lib/billing-hooks";
 import { requireAuthentication } from "../middlewares/authorization";
@@ -12,7 +12,7 @@ router.get("/enterprise/overview", async (req, res, next): Promise<void> => {
   try {
     const tenantId = req.enterpriseContext!.tenantId;
     const [deals, investors, contacts] = await Promise.all([
-      listEntities<DealRecord>("deal", tenantId),
+      listEntities<DealRecord>("deal", tenantId).then(items => items.map(item => enrichDeal(item).deal)),
       listEntities<InvestorRecord>("investor", tenantId),
       listEntities<CrmContactRecord>("crm-contact", tenantId),
     ]);

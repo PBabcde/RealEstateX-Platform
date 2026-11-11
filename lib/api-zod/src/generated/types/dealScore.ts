@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DealScoreDecision } from './dealScoreDecision';
+import type { InvestmentAssessment } from './investmentAssessment';
 
 export interface DealScore {
   flitsScore: number;
@@ -29,4 +30,5 @@ export interface DealScore {
      */
   gutFeelingConfidence?: number;
   gutFeelingContribution?: number;
+  assessment?: InvestmentAssessment;
 }

@@ -7,6 +7,10 @@
  */
 
 export interface RentalResult {
+  /** @nullable */
+  netYield?: number | null;
+  /** @nullable */
+  barEligible?: boolean | null;
   status: string;
   annualRendement: number;
   grossYield: number;

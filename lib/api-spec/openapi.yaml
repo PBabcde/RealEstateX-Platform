@@ -486,7 +486,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DealInput"
+              $ref: "#/components/schemas/DealUpdate"
       responses:
         "200":
           description: Updated deal
@@ -1610,6 +1610,33 @@ components:
           const: PAYMENTS_ON_HOLD
         error:
           type: string
+    InvestmentAssumptions:
+      type: object
+      required: [acquisitionCosts, heatPumpCosts, pvCosts, heatPumpKw, glassGlassPv, vacancyPercent, annualOperatingCosts, region, radiusKm, distanceKm]
+      properties:
+        acquisitionCosts: { type: number, minimum: 0 }
+        heatPumpCosts: { type: number, minimum: 0 }
+        pvCosts: { type: number, minimum: 0 }
+        heatPumpKw: { type: number, minimum: 0 }
+        glassGlassPv: { type: boolean }
+        vacancyPercent: { type: number, minimum: 0, maximum: 100 }
+        annualOperatingCosts: { type: number, minimum: 0 }
+        region: { type: string, enum: [gorinchem, gooi, vlaanderen, outside] }
+        radiusKm: { type: number, minimum: 50, maximum: 60 }
+        distanceKm: { type: number, minimum: 0 }
+    InvestmentAssessment:
+      type: object
+      required: [version, eligible, reasons, circle, totalInvestment, grossYieldPercent, netYieldPercent, baselineHeatPumpKw, regionVerification]
+      properties:
+        version: { type: string }
+        eligible: { type: boolean }
+        reasons: { type: array, items: { type: string } }
+        circle: { type: ["number", "null"] }
+        totalInvestment: { type: ["number", "null"] }
+        grossYieldPercent: { type: ["number", "null"] }
+        netYieldPercent: { type: ["number", "null"] }
+        baselineHeatPumpKw: { type: number }
+        regionVerification: { type: string }
     DealInput:
       type: object
       required: [propertyId, title, region, askingPrice, expectedValue]
@@ -1622,6 +1649,20 @@ components:
         expectedValue: { type: number, minimum: 1 }
         monthlyRent: { type: number, minimum: 0 }
         municipality: { type: string }
+        investmentAssumptions: { $ref: "#/components/schemas/InvestmentAssumptions" }
+    DealUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        propertyId: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        region: { type: string, minLength: 1 }
+        askingPrice: { type: number, minimum: 1 }
+        renovationCost: { type: number, minimum: 0 }
+        expectedValue: { type: number, minimum: 1 }
+        monthlyRent: { type: number, minimum: 0 }
+        municipality: { type: string }
+        investmentAssumptions: { $ref: "#/components/schemas/InvestmentAssumptions" }
     DealScore:
       type: object
       required: [flitsScore, splitScore, transformationScore, energyScore, subsidyScore, totalScore, decision, margin, grossYield]
@@ -1638,6 +1679,7 @@ components:
         gutFeelingScore: { type: ["number", "null"], minimum: 0, maximum: 100 }
         gutFeelingConfidence: { type: number, minimum: 0, maximum: 100 }
         gutFeelingContribution: { type: number }
+        assessment: { $ref: "#/components/schemas/InvestmentAssessment" }
     DealRecord:
       allOf:
         - $ref: "#/components/schemas/DealInput"
@@ -1875,6 +1917,7 @@ components:
         expectedValue: { type: number, minimum: 1 }
         monthlyRent: { type: number, minimum: 0 }
         municipality: { type: string, maxLength: 120 }
+        investmentAssumptions: { $ref: "#/components/schemas/InvestmentAssumptions" }
     TrainingScenarioUpdate:
       type: object
       minProperties: 1
@@ -1886,6 +1929,7 @@ components:
         expectedValue: { type: number, minimum: 1 }
         monthlyRent: { type: number, minimum: 0 }
         municipality: { type: string, maxLength: 120 }
+        investmentAssumptions: { $ref: "#/components/schemas/InvestmentAssumptions" }
     TrainingScenario:
       type: object
       required: [scenarioId, propertyId, title, region, propertyType, energyLabel, woonoppervlak, askingPrice, renovationCost, expectedValue, monthlyRent, status, qualityGatePassed, score, ownerId, createdAt, updatedAt]
@@ -1902,6 +1946,7 @@ components:
         expectedValue: { type: number }
         monthlyRent: { type: number }
         municipality: { type: ["string", "null"] }
+        investmentAssumptions: { $ref: "#/components/schemas/InvestmentAssumptions" }
         status: { type: string, enum: [DRAFT, READY, PROMOTED] }
         qualityGatePassed: { type: boolean }
         score: { $ref: "#/components/schemas/DealScore" }
@@ -2195,6 +2240,8 @@ components:
     RentalResult:
       type: object
       properties:
+        netYield: { type: ["number", "null"] }
+        barEligible: { type: ["boolean", "null"] }
         status:
           type: string
         annualRendement:

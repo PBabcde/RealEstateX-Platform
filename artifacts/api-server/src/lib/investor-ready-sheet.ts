@@ -1,6 +1,7 @@
 import type { DealRecord } from "./enterprise-modules";
 import type { EnergyAnalysis } from "./energy-analysis";
 import type { SubsidyTrigger } from "./subsidy-engine";
+import { assessInvestment } from "@workspace/investment-policy";
 
 function escapePdfText(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll("(", "\\(").replaceAll(")", "\\)");
@@ -11,6 +12,8 @@ export function createInvestorReadySheet(input: {
   energy: EnergyAnalysis;
   subsidies: SubsidyTrigger[];
 }): Buffer {
+  const assessment = assessInvestment(input.deal, input.deal.investmentAssumptions);
+  const pct = (value: number | null) => value === null ? "onbekend" : `${value.toFixed(2)}%`;
   const gutFeelingLines = input.deal.gutFeeling
     ? [
         `Gut Feeling: ${input.deal.score.gutFeelingScore ?? "—"}/100`,
@@ -27,22 +30,31 @@ export function createInvestorReadySheet(input: {
     `Regio: ${input.deal.region}`,
     `Vraagprijs: EUR ${input.deal.askingPrice.toLocaleString("nl-NL")}`,
     `Verwachte waarde: EUR ${input.deal.expectedValue.toLocaleString("nl-NL")}`,
+    `Investeringsgrondslag: aankoop + aankoopkosten + renovatie excl. kit + kit`,
+    `Totale investering: ${assessment.totalInvestment === null ? "onvolledig" : `EUR ${assessment.totalInvestment.toFixed(2)}`}`,
+    `Bruto BAR: ${pct(assessment.grossYieldPercent)}; ondergrens 7,5% (onafgerond getoetst)`,
+    `Netto huurrendement: ${pct(assessment.netYieldPercent)} (na leegstand en exploitatie)`,
+    `Baseline: 5 kW-warmtepomp + glas-op-glas-PV; kosten elk eenmaal`,
+    `Regio: ${assessment.circle ? `Cirkel ${assessment.circle}` : "geen geldige cirkel"}; handmatig opgegeven, niet geverifieerd`,
+    `Investeringstoets: ${assessment.eligible ? "GEHAALD" : "NIET GEHAALD"}`,
+    ...assessment.reasons,
+    `Subsidies en energiebesparing verlagen de BAR-grondslag niet.`,
     `Deal score: ${input.deal.score.totalScore}/100 (${input.deal.score.decision})`,
     ...gutFeelingLines,
     `Energie: ${input.energy.currentLabel}, jaarlijkse besparing EUR ${input.energy.annualSavings.toLocaleString("nl-NL")}`,
     `Subsidies: EUR ${input.subsidies.reduce((sum, item) => sum + item.estimatedAmount, 0).toLocaleString("nl-NL")}`,
     `Netto marge: EUR ${input.deal.score.margin.toLocaleString("nl-NL")}`,
     "",
-    "Deze export is een indicatief investeringsmemorandum en geen financieel advies.",
+    "Indicatieve berekening; geen WWS-, juridische of installatiegoedkeuring.",
   ];
   const stream = [
     "BT",
-    "/F1 12 Tf",
+    "/F1 10 Tf",
     "50 760 Td",
-    ...lines.map((line, index) =>
+    ...lines.flatMap(line => line.match(/.{1,95}(?:\s|$)|.{1,95}/g) ?? [line]).map((line, index) =>
       index === 0
         ? `(${escapePdfText(line)}) Tj`
-        : `0 -22 Td (${escapePdfText(line)}) Tj`,
+        : `0 -16 Td (${escapePdfText(line)}) Tj`,
     ),
     "ET",
   ].join("\n");

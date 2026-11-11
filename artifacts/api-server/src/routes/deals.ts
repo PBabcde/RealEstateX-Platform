@@ -19,6 +19,7 @@ import { createInvestorReadySheet } from "../lib/investor-ready-sheet";
 import { matchInvestors } from "../lib/investor-matching";
 import { type InvestorRecord } from "../lib/enterprise-modules";
 import {
+  CreateDealBody,
   GetDealCoInvestmentSummaryParams,
   GetDealCoInvestmentSummaryResponse,
   UpsertDealCoInvestmentCommitmentBody,
@@ -80,6 +81,9 @@ async function parseDeal(
   );
   const now = new Date().toISOString();
   const deal: DealRecord = {
+    investmentAssumptions: body.investmentAssumptions === undefined
+      ? existing?.investmentAssumptions
+      : CreateDealBody.shape.investmentAssumptions.parse(body.investmentAssumptions),
     dealId: existing?.dealId ?? createId(),
     propertyId,
     title: stringField(body.title ?? existing?.title ?? property.adres, "title"),
@@ -115,7 +119,7 @@ async function parseDeal(
 
 router.get("/deals", async (req, res, next): Promise<void> => {
   try {
-    res.json(await listEntities<DealRecord>("deal", req.enterpriseContext!.tenantId));
+    res.json((await listEntities<DealRecord>("deal", req.enterpriseContext!.tenantId)).map(deal => enrichDeal(deal).deal));
   } catch (error) {
     next(error);
   }

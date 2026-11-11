@@ -28,10 +28,13 @@ import {
 } from "@workspace/api-client-react";
 import type { TrainingScenario, TrainingScenarioInput, TrainingScenarioUpdate } from "@workspace/api-client-react";
 import { AppShell } from "@/components/app-shell";
+import { InvestmentFields, InvestmentResult } from "@/components/investment-fields";
+import type { InvestmentAssumptions } from "@workspace/api-client-react";
 import { EmptyBlock, ErrorBlock, LoadingBlock, SectionHeading, formatEuro, formatNumber } from "@/components/ui-elements";
 
 const cardClass = "rounded-2xl border border-border bg-card p-5 shadow-xs";
 type FormState = {
+  investmentAssumptions?: InvestmentAssumptions;
   propertyId: string;
   title: string;
   region: string;
@@ -55,6 +58,7 @@ const blankForm: FormState = {
 };
 
 const formFromScenario = (scenario: TrainingScenario): FormState => ({
+  investmentAssumptions: scenario.investmentAssumptions,
   propertyId: scenario.propertyId,
   title: scenario.title,
   region: scenario.region,
@@ -107,6 +111,7 @@ export function TrainingRoom() {
 
   const updateField = (key: keyof FormState) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
   const payload = (): TrainingScenarioInput => ({
+    investmentAssumptions: form.investmentAssumptions,
     propertyId: form.propertyId,
     title: form.title.trim(),
     region: form.region.trim(),
@@ -156,6 +161,10 @@ export function TrainingRoom() {
 
   const promoteScenario = () => {
     if (!selectedId) return;
+    if (!activeScenario || JSON.stringify(form) !== JSON.stringify(formFromScenario(activeScenario))) {
+      setSavedMessage("Sla de gewijzigde invoer eerst op; alleen het opgeslagen scenario kan worden gepromoveerd.");
+      return;
+    }
     promote.mutate({ scenarioId: selectedId }, {
       onSuccess: (response) => {
         setPromotion({ scenarioId: response.scenario.scenarioId, dealId: response.deal.dealId });
@@ -204,6 +213,9 @@ export function TrainingRoom() {
               <label className="text-xs font-semibold">Huur per maand<input type="number" min="0" value={form.monthlyRent} onChange={(event) => updateField("monthlyRent")(event.target.value)} className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm" data-testid="input-training-monthly-rent" /></label>
               <label className="text-xs font-semibold sm:col-span-2">Gemeente<input value={form.municipality} onChange={(event) => updateField("municipality")(event.target.value)} placeholder={selectedProperty?.adres ?? "Optioneel"} className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm" data-testid="input-training-municipality" /></label>
             </div>
+            <InvestmentFields value={form.investmentAssumptions} onChange={value => setForm(current => ({ ...current, investmentAssumptions: value }))} />
+            <InvestmentResult assessment={activeScenario?.score.assessment} />
+            <p className="text-xs text-muted-foreground">De toets toont het laatst opgeslagen scenario. Sla gewijzigde invoer eerst op.</p>
              <RenovationStylePanel style={renovationStyle} onStyleChange={setRenovationStyle} floorArea={floorArea} estimate={renovationEstimate} onApply={() => renovationEstimate !== null && updateField("renovationCost")(String(renovationEstimate))} />
             <div className="mt-5 flex flex-col gap-2 sm:flex-row"><button type="submit" disabled={formBusy || !properties.data?.length} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground disabled:opacity-50" data-testid="button-save-training-scenario"><FilePenLine size={15} />{formBusy ? "Opslaan..." : selectedId ? "Wijzigingen opslaan" : "Scenario berekenen"}</button>{selectedId && <button type="button" onClick={refreshSentiment} disabled={refresh.isPending} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary disabled:opacity-50" data-testid="button-refresh-training-sentiment"><RefreshCw size={15} />{refresh.isPending ? "Verversen..." : "Ververs buurtbeeld"}</button>}</div>
           </form>

@@ -11,11 +11,13 @@ function snapshot(energielabel, roofAreaM2 = 80) {
 for (const label of ["D", "B", "A", "A++++"]) {
   test(`label ${label}: every measure contributes to investment and savings once`, () => {
     const r = computeMetrics(snapshot(label));
-    assert.equal(r.measures.filter((m) => m.name === "Zonnepanelen en monitoring").length, 1);
+    assert.equal(r.measures.filter((m) => m.name === "Glas-op-glas-zonnepanelen").length, 1);
+    assert.equal(r.heatPump.capacityKw, 5);
+    assert.equal(r.investments.heatPump, 9000);
     assert.equal(r.investments.total, r.measures.reduce((total, m) => total + m.investment, 0));
     assert.equal(r.annualSavings, r.measures.reduce((total, m) => total + m.annualSavings, 0));
     assert.equal(r.investments.total, r.investments.solar + r.investments.heatPump + r.investments.battery + r.investments.insulation);
-    const solar = r.measures.find((m) => m.name === "Zonnepanelen en monitoring");
+    const solar = r.measures.find((m) => m.name === "Glas-op-glas-zonnepanelen");
     assert.equal(solar.investment, Math.round(r.solar.kwp * 1450));
     assert.equal(solar.annualSavings, Math.round(r.solar.kwhPerYear * 0.6 * 0.27));
     if (label !== "D") {
