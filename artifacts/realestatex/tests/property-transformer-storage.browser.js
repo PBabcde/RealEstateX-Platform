@@ -232,8 +232,44 @@ async function assertFailedProjectDeletePreservesData(project) {
   await assertProjectList(Object.values(expectedProjects).map((expected) => expected.id));
 }
 
-async function simulatePortfolioWriteFailure(portfolioArchive, errorName) {
+async function portfolioStorageSnapshot() {
+  const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, 2);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  let snapshot;
+  try {
+    snapshot = await new Promise((resolve, reject) => {
+      const transaction = db.transaction(['projects', 'images'], 'readonly');
+      const projects = transaction.objectStore('projects').getAll();
+      const images = transaction.objectStore('images').getAll();
+      transaction.oncomplete = () => resolve({ projects: projects.result, images: images.result });
+      transaction.onabort = () => reject(transaction.error);
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+  return JSON.stringify({
+    projects: snapshot.projects, // Includes every unit/splitting and ROI field.
+    images: await Promise.all(snapshot.images.map(async image => ({
+      ...image,
+      blob: { type: image.blob.type, bytes: Array.from(new Uint8Array(await image.blob.arrayBuffer())) },
+    }))),
+  });
+}
+
+const restoreBrowserProfiles = {
+  chromium: { userAgent: 'Mozilla/5.0 AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36', guidance: 'Chrome/Chromium/Edge' },
+  webkit: { userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1', guidance: 'Safari/WebKit' },
+  firefox: { userAgent: 'Mozilla/5.0 Gecko/20100101 Firefox/134.0', guidance: 'Firefox:' },
+};
+
+async function simulatePortfolioWriteFailure(portfolioArchive, errorName, browser = 'chromium', mode = 'sync') {
   const projectsBeforeFailure = await loadPropertyProjects();
+  const snapshotBeforeFailure = await portfolioStorageSnapshot();
   const attemptedProjectIds = [];
   const attemptedImageKeys = [];
   const writeSequence = [];
@@ -241,9 +277,25 @@ async function simulatePortfolioWriteFailure(portfolioArchive, errorName) {
   const originalAdd = imageStorePrototype.add;
   let failureInjected = false;
   let restoreError = '';
+  let successfulWrites = 0;
+  let rollbackCompleted = false;
+  const profile = restoreBrowserProfiles[browser];
+  const originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+  Object.defineProperty(navigator, 'userAgent', { configurable: true, value: profile.userAgent });
+  let storageNotifications = 0;
+  const unsubscribe = subscribePropertyStorageChanges(() => { storageNotifications++; });
 
   imageStorePrototype.add = function (value) {
     if (this.name === 'projects') {
+      // Observe the exact handler that settles the restore promise, without
+      // depending on ordering of separate IDB abort-event listeners.
+      if (!attemptedProjectIds.length) {
+        const onabort = this.transaction.onabort;
+        this.transaction.onabort = function (event) {
+          rollbackCompleted = true;
+          return onabort?.call(this, event);
+        };
+      }
       attemptedProjectIds.push(value.id);
       writeSequence.push('projects');
     } else if (this.name === 'images') {
@@ -253,12 +305,21 @@ async function simulatePortfolioWriteFailure(portfolioArchive, errorName) {
 
     if (writeSequence.length === 6 && this.name === 'images') {
       failureInjected = true;
-      if (errorName === 'ConstraintError') {
-        return originalAdd.call(this, { ...value, key: expectedProjects.beta.originalKey });
+      if (errorName === 'ConstraintError' || mode === 'request') {
+        // Use a REAL failing IDB request. Expose the browser-specific DOMException
+        // on it before the error bubbles, while the transaction has a generic error.
+        const request = originalAdd.call(this, { ...value, key: expectedProjects.beta.originalKey });
+        if (errorName !== 'ConstraintError') request.addEventListener('error', () => {
+          Object.defineProperty(request, 'error', { configurable: true,
+            value: new DOMException(`Simulated ${browser} request ${errorName}`, errorName) });
+        });
+        return request;
       }
       throw new DOMException(`Simulated IndexedDB ${errorName}`, errorName);
     }
-    return originalAdd.call(this, value);
+    const request = originalAdd.call(this, value);
+    request.addEventListener('success', () => { successfulWrites++; });
+    return request;
   };
   try {
     await importPropertyPortfolio(portfolioArchive);
@@ -266,9 +327,19 @@ async function simulatePortfolioWriteFailure(portfolioArchive, errorName) {
     restoreError = error instanceof Error ? error.message : String(error);
   } finally {
     imageStorePrototype.add = originalAdd;
+    if (originalUserAgent) Object.defineProperty(navigator, 'userAgent', originalUserAgent);
+    else delete navigator.userAgent;
+    unsubscribe();
   }
 
   assert(failureInjected, `The simulated ${errorName} failure was not reached.`);
+  assert(rollbackCompleted, `${browser}/${mode}/${errorName} rejected before transaction rollback completed: ${restoreError}`);
+  if (mode === 'request') assert(successfulWrites >= 5, `${browser}/${errorName} failed before staged writes actually succeeded.`);
+  assert(storageNotifications === 0, `${browser}/${errorName} announced a successful storage change after rollback.`);
+  assert(await portfolioStorageSnapshot() === snapshotBeforeFailure, `${browser}/${mode}/${errorName} changed projects, unit splits, image bytes, or existing records.`);
+  if (errorName !== 'ConstraintError') {
+    assert(restoreError.includes(profile.guidance), `${browser}/${errorName} omitted browser-specific guidance: ${restoreError}`);
+  }
   assert(
     JSON.stringify(writeSequence) === JSON.stringify(['projects', 'images', 'images', 'projects', 'images', 'images']),
     `The ${errorName} failure did not occur after multiple projects and images were queued: ${writeSequence.join(', ')}.`,
@@ -1086,25 +1157,37 @@ async function run() {
     assert(invalidPortfolioError.includes('bronfoto ontbreekt'), 'A portfolio with one invalid project was not rejected with a clear error.');
     await assertProjectList([expectedProjects.beta.id]);
 
-    const portfolioRestoreFailureErrors = {
-      QuotaExceededError: await simulatePortfolioWriteFailure(portfolioArchive, 'QuotaExceededError'),
-      SecurityError: await simulatePortfolioWriteFailure(portfolioArchive, 'SecurityError'),
-      ConstraintError: await simulatePortfolioWriteFailure(portfolioArchive, 'ConstraintError'),
-    };
+    const portfolioRestoreFailureErrors = {};
+    // All variants run against real Chromium IndexedDB with simulated browser
+    // identities/request errors. This does NOT claim native WebKit/Firefox runs.
+    for (const browser of Object.keys(restoreBrowserProfiles)) {
+      for (const mode of ['sync', 'request']) {
+        for (const name of ['QuotaExceededError', 'NotAllowedError', 'SecurityError', 'UnknownError', 'InvalidStateError']) {
+          const message = await simulatePortfolioWriteFailure(portfolioArchive, name, browser, mode);
+          const expectedPrefix = name === 'QuotaExceededError'
+            ? 'Onvoldoende opslagruimte beschikbaar in je browser'
+            : 'Toegang tot lokale opslag is geblokkeerd';
+          assert(message.startsWith(expectedPrefix), `${browser}/${mode}/${name} did not retain the original error cause: ${message}`);
+          if (browser === 'chromium' && mode === 'sync') portfolioRestoreFailureErrors[name] = message;
+          if (browser === 'webkit' && mode === 'request') portfolioRestoreFailureErrors[`WebKit${name}`] = message;
+        }
+      }
+    }
+    portfolioRestoreFailureErrors.ConstraintError = await simulatePortfolioWriteFailure(portfolioArchive, 'ConstraintError', 'chromium', 'request');
     assert(
-      portfolioRestoreFailureErrors.QuotaExceededError.includes('onvoldoende browseropslagruimte')
-        && portfolioRestoreFailureErrors.QuotaExceededError.includes('Verwijder ongebruikte projecten'),
+      portfolioRestoreFailureErrors.QuotaExceededError.includes('Onvoldoende opslagruimte beschikbaar in je browser')
+        && portfolioRestoreFailureErrors.QuotaExceededError.includes('Verwijder alleen ongebruikte projecten waarvan je een back-up hebt'),
       `A quota failure did not give practical space-saving guidance: ${portfolioRestoreFailureErrors.QuotaExceededError}`,
     );
     assert(
-      portfolioRestoreFailureErrors.SecurityError.includes('geen toegang tot browseropslag')
+      portfolioRestoreFailureErrors.SecurityError.includes('Toegang tot lokale opslag is geblokkeerd')
         && portfolioRestoreFailureErrors.SecurityError.includes('Sta siteopslag toe in je browserinstellingen'),
       `A permission failure did not explain how to restore browser-storage access: ${portfolioRestoreFailureErrors.SecurityError}`,
     );
     assert(
       portfolioRestoreFailureErrors.ConstraintError.includes('fout bij het opslaan in browseropslag')
-        && !portfolioRestoreFailureErrors.ConstraintError.includes('onvoldoende browseropslagruimte')
-        && !portfolioRestoreFailureErrors.ConstraintError.includes('geen toegang tot browseropslag'),
+        && !portfolioRestoreFailureErrors.ConstraintError.includes('Onvoldoende opslagruimte')
+        && !portfolioRestoreFailureErrors.ConstraintError.includes('Toegang tot lokale opslag is geblokkeerd'),
       `An unrelated IndexedDB error was incorrectly identified as a quota or permission problem: ${portfolioRestoreFailureErrors.ConstraintError}`,
     );
     sessionStorage.setItem('property-portfolio-write-failure-errors', JSON.stringify(portfolioRestoreFailureErrors));
@@ -1193,8 +1276,8 @@ async function run() {
   if (phase === 'imported') {
     const portfolioRestoreFailureErrors = JSON.parse(sessionStorage.getItem('property-portfolio-write-failure-errors') ?? '{}');
     assert(
-      portfolioRestoreFailureErrors.QuotaExceededError?.includes('onvoldoende browseropslagruimte')
-        && portfolioRestoreFailureErrors.SecurityError?.includes('geen toegang tot browseropslag')
+      portfolioRestoreFailureErrors.QuotaExceededError?.includes('Onvoldoende opslagruimte beschikbaar in je browser')
+        && portfolioRestoreFailureErrors.SecurityError?.includes('Toegang tot lokale opslag is geblokkeerd')
         && /er is niets toegevoegd/i.test(portfolioRestoreFailureErrors.ConstraintError ?? ''),
       'The portfolio restore failure messages were not retained for the user-interface check.',
     );

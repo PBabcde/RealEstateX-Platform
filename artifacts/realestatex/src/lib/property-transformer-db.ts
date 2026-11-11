@@ -1292,15 +1292,21 @@ function portfolioRestoreStorageError(cause: unknown): Error {
   const error = typeof cause === 'object' && cause !== null ? cause as { name?: unknown; message?: unknown } : null;
   const name = typeof error?.name === 'string' ? error.name : '';
   const message = typeof error?.message === 'string' ? error.message : '';
+  const userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const browserGuidance = /AppleWebKit/i.test(userAgent) && !/(Chrome|Chromium|Edg|OPR)\//i.test(userAgent)
+    ? 'Safari/WebKit: controleer de privacy- en websitegegevensinstellingen op iOS/macOS. Probeer een normaal venster als privé-instellingen opslag beperken.'
+    : /Firefox\//i.test(userAgent)
+      ? 'Firefox: controleer de cookies- en websitegegevensinstellingen en eventuele opslagblokkades voor deze website.'
+      : 'Chrome/Chromium/Edge: controleer de sitegegevens en opslagrechten bij de privacy- en site-instellingen van je browser.';
 
   if (name === 'QuotaExceededError') {
-    return new Error('De portfolio-back-up is niet hersteld: er is onvoldoende browseropslagruimte. Verwijder ongebruikte projecten of maak ruimte vrij en probeer opnieuw. Er is niets toegevoegd.');
+    return new Error(`Onvoldoende opslagruimte beschikbaar in je browser om deze portfolio-back-up te herstellen. Verwijder alleen ongebruikte projecten waarvan je een back-up hebt, of maak ruimte vrij en probeer opnieuw. ${browserGuidance} Wis geen websitegegevens zonder back-up. Er is niets toegevoegd.`);
   }
   if (name === 'SecurityError' || name === 'NotAllowedError') {
-    return new Error('De portfolio-back-up is niet hersteld: RealEstateX heeft geen toegang tot browseropslag. Sta siteopslag toe in je browserinstellingen en probeer opnieuw. Er is niets toegevoegd.');
+    return new Error(`Toegang tot lokale opslag is geblokkeerd. Sta siteopslag toe in je browserinstellingen en probeer opnieuw. ${browserGuidance} Er is niets toegevoegd.`);
   }
   if (name === 'InvalidStateError' || name === 'UnknownError') {
-    return new Error('De portfolio-back-up is niet hersteld: browseropslag is niet beschikbaar. Sluit andere RealEstateX-tabbladen, controleer of siteopslag is toegestaan en probeer opnieuw. Er is niets toegevoegd.');
+    return new Error(`Toegang tot lokale opslag is geblokkeerd of tijdelijk niet beschikbaar. Sluit andere RealEstateX-tabbladen, controleer of siteopslag is toegestaan en probeer opnieuw. ${browserGuidance} Er is niets toegevoegd.`);
   }
   if (message.startsWith('Lokale projectopslag wordt nog gebruikt')) {
     return new Error(`${message} Er is niets toegevoegd.`);
@@ -1328,6 +1334,14 @@ async function writeImportedProjectsAtomically(preparedProjects: PreparedPropert
       transaction.addEventListener('error', (event) => {
         const failedRequest = event.target as IDBRequest | null;
         failureCause ??= failedRequest?.error ?? transaction.error;
+        // Do not depend on a browser's default error action (or another listener
+        // leaving it uncancelled). Reject only once the atomic rollback finishes.
+        event.preventDefault();
+        try {
+          transaction.abort();
+        } catch {
+          // An abort may already be in progress; onabort retains the first cause.
+        }
       });
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => {
