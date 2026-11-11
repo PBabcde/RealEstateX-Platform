@@ -9,6 +9,102 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary List saved EnergyX renovation result summaries for a project
+ */
+export const listEnergyXRenovationScenariosQueryProjectIdMax = 100;
+
+
+
+export const ListEnergyXRenovationScenariosQueryParams = zod.object({
+  "projectId": zod.coerce.string().min(1).max(listEnergyXRenovationScenariosQueryProjectIdMax)
+})
+
+export const listEnergyXRenovationScenariosResponseScenariosItemOneProjectIdMax = 100;
+
+export const listEnergyXRenovationScenariosResponseScenariosItemOneTitleMax = 120;
+
+export const listEnergyXRenovationScenariosResponseScenariosItemOneEnergyLabelMax = 20;
+
+export const listEnergyXRenovationScenariosResponseScenariosItemOneWwsScoreMin = 0;
+export const listEnergyXRenovationScenariosResponseScenariosItemOneWwsScoreMax = 1000;
+
+export const listEnergyXRenovationScenariosResponseScenariosItemOneMaxRentEurMin = 0;
+export const listEnergyXRenovationScenariosResponseScenariosItemOneMaxRentEurMax = 100000;
+
+export const listEnergyXRenovationScenariosResponseExpiredCountMin = 0;
+
+
+
+export const ListEnergyXRenovationScenariosResponse = zod.object({
+  "scenarios": zod.array(zod.object({
+  "projectId": zod.string().min(1).max(listEnergyXRenovationScenariosResponseScenariosItemOneProjectIdMax).describe('Browser-local Property Transformer project identifier.'),
+  "title": zod.string().min(1).max(listEnergyXRenovationScenariosResponseScenariosItemOneTitleMax).describe('User-provided name for the returned EnergyX result.'),
+  "energyLabel": zod.string().max(listEnergyXRenovationScenariosResponseScenariosItemOneEnergyLabelMax).nullish().describe('Energy label returned by EnergyX, when available.'),
+  "wwsScore": zod.number().min(listEnergyXRenovationScenariosResponseScenariosItemOneWwsScoreMin).max(listEnergyXRenovationScenariosResponseScenariosItemOneWwsScoreMax).nullish().describe('WWS score returned by EnergyX, when available.'),
+  "maxRentEur": zod.number().min(listEnergyXRenovationScenariosResponseScenariosItemOneMaxRentEurMin).max(listEnergyXRenovationScenariosResponseScenariosItemOneMaxRentEurMax).nullish().describe('Maximum monthly rent in euros returned by EnergyX, when available.')
+}).and(zod.object({
+  "id": zod.string().uuid(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}))),
+  "expiredCount": zod.number().int().min(listEnergyXRenovationScenariosResponseExpiredCountMin),
+  "retentionDays": zod.literal(365)
+})
+
+
+/**
+ * @summary Save a returned EnergyX result summary for comparison
+ */
+export const saveEnergyXRenovationScenarioBodyProjectIdMax = 100;
+
+export const saveEnergyXRenovationScenarioBodyTitleMax = 120;
+
+export const saveEnergyXRenovationScenarioBodyEnergyLabelMax = 20;
+
+export const saveEnergyXRenovationScenarioBodyWwsScoreMin = 0;
+export const saveEnergyXRenovationScenarioBodyWwsScoreMax = 1000;
+
+export const saveEnergyXRenovationScenarioBodyMaxRentEurMin = 0;
+export const saveEnergyXRenovationScenarioBodyMaxRentEurMax = 100000;
+
+
+
+export const SaveEnergyXRenovationScenarioBody = zod.object({
+  "projectId": zod.string().min(1).max(saveEnergyXRenovationScenarioBodyProjectIdMax).describe('Browser-local Property Transformer project identifier.'),
+  "title": zod.string().min(1).max(saveEnergyXRenovationScenarioBodyTitleMax).describe('User-provided name for the returned EnergyX result.'),
+  "energyLabel": zod.string().max(saveEnergyXRenovationScenarioBodyEnergyLabelMax).nullish().describe('Energy label returned by EnergyX, when available.'),
+  "wwsScore": zod.number().min(saveEnergyXRenovationScenarioBodyWwsScoreMin).max(saveEnergyXRenovationScenarioBodyWwsScoreMax).nullish().describe('WWS score returned by EnergyX, when available.'),
+  "maxRentEur": zod.number().min(saveEnergyXRenovationScenarioBodyMaxRentEurMin).max(saveEnergyXRenovationScenarioBodyMaxRentEurMax).nullish().describe('Maximum monthly rent in euros returned by EnergyX, when available.')
+})
+
+export const saveEnergyXRenovationScenarioResponseOneProjectIdMax = 100;
+
+export const saveEnergyXRenovationScenarioResponseOneTitleMax = 120;
+
+export const saveEnergyXRenovationScenarioResponseOneEnergyLabelMax = 20;
+
+export const saveEnergyXRenovationScenarioResponseOneWwsScoreMin = 0;
+export const saveEnergyXRenovationScenarioResponseOneWwsScoreMax = 1000;
+
+export const saveEnergyXRenovationScenarioResponseOneMaxRentEurMin = 0;
+export const saveEnergyXRenovationScenarioResponseOneMaxRentEurMax = 100000;
+
+
+
+export const SaveEnergyXRenovationScenarioResponse = zod.object({
+  "projectId": zod.string().min(1).max(saveEnergyXRenovationScenarioResponseOneProjectIdMax).describe('Browser-local Property Transformer project identifier.'),
+  "title": zod.string().min(1).max(saveEnergyXRenovationScenarioResponseOneTitleMax).describe('User-provided name for the returned EnergyX result.'),
+  "energyLabel": zod.string().max(saveEnergyXRenovationScenarioResponseOneEnergyLabelMax).nullish().describe('Energy label returned by EnergyX, when available.'),
+  "wwsScore": zod.number().min(saveEnergyXRenovationScenarioResponseOneWwsScoreMin).max(saveEnergyXRenovationScenarioResponseOneWwsScoreMax).nullish().describe('WWS score returned by EnergyX, when available.'),
+  "maxRentEur": zod.number().min(saveEnergyXRenovationScenarioResponseOneMaxRentEurMin).max(saveEnergyXRenovationScenarioResponseOneMaxRentEurMax).nullish().describe('Maximum monthly rent in euros returned by EnergyX, when available.')
+}).and(zod.object({
+  "id": zod.string().uuid(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+}))
+
+
+/**
  * Returns server health status
  * @summary Health check
  */

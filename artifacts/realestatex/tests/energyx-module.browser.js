@@ -3,6 +3,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EnergyXModule } from '../src/components/energyx-module';
+import { EnergyXScenarioHistory } from '../src/components/energyx-scenario-history';
 import '../src/index.css';
 
 const result = document.querySelector('#test-result');
@@ -32,10 +33,29 @@ const b2c = { view: 'b2c', monthlySavingsEur: 250, sustainabilityScore: 48, comf
 let lastServicePayload;
 let serviceCalls = 0;
 let reportHtml = '';
+let savedRenovationScenarios = [];
+let renovationScenariosExpired = false;
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (input, options) => {
   const url = new URL(typeof input === 'string' ? input : input.url, location.href);
   requests.push(url.pathname);
+  if (url.pathname.endsWith('/energyx/renovation-scenarios')) {
+    if (options?.method === 'POST') {
+      const inputData = JSON.parse(options.body);
+      savedRenovationScenarios = [{
+        ...inputData,
+        id: 'scenario-ui-check',
+        createdAt: '2026-11-11T10:00:00.000Z',
+        expiresAt: '2027-11-11T10:00:00.000Z',
+      }, ...savedRenovationScenarios];
+      return new Response(JSON.stringify(savedRenovationScenarios[0]), { status: 201, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      scenarios: renovationScenariosExpired ? [] : savedRenovationScenarios,
+      expiredCount: renovationScenariosExpired ? 1 : 0,
+      retentionDays: 365,
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   if (!url.pathname.includes('/v1/energyx/')) return originalFetch(input, options);
   let body;
   let status = 200;
@@ -58,6 +78,14 @@ const root = createRoot(document.querySelector('#root'));
 const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 const mount = (propertyId) => root.render(React.createElement(QueryClientProvider, { client },
   React.createElement(EnergyXModule, { key: propertyId, propertyId, adres: 'Teststraat <1>', onClose() { root.render(null); } })));
+const mountScenarioHistory = (projectId = 'project-ui-check') => root.render(React.createElement(QueryClientProvider, { client },
+  React.createElement(EnergyXScenarioHistory, { key: projectId, accountId: 'energyx-ui-check', projectId, projectName: 'UI test' })));
+const setInput = (id, value) => {
+  const input = byId(id);
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  setter.call(input, value);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+};
 
 try {
   window.__setPropertyTestUser('energyx-ui-check');
@@ -97,8 +125,23 @@ try {
   window.__setPropertyTestUser('different-energyx-account');
   mount('object-a');
   await waitFor(() => byId('energyx-b2b'), 'Another account reused the wrong view.');
+  mountScenarioHistory();
+  await waitFor(() => byId('empty-energyx-scenarios'), 'Empty scenario history was not explained.');
+  setInput('input-energyx-scenario-title', 'Insulation package');
+  setInput('input-energyx-scenario-label', 'B');
+  setInput('input-energyx-scenario-wws', '172.5');
+  setInput('input-energyx-scenario-rent', '985');
+  byId('button-save-energyx-scenario').click();
+  await waitFor(() => byId('energyx-scenario-scenario-ui-check'), 'Saved result did not appear in comparison.');
+  const savedRow = byId('energyx-scenario-scenario-ui-check');
+  assert(savedRow.textContent.includes('Insulation package') && savedRow.textContent.includes('B') && savedRow.textContent.includes('172.5'), 'Scenario comparison is missing a saved value.');
+  assert(savedRenovationScenarios[0].projectId === 'project-ui-check' && savedRenovationScenarios[0].maxRentEur === 985, 'Scenario request did not include the project and rent result.');
+  renovationScenariosExpired = true;
+  root.render(null);
+  mountScenarioHistory('expired-project-ui-check');
+  await waitFor(() => byId('status-expired-energyx-scenarios'), 'Expired result guidance was not shown.');
   result.dataset.status = 'passed';
-  result.textContent = 'Passed: B2B report fields and escaping, B2C simplified display, service dialog failure/retry/confirmation, and per-object/account view persistence.';
+  result.textContent = 'Passed: EnergyX reporting and service flows, account-specific view preferences, scenario result saving/comparison, and expired-result guidance.';
 } catch (error) {
   result.dataset.status = 'failed';
   result.textContent = `${error.stack ?? String(error)}\nDOM: ${document.querySelector('#root').textContent}\nErrors: ${errors.join('; ')}\nRequests: ${requests.join(', ')}\nQueries: ${JSON.stringify(client.getQueryCache().getAll().map((query) => ({ key: query.queryKey, data: query.state.data, status: query.state.status, error: String(query.state.error) })))}`;

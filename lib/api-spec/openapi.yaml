@@ -37,6 +37,57 @@ tags:
   - name: property-transformations
     description: Authenticated, non-persistent AI image transformations for RealEstateX
 paths:
+  /energyx/renovation-scenarios:
+    get:
+      operationId: listEnergyXRenovationScenarios
+      tags: [properties]
+      summary: List saved EnergyX renovation result summaries for a project
+      parameters:
+        - name: projectId
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+      responses:
+        "200":
+          description: Current saved results and count of expired results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnergyXRenovationScenarioList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: saveEnergyXRenovationScenario
+      tags: [properties]
+      summary: Save a returned EnergyX result summary for comparison
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnergyXRenovationScenarioInput"
+      responses:
+        "201":
+          description: Saved scenario summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnergyXRenovationScenario"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: Scenario summaries could not be saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /healthz:
     get:
       operationId: healthCheck
@@ -1564,6 +1615,63 @@ components:
           const: true
         disclaimer:
           type: string
+    EnergyXRenovationScenarioInput:
+      type: object
+      required: [projectId, title]
+      properties:
+        projectId:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Browser-local Property Transformer project identifier.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: User-provided name for the returned EnergyX result.
+        energyLabel:
+          type: [string, "null"]
+          maxLength: 20
+          description: Energy label returned by EnergyX, when available.
+        wwsScore:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1000
+          description: WWS score returned by EnergyX, when available.
+        maxRentEur:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100000
+          description: Maximum monthly rent in euros returned by EnergyX, when available.
+    EnergyXRenovationScenario:
+      allOf:
+        - $ref: "#/components/schemas/EnergyXRenovationScenarioInput"
+        - type: object
+          required: [id, createdAt, expiresAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
+    EnergyXRenovationScenarioList:
+      type: object
+      required: [scenarios, expiredCount, retentionDays]
+      properties:
+        scenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnergyXRenovationScenario"
+        expiredCount:
+          type: integer
+          minimum: 0
+        retentionDays:
+          type: integer
+          const: 365
     AnalysisLimitResponse:
       type: object
       required: [code, error, analysisLimit, analysesUsed]

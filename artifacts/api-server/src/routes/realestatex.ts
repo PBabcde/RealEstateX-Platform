@@ -15,10 +15,15 @@ import {
   GetPropertyParams,
   GetPropertyResponse,
   ListPropertiesResponse,
+  ListEnergyXRenovationScenariosResponse,
+  SaveEnergyXRenovationScenarioBody,
+  SaveEnergyXRenovationScenarioResponse,
   UpdatePropertyBody,
   UpdatePropertyParams,
   UpdatePropertyResponse,
 } from "@workspace/api-zod";
+import { and, desc, eq, gt } from "drizzle-orm";
+import { energyxRenovationScenariosTable, requireDb } from "@workspace/db";
 import {
   buildDashboardSummary,
   calculateMortgage,
@@ -46,6 +51,21 @@ import {
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
 
 const router: IRouter = Router();
+const ENERGYX_SCENARIO_RETENTION_DAYS = 365;
+
+function scenarioResponse(row: typeof energyxRenovationScenariosTable.$inferSelect) {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    energyLabel: row.energyLabel,
+    wwsScore: row.wwsScore,
+    maxRentEur: row.maxRentEur,
+    createdAt: row.createdAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+  };
+}
+
 router.use(requireAuthentication);
 router.use(attachEnterpriseContext);
 router.use(async (_req, _res, next): Promise<void> => {
@@ -55,6 +75,66 @@ router.use(async (_req, _res, next): Promise<void> => {
   } catch (error) {
     next(error);
   }
+});
+
+router.get("/energyx/renovation-scenarios", async (req, res): Promise<void> => {
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId.trim() : "";
+  if (!projectId || projectId.length > 100) {
+    res.status(400).json({ error: "A valid projectId is required." });
+    return;
+  }
+
+  const tenantId = req.enterpriseContext!.tenantId;
+  const userId = req.dbUser!.id;
+  const now = new Date();
+  const rows = await requireDb().db
+    .select()
+    .from(energyxRenovationScenariosTable)
+    .where(and(
+      eq(energyxRenovationScenariosTable.tenantId, tenantId),
+      eq(energyxRenovationScenariosTable.userId, userId),
+      eq(energyxRenovationScenariosTable.projectId, projectId),
+    ))
+    .orderBy(desc(energyxRenovationScenariosTable.createdAt));
+  const current = rows
+    .filter((row) => row.expiresAt > now)
+    .map(scenarioResponse);
+  const expiredCount = rows.filter((row) => row.expiresAt <= now).length;
+  res.json(ListEnergyXRenovationScenariosResponse.parse({
+    scenarios: current,
+    expiredCount,
+    retentionDays: ENERGYX_SCENARIO_RETENTION_DAYS,
+  }));
+});
+
+router.post("/energyx/renovation-scenarios", async (req, res): Promise<void> => {
+  const body = SaveEnergyXRenovationScenarioBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+  const { projectId, title, energyLabel, wwsScore, maxRentEur } = body.data;
+  if (!title.trim() || ![energyLabel, wwsScore, maxRentEur].some((value) => value !== undefined && value !== null)) {
+    res.status(400).json({ error: "At least one returned EnergyX result is required." });
+    return;
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ENERGYX_SCENARIO_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const [saved] = await requireDb().db
+    .insert(energyxRenovationScenariosTable)
+    .values({
+      tenantId: req.enterpriseContext!.tenantId,
+      userId: req.dbUser!.id,
+      projectId,
+      title: title.trim(),
+      energyLabel: energyLabel?.trim() || null,
+      wwsScore: wwsScore ?? null,
+      maxRentEur: maxRentEur ?? null,
+      expiresAt,
+    })
+    .returning();
+  res.status(201).json(SaveEnergyXRenovationScenarioResponse.parse(scenarioResponse(saved)));
 });
 
 router.get("/properties", async (req, res): Promise<void> => {

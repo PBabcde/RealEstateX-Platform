@@ -49,6 +49,9 @@ import type {
   DocumentListResponse,
   DocumentResponse,
   EnergyResponse,
+  EnergyXRenovationScenario,
+  EnergyXRenovationScenarioInput,
+  EnergyXRenovationScenarioList,
   EnterpriseOverview,
   ErrorResponse,
   ForbiddenResponse,
@@ -60,6 +63,7 @@ import type {
   InvestorMatch,
   InvestorRecommendations,
   InvestorRecord,
+  ListEnergyXRenovationScenariosParams,
   MarketTrend,
   MediaRenderBrief,
   MortgageInput,
@@ -120,6 +124,178 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListEnergyXRenovationScenariosUrl = (params: ListEnergyXRenovationScenariosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/energyx/renovation-scenarios?${stringifiedParams}` : `/api/energyx/renovation-scenarios`
+}
+
+/**
+ * @summary List saved EnergyX renovation result summaries for a project
+ */
+export const listEnergyXRenovationScenarios = async (params: ListEnergyXRenovationScenariosParams, options?: Parameters<typeof customFetch>[1]): Promise<EnergyXRenovationScenarioList> => {
+
+  return customFetch<EnergyXRenovationScenarioList>(getListEnergyXRenovationScenariosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEnergyXRenovationScenariosQueryKey = (params?: ListEnergyXRenovationScenariosParams,) => {
+    return [
+    `/api/energyx/renovation-scenarios`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListEnergyXRenovationScenariosQueryOptions = <TData = Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(params: ListEnergyXRenovationScenariosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEnergyXRenovationScenariosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>> = ({ signal }) => listEnergyXRenovationScenarios(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEnergyXRenovationScenariosQueryResult = NonNullable<Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>>
+export type ListEnergyXRenovationScenariosQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse>
+
+
+/**
+ * @summary List saved EnergyX renovation result summaries for a project
+ */
+
+export function useListEnergyXRenovationScenarios<TData = Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse>>(
+ params: ListEnergyXRenovationScenariosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEnergyXRenovationScenarios>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEnergyXRenovationScenariosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveEnergyXRenovationScenarioUrl = () => {
+
+
+
+
+  return `/api/energyx/renovation-scenarios`
+}
+
+/**
+ * @summary Save a returned EnergyX result summary for comparison
+ */
+export const saveEnergyXRenovationScenario = async (energyXRenovationScenarioInput: EnergyXRenovationScenarioInput, options?: Parameters<typeof customFetch>[1]): Promise<EnergyXRenovationScenario> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<EnergyXRenovationScenario>(getSaveEnergyXRenovationScenarioUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(energyXRenovationScenarioInput)
+  }
+);}
+
+
+
+
+
+export const getSaveEnergyXRenovationScenarioMutationKey = () => ['saveEnergyXRenovationScenario'] as const;
+
+export const getSaveEnergyXRenovationScenarioMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>, TError,SaveEnergyXRenovationScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>, TError,SaveEnergyXRenovationScenarioMutationVariables, TContext> => {
+
+const mutationKey = getSaveEnergyXRenovationScenarioMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>, SaveEnergyXRenovationScenarioMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveEnergyXRenovationScenario(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveEnergyXRenovationScenarioMutationResult = NonNullable<Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>>
+    export type SaveEnergyXRenovationScenarioMutationBody = BodyType<EnergyXRenovationScenarioInput>
+    export type SaveEnergyXRenovationScenarioMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>
+    export type SaveEnergyXRenovationScenarioMutationVariables = {data: BodyType<EnergyXRenovationScenarioInput>}
+
+    /**
+ * @summary Save a returned EnergyX result summary for comparison
+ */
+export const useSaveEnergyXRenovationScenario = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>, TError,SaveEnergyXRenovationScenarioMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveEnergyXRenovationScenario>>,
+        TError,
+        SaveEnergyXRenovationScenarioMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveEnergyXRenovationScenarioMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 

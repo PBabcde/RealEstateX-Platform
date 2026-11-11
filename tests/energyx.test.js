@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_TENANT_ID } from "../lib/db/src/schema/index.ts";
 import { requireDb } from "../lib/db/src/index.ts";
 
@@ -7,12 +8,17 @@ const { pool } = requireDb();
 const marker = `energyx-test-${Date.now()}`;
 let server;
 let base;
+let realestatexBase;
 let currentUser;
+const scenarioProjectId = `${marker}-scenario-project`;
+const secondTenantId = randomUUID();
+const secondAccountId = `${marker}-second-account`;
 
 before(async () => {
   const { createRequire } = await import("node:module");
   const express = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url))("express");
   const router = (await import("../artifacts/api-server/src/routes/energyx.ts")).default;
+  const realestatexRouter = (await import("../artifacts/api-server/src/routes/realestatex.ts")).default;
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -20,11 +26,17 @@ before(async () => {
     next();
   });
   app.use("/api", router);
+  app.use("/api", realestatexRouter);
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve);
   });
   base = `http://127.0.0.1:${server.address().port}/api/v1/energyx`;
+  realestatexBase = `http://127.0.0.1:${server.address().port}/api`;
   currentUser = { id: `${marker}-owner`, role: "owner", tenantId: DEFAULT_TENANT_ID };
+  await pool.query(
+    "INSERT INTO tenants (id, name, is_personal) VALUES ($1, $2, true)",
+    [secondTenantId, `${marker} second tenant`],
+  );
   await pool.query(
     "INSERT INTO properties (property_id, owner_id, adres, type, bouwjaar, woonoppervlak, energielabel) VALUES ($1,$2,'Teststraat 1','Appartement',1985,100,'D')",
     [marker, currentUser.id],
@@ -35,10 +47,78 @@ after(async () => {
   try {
     await pool.query("DELETE FROM energyx_syncs WHERE property_id = $1", [marker]);
     await pool.query("DELETE FROM properties WHERE property_id = $1", [marker]);
+    await pool.query("DELETE FROM energyx_renovation_scenarios WHERE project_id = $1", [scenarioProjectId]);
+    await pool.query("DELETE FROM tenants WHERE id = $1", [secondTenantId]);
   } finally {
     if (server) await new Promise((resolve) => server.close(resolve));
     await pool.end();
   }
+});
+
+test("renovation scenario history is private to both account and tenant and explains expiry", async () => {
+  const postScenario = (data) => fetch(`${realestatexBase}/energyx/renovation-scenarios`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const listScenarios = async () => {
+    const response = await fetch(
+      `${realestatexBase}/energyx/renovation-scenarios?projectId=${encodeURIComponent(scenarioProjectId)}`,
+    );
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+
+  assert.equal((await postScenario({ projectId: scenarioProjectId, title: "Empty result" })).status, 400);
+  const first = await postScenario({
+    projectId: scenarioProjectId,
+    title: "Insulation",
+    energyLabel: "B",
+    wwsScore: 168.5,
+    maxRentEur: 912,
+    userId: secondAccountId,
+  });
+  assert.equal(first.status, 201);
+  const savedByOwner = await first.json();
+  assert.equal(savedByOwner.energyLabel, "B");
+  assert.equal(savedByOwner.wwsScore, 168.5);
+  assert.equal(savedByOwner.maxRentEur, 912);
+
+  const sameTenantOwner = currentUser;
+  currentUser = { id: secondAccountId, role: "owner", tenantId: DEFAULT_TENANT_ID };
+  const second = await postScenario({
+    projectId: scenarioProjectId,
+    title: "Heat pump",
+    energyLabel: "A",
+    wwsScore: 180,
+    maxRentEur: 980,
+  });
+  assert.equal(second.status, 201);
+  assert.deepEqual((await listScenarios()).scenarios.map((scenario) => scenario.title), ["Heat pump"]);
+
+  currentUser = { ...sameTenantOwner, tenantId: secondTenantId };
+  assert.deepEqual((await listScenarios()).scenarios, []);
+  const third = await postScenario({
+    projectId: scenarioProjectId,
+    title: "Separate tenant",
+    energyLabel: "C",
+  });
+  assert.equal(third.status, 201);
+
+  currentUser = sameTenantOwner;
+  const ownerHistory = await listScenarios();
+  assert.deepEqual(ownerHistory.scenarios.map((scenario) => scenario.title), ["Insulation"]);
+  assert.equal(ownerHistory.expiredCount, 0);
+
+  await pool.query(
+    "UPDATE energyx_renovation_scenarios SET expires_at = now() - interval '1 day' WHERE id = $1",
+    [savedByOwner.id],
+  );
+  const expiredHistory = await listScenarios();
+  assert.deepEqual(expiredHistory.scenarios, []);
+  assert.equal(expiredHistory.expiredCount, 1);
+  assert.equal(expiredHistory.retentionDays, 365);
+  assert.equal((await postScenario({ projectId: scenarioProjectId, title: "Invalid value", wwsScore: 1001 })).status, 400);
 });
 
 const call = (path, body) =>

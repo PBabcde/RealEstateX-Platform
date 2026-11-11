@@ -70,6 +70,54 @@ export interface PropertyImageTransformResult {
   disclaimer: string;
 }
 
+export interface EnergyXRenovationScenarioInput {
+  /**
+     * Browser-local Property Transformer project identifier.
+     * @minLength 1
+     * @maxLength 100
+     */
+  projectId: string;
+  /**
+     * User-provided name for the returned EnergyX result.
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /**
+     * Energy label returned by EnergyX, when available.
+     * @maxLength 20
+     * @nullable
+     */
+  energyLabel?: string | null;
+  /**
+     * WWS score returned by EnergyX, when available.
+     * @minimum 0
+     * @maximum 1000
+     * @nullable
+     */
+  wwsScore?: number | null;
+  /**
+     * Maximum monthly rent in euros returned by EnergyX, when available.
+     * @minimum 0
+     * @maximum 100000
+     * @nullable
+     */
+  maxRentEur?: number | null;
+}
+
+export type EnergyXRenovationScenario = EnergyXRenovationScenarioInput & {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export interface EnergyXRenovationScenarioList {
+  scenarios: EnergyXRenovationScenario[];
+  /** @minimum 0 */
+  expiredCount: number;
+  retentionDays: 365;
+}
+
 export interface AnalysisLimitResponse {
   code: 'PRO_BETA_REQUIRED';
   error: string;
@@ -1111,6 +1159,14 @@ export type UnauthorizedResponse = ErrorResponse;
  * Authenticated user lacks access
  */
 export type ForbiddenResponse = ErrorResponse;
+
+export type ListEnergyXRenovationScenariosParams = {
+/**
+ * @minLength 1
+ * @maxLength 100
+ */
+projectId: string;
+};
 
 export type GetChatHistoryParams = {
 sessionId: string;

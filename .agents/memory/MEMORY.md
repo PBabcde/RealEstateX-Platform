@@ -1,6 +1,6 @@
 - [TypeScript DOM iterable compatibility](typescript-dom-iterable.md) — generated fetch clients need `dom.iterable` enabled for Headers.entries().
 - [Drizzle migration output](drizzle-migrations.md) — preserve the configured migration directory journal when regenerating checked-in SQL.
-- [Drizzle config path quirk](drizzle-generation-path.md) — drizzle-kit can mis-handle absolute migration paths; use the workspace DB push path when generation cannot read its snapshot.
+- [Drizzle migration safety](drizzle-generation-path.md) — preserve the journal and stop schema push if unrelated drift prompts it to truncate existing data.
 - [Drizzle forward migrations](drizzle-forward-migrations.md) — repair schema drift with an additive migration and journal entry; do not rewrite already-applied SQL.
 - [Audit trigger testing](audit-trigger-testing.md) — PostgreSQL aborts a transaction after a trigger error; use savepoints to verify multiple rejected mutations.
 - [Enterprise tenant isolation](enterprise-tenant-isolation.md) — tenant-scoped audit chains and trust uniqueness are required; runtime recovery mode remains global.
