@@ -460,6 +460,109 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('The signed-in project manager did not explain that the portfolio backup stays in this browser.');
     }
 
+    const retryPortfolioBackup = await evaluate(
+      `window.__propertyRecoveryTest.createPortfolioBackup('browser-photo-recovery-sort-alpha')`,
+      true,
+    );
+    const retryPortfolioBackupPath = path.join(tmpdir(), `realestatex-portfolio-retry-${process.pid}.json`);
+    await writeFile(retryPortfolioBackupPath, JSON.stringify(retryPortfolioBackup));
+    const uploadPortfolioBackup = async () => {
+      const documentRoot = await devTools.send('DOM.getDocument');
+      const input = await devTools.send('DOM.querySelector', {
+        nodeId: documentRoot.root.nodeId,
+        selector: '[data-testid="input-import-portfolio"]',
+      });
+      if (!input.nodeId) throw new Error('The portfolio restore file input was not rendered.');
+      await devTools.send('DOM.setFileInputFiles', {
+        files: [retryPortfolioBackupPath],
+        nodeId: input.nodeId,
+      });
+    };
+    const failPortfolioRestore = async () => {
+      await evaluate(`window.__propertyRecoveryTest.failNextImageWriteWith('QuotaExceededError', 'Not enough storage space.')`);
+      await uploadPortfolioBackup();
+      return waitFor(
+        `(() => ({
+          error: document.querySelector('[data-testid="status-project-transfer-error"] p')?.textContent ?? '',
+          notice: document.querySelector('[data-testid="status-project-transfer-notice"]')?.textContent ?? '',
+          retryButton: Boolean(document.querySelector('[data-testid="button-retry-portfolio-restore"]')),
+          busy: document.querySelector('[data-testid="button-import-portfolio"]')?.disabled ?? true,
+          selectedFiles: document.querySelector('[data-testid="input-import-portfolio"]')?.files?.length ?? -1,
+          fileName: document.querySelector('[data-testid="input-import-portfolio"]')?.files?.[0]?.name ?? '',
+        }))()`,
+        (value) => (value?.error || value?.notice) && !value.busy,
+        'a failed portfolio restore with its retry action',
+      );
+    };
+    const assertPortfolioRestoreFailed = (result) => {
+      if (!result.error || !result.retryButton) {
+        throw new Error(`Portfolio restore did not fail with a retry action. State: ${JSON.stringify(result)}`);
+      }
+    };
+    const projectsBeforeRetry = await evaluate('window.__propertyRecoveryTest.readProjects()', true);
+    const failedPortfolioRestore = await failPortfolioRestore();
+    assertPortfolioRestoreFailed(failedPortfolioRestore);
+    if (!failedPortfolioRestore.error.toLocaleLowerCase().includes('er is niets toegevoegd')) {
+      throw new Error(`The failed portfolio restore did not explain that nothing was added: ${failedPortfolioRestore.error}`);
+    }
+    const projectsAfterFailure = await evaluate('window.__propertyRecoveryTest.readProjects()', true);
+    if (JSON.stringify(projectsAfterFailure.map((item) => item.id).sort())
+      !== JSON.stringify(projectsBeforeRetry.map((item) => item.id).sort())) {
+      throw new Error('A failed portfolio restore changed the saved project list.');
+    }
+    await evaluate(`document.querySelector('[data-testid="button-retry-portfolio-restore"]')?.click()`);
+    const successfulPortfolioRetry = await waitFor(
+      `(() => ({
+        notice: document.querySelector('[data-testid="status-project-transfer-notice"]')?.textContent ?? '',
+        retryButton: Boolean(document.querySelector('[data-testid="button-retry-portfolio-restore"]')),
+      }))()`,
+      (value) => value?.notice.includes('1 project') && !value.retryButton,
+      'the user-initiated retry to restore the retained backup',
+    );
+    if (!successfulPortfolioRetry.notice.includes('Bestaande projecten zijn ongewijzigd')) {
+      throw new Error(`The successful portfolio retry did not report its result: ${successfulPortfolioRetry.notice}`);
+    }
+    const projectsAfterRetry = await evaluate('window.__propertyRecoveryTest.readProjects()', true);
+    const retryRestoredProjects = projectsAfterRetry.filter(
+      (item) => !projectsBeforeRetry.some((before) => before.id === item.id),
+    );
+    if (retryRestoredProjects.length !== 1
+      || retryRestoredProjects[0].projectName !== 'Alpha order fixture') {
+      throw new Error('Retry did not restore exactly the project from the originally selected backup.');
+    }
+
+    const secondFailedPortfolioRestore = await failPortfolioRestore();
+    assertPortfolioRestoreFailed(secondFailedPortfolioRestore);
+    await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const retryAfterClosing = await waitFor(
+      `(() => ({
+        dialog: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        retryButton: Boolean(document.querySelector('[data-testid="button-retry-portfolio-restore"]')),
+        error: Boolean(document.querySelector('[data-testid="status-project-transfer-error"]')),
+      }))()`,
+      (value) => value?.dialog,
+      'the project manager to reopen after closing a failed restore',
+    );
+    if (retryAfterClosing.retryButton || retryAfterClosing.error) {
+      throw new Error('Closing the project manager did not discard the in-memory portfolio backup and failure notice.');
+    }
+    await evaluate(
+      `window.__propertyRecoveryTest.deleteProject(${JSON.stringify(retryRestoredProjects[0])})`,
+      true,
+    );
+    await evaluate(`document.querySelector('[data-testid="button-close-projects"]')?.click()`);
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const removedRetryCopy = await waitFor(
+      `(() => ({
+        dialog: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        row: Boolean(document.querySelector('[data-testid="project-row-${retryRestoredProjects[0].id}"]')),
+      }))()`,
+      (value) => value?.dialog && !value.row,
+      'the test-only restored copy to be removed from the project list',
+    );
+    if (removedRetryCopy.row) throw new Error('The test-only portfolio copy remained in the project list.');
+
     const projectBeforeSorting = JSON.stringify(await evaluate('window.__propertyRecoveryTest.readProject()', true));
     const expectedNameOrder = [
       'browser-photo-recovery-sort-alpha',

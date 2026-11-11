@@ -296,6 +296,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const fileRef = useRef<HTMLInputElement>(null);
   const transferFileRef = useRef<HTMLInputElement>(null);
   const portfolioTransferFileRef = useRef<HTMLInputElement>(null);
+  const portfolioRestoreRetryRef = useRef<unknown | null>(null);
+  const [canRetryPortfolioRestore, setCanRetryPortfolioRestore] = useState(false);
   const duplicateImportDialogRef = useRef<HTMLElement>(null);
   const duplicateImportReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectRef = useRef<PropertyProject | null>(project);
@@ -321,6 +323,16 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const revokeAllObjectUrls = () => {
     for (const url of objectUrls.current) URL.revokeObjectURL(url);
     objectUrls.current.clear();
+  };
+  const clearPortfolioRestoreRetry = () => {
+    portfolioRestoreRetryRef.current = null;
+    setCanRetryPortfolioRestore(false);
+  };
+  const closeProjectManager = () => {
+    clearPortfolioRestoreRetry();
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    setProjectManagerOpen(false);
   };
   const createProjectPreviewUrls = async (
     projectImages: Awaited<ReturnType<typeof storage.loadPropertyProjectImages>>,
@@ -450,6 +462,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
           setMissingOriginalPhoto(false);
           setMissingConceptActions([]);
           setSplitRatio(50);
+          clearPortfolioRestoreRetry();
           setProjectManagerOpen(false);
           setTransferOpen(false);
           setUploadError('');
@@ -728,6 +741,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       setSplitRatio(selected.splitRatio);
       setActiveTab('studio');
       setTransferOpen(false);
+      clearPortfolioRestoreRetry();
       setProjectManagerOpen(false);
       setNotice('');
     } catch (error) {
@@ -754,6 +768,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       setSplitRatio(created.splitRatio);
       setActiveTab('studio');
       setTransferOpen(false);
+      clearPortfolioRestoreRetry();
       setProjectManagerOpen(false);
       setNotice('');
       await refreshProjects();
@@ -814,6 +829,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   };
 
   const exportSavedProject = async (target: PropertyProject) => {
+    clearPortfolioRestoreRetry();
     setIsProjectTransferring(true);
     setProjectTransferError('');
     setProjectTransferNotice('');
@@ -839,6 +855,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   };
 
   const exportSavedPortfolio = async () => {
+    clearPortfolioRestoreRetry();
     setIsProjectTransferring(true);
     setProjectTransferError('');
     setProjectTransferNotice('');
@@ -889,6 +906,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setTransferOpen(false);
     setProjectManagerOpen(false);
     setPendingDuplicateImport(null);
+    clearPortfolioRestoreRetry();
     setProjectTransferError('');
     setUploadError('');
     setNotice(`“${restored.projectName || 'Transformatiescan'}” is in deze browser hersteld, inclusief de aanwezige foto’s en concepten.`);
@@ -899,6 +917,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    clearPortfolioRestoreRetry();
     setIsProjectTransferring(true);
     setProjectTransferError('');
     setProjectTransferNotice('');
@@ -920,10 +939,44 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
   };
 
+  const importPortfolioArchive = async (portfolio: unknown) => {
+    const imported = await storage.importPropertyPortfolio(portfolio);
+    clearPortfolioRestoreRetry();
+    setProjectTransferNotice(`${imported.length} ${imported.length === 1 ? 'project' : 'projecten'} met foto’s en concepten hersteld als nieuwe projecten. Bestaande projecten zijn ongewijzigd.`);
+    try {
+      await refreshProjects();
+    } catch {
+      setProjectTransferError('De portfolio-back-up is wel hersteld, maar de projectlijst kon niet opnieuw worden geladen. Sluit en open deze lijst opnieuw.');
+    }
+  };
+
+  const portfolioRestoreFailed = (error: unknown) => {
+    const reason = error instanceof Error ? error.message : 'Controleer het bestand en of browseropslag beschikbaar is.';
+    setProjectTransferError(/er is niets toegevoegd/i.test(reason)
+      ? reason
+      : `De portfolio-back-up is niet hersteld; er is niets toegevoegd. ${reason}`);
+  };
+
+  const retryPortfolioRestore = async () => {
+    const portfolio = portfolioRestoreRetryRef.current;
+    if (portfolio === null) return;
+    setIsProjectTransferring(true);
+    setProjectTransferError('');
+    setProjectTransferNotice('');
+    try {
+      await importPortfolioArchive(portfolio);
+    } catch (error) {
+      portfolioRestoreFailed(error);
+    } finally {
+      setIsProjectTransferring(false);
+    }
+  };
+
   const importPortfolioFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    clearPortfolioRestoreRetry();
     setIsProjectTransferring(true);
     setProjectTransferError('');
     setProjectTransferNotice('');
@@ -934,18 +987,11 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       } catch {
         throw new Error('De portfolio-back-up is niet hersteld: het bestand kan niet als geldige JSON worden gelezen. Er is niets toegevoegd.');
       }
-      const imported = await storage.importPropertyPortfolio(portfolio);
-      setProjectTransferNotice(`${imported.length} ${imported.length === 1 ? 'project' : 'projecten'} met foto’s en concepten hersteld als nieuwe projecten. Bestaande projecten zijn ongewijzigd.`);
-      try {
-        await refreshProjects();
-      } catch {
-        setProjectTransferError('De portfolio-back-up is wel hersteld, maar de projectlijst kon niet opnieuw worden geladen. Sluit en open deze lijst opnieuw.');
-      }
+      portfolioRestoreRetryRef.current = portfolio;
+      setCanRetryPortfolioRestore(true);
+      await importPortfolioArchive(portfolio);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Controleer het bestand en of browseropslag beschikbaar is.';
-      setProjectTransferError(/er is niets toegevoegd/i.test(reason)
-        ? reason
-        : `De portfolio-back-up is niet hersteld; er is niets toegevoegd. ${reason}`);
+      portfolioRestoreFailed(error);
     } finally {
       setIsProjectTransferring(false);
     }
@@ -1170,7 +1216,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         <button onClick={(event) => openProjectManager(event.currentTarget)} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-open-projects"><Layers3 size={15} /> Opgeslagen projecten ({projects.length})</button>
       </div>
     </Card>
-    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={null} transferError={projectTransferError} transferNotice={projectTransferNotice} canRetryPortfolioRestore={canRetryPortfolioRestore} onRetryPortfolioRestore={() => void retryPortfolioRestore()} onClose={closeProjectManager} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div></AppShell>;
 
   return <AppShell><div className="property-noise animate-rise">
@@ -1227,7 +1273,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     {activeTab === 'roi' && <div className="space-y-6"><RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} /><EnergyXScenarioHistory accountId={accountId} projectId={project.id} projectName={form.projectName} /></div>}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
     {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
-    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} onClose={() => setProjectManagerOpen(false)} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
+    {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} canRetryPortfolioRestore={canRetryPortfolioRestore} onRetryPortfolioRestore={() => void retryPortfolioRestore()} onClose={closeProjectManager} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div>{proBetaDialogOpen && <ProBetaWaitlistDialog
     initialEmail={userEmail}
     returnFocusTarget={proBetaDialogReturnFocusRef.current}
@@ -1257,7 +1303,7 @@ function projectPhotoHealthLabel(health: PropertyProjectPhotoHealth): { label: s
   };
 }
 
-export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus, legacyClaimBusy, onClaimLegacy, projects, photoHealthByProject, photoHealthError, onRetryPhotoHealth, loading, busy, activeProjectId, transferError, transferNotice, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
+export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus, legacyClaimBusy, onClaimLegacy, projects, photoHealthByProject, photoHealthError, onRetryPhotoHealth, loading, busy, activeProjectId, transferError, transferNotice, canRetryPortfolioRestore, onRetryPortfolioRestore, onClose, onCreate, onOpen, onDelete, onExport, onExportPortfolio, onImport, onImportPortfolio }: {
   accountId: string;
   returnFocusTarget: HTMLElement | null;
   legacyClaimStatus: LegacyProjectClaimStatus;
@@ -1272,6 +1318,8 @@ export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus
   activeProjectId: string | null;
   transferError: string;
   transferNotice: string;
+  canRetryPortfolioRestore: boolean;
+  onRetryPortfolioRestore: () => void;
   onClose: () => void;
   onCreate: () => void;
   onOpen: (id: string) => void;
@@ -1419,7 +1467,12 @@ export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus
           <button onClick={onImportPortfolio} disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-import-portfolio"><Upload size={15} /> Portfolio-back-up herstellen</button>
         </div>
         <p className="text-[10px] leading-4 text-muted-foreground">De portfolio-back-up bevat alle opgeslagen projectgegevens, bronfoto’s en concepten in één JSON-bestand. Herstellen voegt de projecten als nieuwe kopieën toe; bij een ongeldig onderdeel wordt niets toegevoegd. Alles blijft in deze browser.</p>
-        {transferError && <p className="rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-project-transfer-error">{transferError}</p>}
+        {transferError && <div className="space-y-2 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-project-transfer-error">
+          <p>{transferError}</p>
+          {canRetryPortfolioRestore && <button type="button" onClick={onRetryPortfolioRestore} disabled={busy} className="inline-flex items-center justify-center rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold hover:bg-[#fbe9e5] disabled:cursor-wait disabled:opacity-60" data-testid="button-retry-portfolio-restore">
+            {busy ? 'Portfolio herstellen…' : 'Portfolio herstellen opnieuw proberen'}
+          </button>}
+        </div>}
         {transferNotice && <p className="rounded-xl border border-[#b7ddd0] bg-[#eef8f4] px-4 py-3 text-xs text-[#287b6a]" role="status" data-testid="status-project-transfer-notice">{transferNotice}</p>}
         {photoHealthError && <div className="flex flex-col gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid="status-project-photo-health-error">
           <p className="text-xs leading-5 text-[#9e4336]">{photoHealthError}</p>

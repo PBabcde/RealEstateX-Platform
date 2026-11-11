@@ -340,6 +340,8 @@ function runSavedProjectSearchUiChecks(transferError = '') {
     activeProjectId: null,
     transferError,
     transferNotice: '',
+    canRetryPortfolioRestore: Boolean(transferError),
+    onRetryPortfolioRestore() { clickedPortfolioActions.push('retry'); },
     onClose() {},
     onCreate() {},
     onOpen() {},
@@ -365,7 +367,11 @@ function runSavedProjectSearchUiChecks(transferError = '') {
   if (transferError) {
     const errorNotice = document.querySelector('#project-search-test-root [data-testid="status-project-transfer-error"]');
     assert(errorNotice?.getAttribute('role') === 'alert', 'A failed portfolio restore was not shown as an alert.');
-    assert(errorNotice.textContent === transferError, 'The portfolio restore storage error was not shown clearly to the user.');
+    assert(errorNotice.querySelector('p')?.textContent === transferError, 'The portfolio restore storage error was not shown clearly to the user.');
+    const retryButton = errorNotice.querySelector('[data-testid="button-retry-portfolio-restore"]');
+    assert(retryButton instanceof HTMLButtonElement && !retryButton.disabled, 'A failed portfolio restore did not offer an available retry action.');
+    flushSync(() => retryButton.click());
+    assert(clickedPortfolioActions.at(-1) === 'retry', 'The portfolio restore retry action did not call its user-initiated handler.');
   }
   assert(
     document.querySelector('#project-search-test-root [data-testid="status-project-photo-health-search-newest"]')?.textContent.includes('Bronfoto ontbreekt · Conceptfoto ontbreken: Virtual stage'),

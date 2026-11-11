@@ -3,6 +3,7 @@ import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-accoun
 
 const {
   deletePropertyProject,
+  exportPropertyPortfolio,
   loadPropertyImage,
   loadPropertyProject,
   loadPropertyProjects,
@@ -121,9 +122,19 @@ async function prepareFixture() {
   let nextReadwriteTransactionFailure = null;
   let photoCleanupFailureKeys = new Set();
   let photoCleanupFailureInjected = false;
+  const nativeAdd = IDBObjectStore.prototype.add;
   const nativePut = IDBObjectStore.prototype.put;
   const nativeDelete = IDBObjectStore.prototype.delete;
   const nativeTransaction = IDBDatabase.prototype.transaction;
+  IDBObjectStore.prototype.add = function (...args) {
+    if (nextImageWriteFailure && this.name === 'images') {
+      const failure = nextImageWriteFailure;
+      nextImageWriteFailure = null;
+      if (failure.name === 'Error') throw new Error(failure.message);
+      throw new DOMException(failure.message, failure.name);
+    }
+    return Reflect.apply(nativeAdd, this, args);
+  };
   IDBObjectStore.prototype.put = function (...args) {
     if (nextImageWriteFailure && this.name === 'images') {
       const failure = nextImageWriteFailure;
@@ -210,6 +221,11 @@ async function prepareFixture() {
     },
     async readProjects() {
       return loadPropertyProjects();
+    },
+    async createPortfolioBackup(projectId) {
+      const target = await loadPropertyProject(projectId);
+      if (!target) throw new Error(`Could not find portfolio test project ${projectId}.`);
+      return exportPropertyPortfolio([target]);
     },
     async readSourceImage(key) {
       const image = await loadPropertyImage(key);
