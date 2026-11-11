@@ -1162,11 +1162,13 @@ async function run() {
     // identities/request errors. This does NOT claim native WebKit/Firefox runs.
     for (const browser of Object.keys(restoreBrowserProfiles)) {
       for (const mode of ['sync', 'request']) {
-        for (const name of ['QuotaExceededError', 'NotAllowedError', 'SecurityError', 'UnknownError', 'InvalidStateError']) {
+        for (const name of ['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED', 'NotAllowedError', 'SecurityError', 'UnknownError', 'InvalidStateError']) {
           const message = await simulatePortfolioWriteFailure(portfolioArchive, name, browser, mode);
-          const expectedPrefix = name === 'QuotaExceededError'
+          const expectedPrefix = name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED'
             ? 'Onvoldoende opslagruimte beschikbaar in je browser'
-            : 'Toegang tot lokale opslag is geblokkeerd';
+            : name === 'UnknownError' || name === 'InvalidStateError'
+              ? 'Toegang tot lokale opslag is geblokkeerd of tijdelijk niet beschikbaar'
+              : 'Toegang tot lokale opslag is geblokkeerd';
           assert(message.startsWith(expectedPrefix), `${browser}/${mode}/${name} did not retain the original error cause: ${message}`);
           if (browser === 'chromium' && mode === 'sync') portfolioRestoreFailureErrors[name] = message;
           if (browser === 'webkit' && mode === 'request') portfolioRestoreFailureErrors[`WebKit${name}`] = message;
@@ -1183,6 +1185,17 @@ async function run() {
       portfolioRestoreFailureErrors.SecurityError.includes('Toegang tot lokale opslag is geblokkeerd')
         && portfolioRestoreFailureErrors.SecurityError.includes('Sta siteopslag toe in je browserinstellingen'),
       `A permission failure did not explain how to restore browser-storage access: ${portfolioRestoreFailureErrors.SecurityError}`,
+    );
+    assert(
+      portfolioRestoreFailureErrors.NotAllowedError.includes('Toegang tot lokale opslag is geblokkeerd')
+        && portfolioRestoreFailureErrors.NotAllowedError.includes('Sta siteopslag toe in je browserinstellingen'),
+      `A browser-specific access failure did not explain how to restore browser-storage access: ${portfolioRestoreFailureErrors.NotAllowedError}`,
+    );
+    assert(
+      portfolioRestoreFailureErrors.UnknownError.includes('tijdelijk niet beschikbaar')
+        && !portfolioRestoreFailureErrors.UnknownError.includes('Onvoldoende opslagruimte')
+        && !portfolioRestoreFailureErrors.UnknownError.includes('Toegang tot lokale opslag is geblokkeerd. Sta'),
+      `An ambiguous browser error was incorrectly identified as quota or permission failure: ${portfolioRestoreFailureErrors.UnknownError}`,
     );
     assert(
       portfolioRestoreFailureErrors.ConstraintError.includes('fout bij het opslaan in browseropslag')
@@ -1278,6 +1291,9 @@ async function run() {
     assert(
       portfolioRestoreFailureErrors.QuotaExceededError?.includes('Onvoldoende opslagruimte beschikbaar in je browser')
         && portfolioRestoreFailureErrors.SecurityError?.includes('Toegang tot lokale opslag is geblokkeerd')
+        && portfolioRestoreFailureErrors.NS_ERROR_DOM_QUOTA_REACHED?.includes('Onvoldoende opslagruimte beschikbaar in je browser')
+        && portfolioRestoreFailureErrors.NotAllowedError?.includes('Toegang tot lokale opslag is geblokkeerd')
+        && portfolioRestoreFailureErrors.UnknownError?.includes('tijdelijk niet beschikbaar')
         && /er is niets toegevoegd/i.test(portfolioRestoreFailureErrors.ConstraintError ?? ''),
       'The portfolio restore failure messages were not retained for the user-interface check.',
     );

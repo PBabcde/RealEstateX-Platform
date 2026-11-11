@@ -1298,14 +1298,15 @@ function portfolioRestoreStorageError(cause: unknown): Error {
     : /Firefox\//i.test(userAgent)
       ? 'Firefox: controleer de cookies- en websitegegevensinstellingen en eventuele opslagblokkades voor deze website.'
       : 'Chrome/Chromium/Edge: controleer de sitegegevens en opslagrechten bij de privacy- en site-instellingen van je browser.';
+  const normalizedName = name.toLowerCase();
 
-  if (name === 'QuotaExceededError') {
+  if (normalizedName === 'quotaexceedederror' || normalizedName === 'ns_error_dom_quota_reached') {
     return new Error(`Onvoldoende opslagruimte beschikbaar in je browser om deze portfolio-back-up te herstellen. Verwijder alleen ongebruikte projecten waarvan je een back-up hebt, of maak ruimte vrij en probeer opnieuw. ${browserGuidance} Wis geen websitegegevens zonder back-up. Er is niets toegevoegd.`);
   }
-  if (name === 'SecurityError' || name === 'NotAllowedError') {
+  if (normalizedName === 'securityerror' || normalizedName === 'notallowederror') {
     return new Error(`Toegang tot lokale opslag is geblokkeerd. Sta siteopslag toe in je browserinstellingen en probeer opnieuw. ${browserGuidance} Er is niets toegevoegd.`);
   }
-  if (name === 'InvalidStateError' || name === 'UnknownError') {
+  if (normalizedName === 'invalidstateerror' || normalizedName === 'unknownerror') {
     return new Error(`Toegang tot lokale opslag is geblokkeerd of tijdelijk niet beschikbaar. Sluit andere RealEstateX-tabbladen, controleer of siteopslag is toegestaan en probeer opnieuw. ${browserGuidance} Er is niets toegevoegd.`);
   }
   if (message.startsWith('Lokale projectopslag wordt nog gebruikt')) {
