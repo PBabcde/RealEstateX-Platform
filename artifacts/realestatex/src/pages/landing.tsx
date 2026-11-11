@@ -47,6 +47,7 @@ export function Landing() {
           <div className="mt-8 flex flex-wrap gap-3">
             <button ref={opener} onClick={() => setLeadOpen(true)} className="rounded-xl bg-primary px-5 py-3 text-xs font-bold text-primary-foreground" data-testid="button-open-lead">Vraag het volledige vastgoed- en energierapport aan</button>
             <Link href="/sign-in" className="rounded-xl border border-border px-5 py-3 text-xs font-bold hover:bg-secondary">Naar mijn werkruimte</Link>
+            <Link href="/cirkel-1/preview" className="rounded-xl border border-border px-5 py-3 text-xs font-bold hover:bg-secondary" data-testid="link-home-circle-one-preview">Cirkel 1 proberen zonder account</Link>
           </div>
         </section>
         <section className="grid gap-4 sm:grid-cols-3" aria-label="Mogelijkheden">

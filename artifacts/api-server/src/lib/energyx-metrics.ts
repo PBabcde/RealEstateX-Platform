@@ -53,12 +53,21 @@ export function computeMetrics(snapshot: SyncSnapshot) {
   const coolingKw = specs.coolingKw ?? Number((snapshot.woonoppervlak * 0.05).toFixed(1));
   const batteryKwh = solarKwhYear > 0 ? Math.max(0, Math.round((solarKwhYear / 365) * 0.5)) : 0;
   const solarSavings = Math.round(solarKwhYear * 0.6 * KWH_PRICE);
-  const annualSavings = analysis.annualSavings + solarSavings;
+  const insulation = analysis.measures.find((measure) => measure.name === "Isolatie en kierdichting");
+  const heatPumpSavings = analysis.measures.find((measure) => measure.name === "Warmtepomp of hybride installatie")?.annualSavings ?? 0;
   const solarInvestment = Math.round(solarKwp * 1450);
   const heatPumpInvestment = Math.round(heatingKw * 1100 + 3500);
   const batteryInvestment = Math.round(batteryKwh * 650);
-  const totalInvestment =
-    solarInvestment + heatPumpInvestment + batteryInvestment + analysis.measures[0]!.investment;
+  // Replace the generic solar measure with the roof-sized estimate rather than adding both.
+  // Savings and investments use the same component list, including heat pump exactly once.
+  const measures = [
+    ...(insulation ? [insulation] : []),
+    { name: "Warmtepomp of hybride installatie", investment: heatPumpInvestment, annualSavings: heatPumpSavings },
+    { name: "Zonnepanelen en monitoring", investment: solarInvestment, annualSavings: solarSavings },
+    { name: "Batterij", investment: batteryInvestment, annualSavings: 0 },
+  ];
+  const annualSavings = measures.reduce((total, measure) => total + measure.annualSavings, 0);
+  const totalInvestment = measures.reduce((total, measure) => total + measure.investment, 0);
   const paybackYears = annualSavings > 0 ? Number((totalInvestment / annualSavings).toFixed(1)) : null;
   return {
     sustainabilityScore: analysis.labelScore,
@@ -68,8 +77,8 @@ export function computeMetrics(snapshot: SyncSnapshot) {
     annualSavings,
     monthlySavings: Math.round(annualSavings / 12),
     paybackYears,
-    investments: { solar: solarInvestment, heatPump: heatPumpInvestment, battery: batteryInvestment, insulation: analysis.measures[0]!.investment, total: totalInvestment },
-    measures: analysis.measures,
+    investments: { solar: solarInvestment, heatPump: heatPumpInvestment, battery: batteryInvestment, insulation: insulation?.investment ?? 0, total: totalInvestment },
+    measures,
   };
 }
 

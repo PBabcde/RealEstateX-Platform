@@ -6,6 +6,7 @@ import {
   auditEventsTable,
   chatMessagesTable,
   chatSessionsTable,
+  energyxSyncsTable,
   moduleDataTable,
   propertiesTable,
 } from "@workspace/db/schema";
@@ -456,6 +457,7 @@ export async function deleteProperty(
       if (!deleted.length) {
         return false;
       }
+      await transaction.delete(energyxSyncsTable).where(eq(energyxSyncsTable.propertyId, propertyId));
       await recordAudit(
         auditEvent(
           "property.deleted",

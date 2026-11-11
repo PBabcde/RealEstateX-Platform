@@ -15,7 +15,8 @@ import { PropertyTransformer } from '@/pages/property-transformer';
 import { SalesEngine } from '@/pages/sales';
 import { Landing } from '@/pages/landing';
 import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
-import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { CircleOne, CircleOnePreview } from '@/pages/circle-one';
+import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
 const clerkPubKey = publishableKeyFromHost(
@@ -154,6 +155,8 @@ function Router() {
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
     <Route path="/sales"><ProtectedPage><SalesEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
+    <Route path="/cirkel-1/preview" component={CircleOnePreview} />
+    <Route path="/cirkel-1"><ProtectedPage><CircleOne /></ProtectedPage></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { DEFAULT_TENANT_ID } from "@workspace/db/schema";
-import { requireDb } from "@workspace/db";
+import { DEFAULT_TENANT_ID } from "../lib/db/src/schema/index.ts";
+import { requireDb } from "../lib/db/src/index.ts";
 
 const { pool } = requireDb();
 const marker = `energyx-test-${Date.now()}`;
@@ -32,10 +32,13 @@ before(async () => {
 });
 
 after(async () => {
-  await pool.query("DELETE FROM energyx_syncs WHERE property_id = $1", [marker]);
-  await pool.query("DELETE FROM properties WHERE property_id = $1", [marker]);
-  await new Promise((resolve) => server.close(resolve));
-  await pool.end();
+  try {
+    await pool.query("DELETE FROM energyx_syncs WHERE property_id = $1", [marker]);
+    await pool.query("DELETE FROM properties WHERE property_id = $1", [marker]);
+  } finally {
+    if (server) await new Promise((resolve) => server.close(resolve));
+    await pool.end();
+  }
 });
 
 const call = (path, body) =>
@@ -85,4 +88,37 @@ test("portfolio aggregates synced properties and service requests are audited", 
   assert.equal(audit.rowCount, 1);
   assert.equal(audit.rows[0].metadata.kind, "maintenance");
   assert.equal(audit.rows[0].metadata.note, "Controle van de warmtepomp");
+});
+
+test("deleting a property removes its snapshot and excludes legacy orphans from all portfolios", async () => {
+  const { deleteProperty } = await import("../artifacts/api-server/src/lib/realestatex-storage.ts");
+  const savedSnapshot = await pool.query("SELECT * FROM energyx_syncs WHERE property_id = $1", [marker]);
+  assert.equal(savedSnapshot.rowCount, 1);
+  // A forbidden deletion must not erase the actual owner's snapshot.
+  assert.equal(await deleteProperty(marker, "someone-else", "someone-else"), false);
+  assert.equal((await pool.query("SELECT property_id FROM energyx_syncs WHERE property_id = $1", [marker])).rowCount, 1);
+  assert.equal(await deleteProperty(marker, currentUser.id, currentUser.id), true);
+  assert.equal((await pool.query("SELECT property_id FROM energyx_syncs WHERE property_id = $1", [marker])).rowCount, 0);
+  assert.equal((await call(`/status/${marker}`)).status, 404);
+  assert.equal((await call(`/metrics/${marker}`)).status, 404);
+  const empty = await (await call("/portfolio")).json();
+  assert.equal(empty.properties, 0);
+  assert.equal(empty.totalAnnualSavings, 0);
+  assert.equal(empty.totalInvestment, 0);
+  assert.deepEqual(empty.items, []);
+
+  // Simulate old data created before cleanup was implemented (or a late sync write).
+  await pool.query(
+    "INSERT INTO energyx_syncs (property_id, owner_id, status, payload) VALUES ($1,$2,'synced',$3)",
+    [marker, currentUser.id, savedSnapshot.rows[0].payload],
+  );
+  assert.equal((await (await call("/portfolio")).json()).properties, 0);
+  const owner = currentUser;
+  try {
+    currentUser = { ...owner, role: "admin" };
+    const portfolio = await (await call("/portfolio")).json();
+    assert.ok(!portfolio.items.some((item) => item.propertyId === marker));
+  } finally {
+    currentUser = owner;
+  }
 });

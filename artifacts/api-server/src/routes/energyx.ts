@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
-import { DEFAULT_TENANT_ID, energyxSyncsTable, requireDb } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { DEFAULT_TENANT_ID, energyxSyncsTable, propertiesTable, requireDb } from "@workspace/db";
 import { getProperty, initialiseRealEstateStorage } from "../lib/realestatex-storage";
 import { canAccessOwner, isAdministrator, requireAuthentication } from "../middlewares/authorization";
 import { recordAuditEvent } from "../lib/enterprise-core";
@@ -165,9 +165,17 @@ router.get(`${BASE}/metrics/:propertyId`, async (req, res, next) => {
 router.get(`${BASE}/portfolio`, async (req, res, next) => {
   try {
     const { db } = requireDb();
+    // Also exclude pre-existing orphan snapshots and snapshots from a previous owner.
+    const query = db.select({
+      propertyId: energyxSyncsTable.propertyId,
+      payload: energyxSyncsTable.payload,
+    }).from(energyxSyncsTable).innerJoin(propertiesTable, and(
+      eq(energyxSyncsTable.propertyId, propertiesTable.propertyId),
+      eq(energyxSyncsTable.ownerId, propertiesTable.ownerId),
+    ));
     const rows = isAdministrator(req)
-      ? await db.select().from(energyxSyncsTable)
-      : await db.select().from(energyxSyncsTable).where(eq(energyxSyncsTable.ownerId, req.dbUser!.id));
+      ? await query
+      : await query.where(eq(energyxSyncsTable.ownerId, req.dbUser!.id));
     const items = rows.map((row) => {
       const snapshot = snapshotOf(row.payload);
       return { propertyId: row.propertyId, adres: snapshot.adres, metrics: computeMetrics(snapshot) };

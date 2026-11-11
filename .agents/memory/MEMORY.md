@@ -16,7 +16,7 @@
 - [Vite React upgrade cache](vite-react-cache.md) — matching installed React versions can still crash when Vite retains an older optimized react-dom bundle.
 - [RealEstateX photo health](realestatex-photo-health.md) — derive missing-photo status from IndexedDB and refresh active editor references and images from one snapshot.
 - [RealEstateX browser JPEG fixtures](realestatex-browser-jpeg-fixtures.md) — verify photo-upload test JPEGs in Chromium; ImageMagick recognition alone does not guarantee browser decoding.
-- [RealEstateX account privacy](realestatex-account-privacy.md) — accountless browser projects require explicit claim; wait for EnergyX's official API contract.
+- [RealEstateX account privacy](realestatex-account-privacy.md) — accountless projects require explicit claim; cross-app sharing needs a specified transfer path.
 - [Cross-tab project imports](realestatex-cross-tab-imports.md) — keep duplicate lookup and save under one same-origin lock; fail closed if that lock is unavailable.
 - [RealEstateX modal focus](realestatex-modal-focus.md) — restore focus to a connected, enabled control after async dialogs; scripted clicks do not focus like real activation.
 - [RealEstateX cross-tab testing](realestatex-cross-tab-testing.md) — verify storage notifications between separate tabs; a tab does not receive its own BroadcastChannel messages.
