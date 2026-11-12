@@ -1454,7 +1454,155 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('Reloading after deletion did not preserve the other saved projects and their usable photo previews.');
     }
 
-    return 'Passed: EXIF-rotated phone-camera JPEG recovery kept the source preview upright before and after refresh without changing project assumptions or the selected scenario; quota, blocked-access, and unknown replacement-photo failures showed safe, specific guidance while preserving the saved project and photo contents, and retry succeeded; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; and deleting the open project returned the studio to a usable empty state, removed its photos, and preserved the other projects and their photos after reload.';
+    await evaluate(
+      `(async () => window.__propertyRecoveryTest.deleteProject(
+        await window.__propertyRecoveryTest.readProject('browser-photo-recovery-sort-zulu')
+      ))()`,
+      true,
+    );
+    await devTools.send('Page.navigate', { url });
+    const singleSavedProjectState = await waitFor(
+      `(async () => {
+        const fixture = window.__propertyRecoveryTest;
+        if (typeof fixture?.readProjects !== 'function') return { fixtureReady: false };
+        const projects = await fixture.readProjects();
+        const project = await fixture.readProject('browser-photo-recovery-sort-alpha');
+        const source = project?.originalKey
+          ? await fixture.readSourceImage(project.originalKey)
+          : null;
+        const conceptKey = project?.resultKeys?.stage;
+        const concept = conceptKey ? await fixture.readConceptImage(conceptKey) : null;
+        const sourcePreview = document.querySelector('img[alt="Originele woningfoto"]');
+        const conceptPreview = document.querySelector('img[alt="Surviving concept photo concept"]');
+        return {
+          fixtureReady: true,
+          projectIds: projects.map((item) => item.id),
+          project,
+          source,
+          concept,
+          sourcePreviewLoaded: Boolean(sourcePreview?.complete && sourcePreview.naturalWidth > 0),
+          conceptPreviewLoaded: Boolean(conceptPreview?.complete && conceptPreview.naturalWidth > 0),
+        };
+      })()`,
+      (value) => value?.fixtureReady
+        && value.projectIds?.length === 1
+        && value.project?.id === 'browser-photo-recovery-sort-alpha'
+        && value.source
+        && value.concept
+        && value.sourcePreviewLoaded
+        && value.conceptPreviewLoaded,
+      'the last saved project and both photos to load before deletion',
+    );
+    if (singleSavedProjectState.projectIds.length !== 1
+      || !singleSavedProjectState.sourcePreviewLoaded
+      || !singleSavedProjectState.conceptPreviewLoaded) {
+      throw new Error('The final-project deletion check did not start with one saved project and its loaded photos.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
+    const finalProjectManager = await waitFor(
+      `(() => ({
+        open: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        rowCount: document.querySelectorAll('[data-testid^="project-row-"]').length,
+        targetRow: Boolean(document.querySelector('[data-testid="project-row-browser-photo-recovery-sort-alpha"]')),
+      }))()`,
+      (value) => value?.open && value.rowCount === 1 && value.targetRow,
+      'the project manager to show only the final saved project',
+    );
+    if (finalProjectManager.rowCount !== 1 || !finalProjectManager.targetRow) {
+      throw new Error('The project manager did not show exactly the final saved project.');
+    }
+
+    await evaluate(`(() => {
+      const test = window.__propertyRecoveryTest;
+      test.deleteConfirmations = [];
+      window.confirm = (message) => {
+        test.deleteConfirmations.push(message);
+        return true;
+      };
+      const deleteButton = document.querySelector(
+        '[data-testid="button-delete-project-browser-photo-recovery-sort-alpha"]'
+      );
+      if (!deleteButton) throw new Error('The final saved project deletion action was not rendered.');
+      deleteButton.click();
+    })()`);
+    const deletedFinalProjectUi = await waitFor(
+      `(async () => {
+        const fixture = window.__propertyRecoveryTest;
+        const emptyList = document.querySelector('[data-testid="empty-project-list"]');
+        const create = document.querySelector('[data-testid="button-create-project"]');
+        const importProject = document.querySelector('[data-testid="button-import-project"]');
+        const projects = await fixture.readProjects();
+        const imageKeys = await fixture.readImageKeys();
+        return {
+          managerOpen: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+          emptyListText: emptyList?.textContent ?? '',
+          emptyListRole: emptyList?.getAttribute('role') ?? '',
+          rowCount: document.querySelectorAll('[data-testid^="project-row-"]').length,
+          projectExists: Boolean(await fixture.readProject('browser-photo-recovery-sort-alpha')),
+          projects,
+          imageKeys,
+          createEnabled: Boolean(create && !create.disabled),
+          importEnabled: Boolean(importProject && !importProject.disabled),
+          confirmation: fixture.deleteConfirmations[0] ?? '',
+        };
+      })()`,
+      (value) => value?.managerOpen
+        && value.emptyListText
+        && value.rowCount === 0
+        && !value.projectExists
+        && value.projects?.length === 0
+        && value.imageKeys?.length === 0
+        && value.createEnabled
+        && value.importEnabled,
+      'the empty manager to offer create and import after deleting the last project',
+    );
+    if (deletedFinalProjectUi.emptyListRole !== 'status'
+      || !deletedFinalProjectUi.emptyListText.includes('Nog geen opgeslagen projecten')
+      || !deletedFinalProjectUi.emptyListText.includes('importeer')
+      || !deletedFinalProjectUi.createEnabled
+      || !deletedFinalProjectUi.importEnabled
+      || deletedFinalProjectUi.rowCount !== 0
+      || deletedFinalProjectUi.projects.length !== 0
+      || deletedFinalProjectUi.imageKeys.length !== 0
+      || !deletedFinalProjectUi.confirmation.includes('Alpha order fixture')
+      || !deletedFinalProjectUi.confirmation.includes('foto')) {
+      throw new Error('Deleting the final project did not leave a clear, accessible empty list with working restart actions and no saved photos.');
+    }
+
+    await evaluate(`document.querySelector('[data-testid="button-create-project"]')?.click()`);
+    const freshProjectUi = await waitFor(
+      `(async () => {
+        const fixture = window.__propertyRecoveryTest;
+        const project = (await fixture.readProjects())[0];
+        return {
+          project,
+          projectCount: (await fixture.readProjects()).length,
+          sourcePreviewCount: document.querySelectorAll('img[alt="Originele woningfoto"]').length,
+          conceptPreviewCount: document.querySelectorAll('img[alt$="concept"]').length,
+          emptyUploadVisible: Boolean(document.querySelector('[data-testid="button-empty-upload"]')),
+          projectManagerClosed: !document.querySelector('[data-testid="dialog-project-manager"]'),
+        };
+      })()`,
+      (value) => value?.project?.id
+        && value.projectCount === 1
+        && value.emptyUploadVisible
+        && value.projectManagerClosed
+        && value.sourcePreviewCount === 0
+        && value.conceptPreviewCount === 0,
+      'the new project editor to open without stale photo previews',
+    );
+    if (freshProjectUi.projectCount !== 1
+      || freshProjectUi.project.originalKey
+      || Object.keys(freshProjectUi.project.resultKeys ?? {}).length > 0
+      || freshProjectUi.project.selectedResult !== null
+      || !freshProjectUi.emptyUploadVisible
+      || freshProjectUi.sourcePreviewCount !== 0
+      || freshProjectUi.conceptPreviewCount !== 0) {
+      throw new Error('Creating a project after final deletion did not open a clean editor without stale photo references or previews.');
+    }
+
+    return 'Passed: EXIF-rotated phone-camera JPEG recovery kept the source preview upright before and after refresh without changing project assumptions or the selected scenario; quota, blocked-access, and unknown replacement-photo failures showed safe, specific guidance while preserving the saved project and photo contents, and retry succeeded; a failed generated-concept write kept the saved project and image records unchanged, showed a retry action, and succeeded on retry; both Virtual stage and Style makeover repairs used their matching endpoints and image references, remained selected, and persisted after refresh; the selected project-list order survived close, reopen, and reload; an aborted project deletion preserved the project and photos while showing a clear error; deleting a project while other projects remained returned the studio to an empty state, removed only its unshared photos, and preserved the other projects after reload; deleting the final saved project cleared all project/photo records, showed an accessible empty list with create/import actions, and creating again opened a clean editor without stale previews.';
   } finally {
     devTools.close();
   }
