@@ -6,7 +6,7 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Native dependencies voor Vite in Docker monorepo
-RUN pnpm add @rollup/rollup-linux-x64-musl
+
 
 COPY . .
 
