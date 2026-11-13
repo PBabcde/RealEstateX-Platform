@@ -15,6 +15,7 @@ const {
   savePropertyConceptImage,
   savePropertyImage,
   savePropertyProjectWithImage,
+  updatePropertyProject,
 } = storage;
 
 const result = document.querySelector('#test-result');
@@ -167,12 +168,21 @@ window.__photoWriterReadPreviews = async (projectId) => {
 
 window.addEventListener('message', async (event) => {
   if (event.source !== window.opener || event.origin !== location.origin) return;
-  const { operation, requestId, key, project, id, action, existingConceptKeys } = event.data ?? {};
+  const { operation, requestId, key, project, id, action, existingConceptKeys, projectName, address } = event.data ?? {};
   try {
     if (operation === 'open-project-list') {
       await openProjectList();
     } else if (operation === 'delete-project') {
       await deleteProjectFromList(id);
+    } else if (operation === 'edit-project-details') {
+      const current = await loadPropertyProject(id);
+      if (!current) throw new Error(`The project ${id} no longer exists.`);
+      await updatePropertyProject({
+        ...current,
+        projectName,
+        address,
+        updatedAt: new Date().toISOString(),
+      });
     } else if (operation === 'add-concept') {
       await savePropertyImage(makeImage(key, 'Virtual stage', true, 'cross-tab concept'));
     } else if (operation === 'remove-image') {

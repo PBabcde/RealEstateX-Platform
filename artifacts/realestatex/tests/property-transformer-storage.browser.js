@@ -973,6 +973,60 @@ async function runCrossTabPhotoHealthChecks() {
     assert(reloadedPreviews.concept?.content === 'concurrent generated concept', 'The regenerated concept preview could not be read after reloading the second tab.');
     await runWriterCommand('open-project-list');
 
+    const projectBeforeDetailsEdit = await loadPropertyProject(project.id);
+    assert(projectBeforeDetailsEdit, 'The details-edit fixture disappeared before the cross-tab update.');
+    const photosBeforeDetailsEdit = await loadPropertyProjectImages(projectBeforeDetailsEdit);
+    const sourceContentBeforeDetailsEdit = await photosBeforeDetailsEdit.original?.blob.text();
+    const conceptContentBeforeDetailsEdit = await photosBeforeDetailsEdit.results.stage?.blob.text();
+    const healthBeforeDetailsEdit = await loadPropertyProjectsWithPhotoHealth();
+    const healthLabelBeforeDetailsEdit = healthBeforeDetailsEdit.photoHealthById[project.id];
+    const updatedProjectName = 'Cross-tab project details updated';
+    const updatedProjectAddress = 'Nieuwe straat 42';
+    assert(projectBeforeDetailsEdit?.originalKey === concurrentSourceKey, 'The details-edit fixture did not retain its current source reference.');
+    assert(projectBeforeDetailsEdit.resultKeys.stage === concurrentConceptKey, 'The details-edit fixture did not retain its current concept reference.');
+    assert(sourceContentBeforeDetailsEdit === 'concurrent source replacement', 'The details-edit fixture did not begin with the expected source photo.');
+    assert(conceptContentBeforeDetailsEdit === 'concurrent generated concept', 'The details-edit fixture did not begin with the expected concept photo.');
+    const otherTabProjectRow = () => editorRootElement.querySelector(`[data-testid="project-row-${project.id}"]`);
+    const originalSavedProjectName = projectBeforeDetailsEdit.projectName;
+    assert(
+      otherTabProjectRow()?.textContent.includes(originalSavedProjectName),
+      `The other tab did not start with the current saved project name. Expected "${originalSavedProjectName}", row text: "${otherTabProjectRow()?.textContent ?? '(missing row)'}".`,
+    );
+    await runWriterCommand('edit-project-details', {
+      id: project.id,
+      projectName: updatedProjectName,
+      address: updatedProjectAddress,
+    });
+    await waitForEditor(
+      () => otherTabProjectRow()?.textContent.includes(updatedProjectName)
+        && otherTabProjectRow()?.textContent.includes(updatedProjectAddress),
+      'the already-open project list in the other tab to show the updated name and address',
+    );
+    const projectAfterDetailsEdit = await loadPropertyProject(project.id);
+    const photosAfterDetailsEdit = await loadPropertyProjectImages(projectAfterDetailsEdit);
+    const healthAfterDetailsEdit = await loadPropertyProjectsWithPhotoHealth();
+    assert(
+      projectAfterDetailsEdit?.originalKey === projectBeforeDetailsEdit.originalKey
+        && JSON.stringify(projectAfterDetailsEdit.resultKeys) === JSON.stringify(projectBeforeDetailsEdit.resultKeys),
+      'Changing the project name and address changed its referenced photos.',
+    );
+    assert(
+      await photosAfterDetailsEdit.original?.blob.text() === sourceContentBeforeDetailsEdit,
+      'Changing the project name and address changed its referenced source photo.',
+    );
+    assert(
+      await photosAfterDetailsEdit.results.stage?.blob.text() === conceptContentBeforeDetailsEdit,
+      'Changing the project name and address changed its referenced concept photo.',
+    );
+    assert(
+      JSON.stringify(healthAfterDetailsEdit.photoHealthById[project.id]) === JSON.stringify(healthLabelBeforeDetailsEdit),
+      'Changing the project name and address changed the project photo-health status.',
+    );
+    assert(
+      editorRootElement.querySelector(`[data-testid="status-project-photo-health-${project.id}"]`)?.textContent
+        === writer.document.querySelector(`[data-testid="status-project-photo-health-${project.id}"]`)?.textContent,
+      'The two open project lists showed different photo-health labels after the details edit.',
+    );
     const survivorProject = expectedProjects.beta;
     await waitForEditor(
       () => editorRootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
@@ -1082,6 +1136,7 @@ async function runCrossTabPhotoHealthChecks() {
     }
     unsubscribe();
     writer?.close();
+    await deletePropertyImage('browser-cross-tab-restored-original');
     root.unmount();
     editorRoot.unmount();
     editorQueryClient.clear();
