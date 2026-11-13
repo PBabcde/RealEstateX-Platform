@@ -16,7 +16,8 @@ RUN pnpm install --dangerously-allow-all-builds
 RUN pnpm run build
 
 EXPOSE 3000
-CMD ["pnpm", "run", "start"]
+CMD ["pnpm", "run", "start", "--filter", "realestatex-platform"]
+
 
 
 
