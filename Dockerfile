@@ -16,6 +16,8 @@ RUN pnpm install --dangerously-allow-all-builds
 RUN pnpm run build
 
 EXPOSE 3000
+LABEL coolify.traffic=internal
+
 CMD ["pnpm", "run", "start", "--filter", "realestatex-platform"]
 
 
