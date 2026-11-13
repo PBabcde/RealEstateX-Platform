@@ -11,7 +11,7 @@ RUN pnpm add @rollup/rollup-linux-x64-musl
 COPY . .
 
 # Installeer dependencies inclusief native modules
-RUN pnpm install --dangerously-allow-all-builds --include=optional
+RUN pnpm install --dangerously-allow-all-builds 
 
 RUN pnpm run build
 
