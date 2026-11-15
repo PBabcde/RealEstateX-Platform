@@ -18,7 +18,8 @@ RUN pnpm run build
 EXPOSE 3000
 LABEL coolify.traffic=internal
 
-CMD ["pnpm", "run", "serve", "--filter", "realestatex-platform"]
+CMD ["pnpm","--filter","@workspace/realestatex","run","serve"]
+
 
 
 
