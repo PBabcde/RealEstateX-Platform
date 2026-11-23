@@ -1338,6 +1338,85 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('The active project did not show its source and concept previews after the cleanup retry.');
     }
 
+    // Regenerating a concept whose image is still saved: a failed local write must keep the older concept.
+    {
+      const readConceptState = () => evaluate(
+        `(async () => {
+          const project = await window.__propertyRecoveryTest.readProject();
+          return {
+            project,
+            imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+            pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+          };
+        })()`,
+        true,
+      );
+      const beforeConceptWriteFailure = await readConceptState();
+      const savedConceptKey = beforeConceptWriteFailure.project?.resultKeys?.stage;
+      const savedSourceKey = beforeConceptWriteFailure.project?.originalKey;
+      if (!savedConceptKey || !savedSourceKey
+        || !beforeConceptWriteFailure.imageRecords.some((image) => image.key === savedSourceKey && !image.isConcept)
+        || !beforeConceptWriteFailure.imageRecords.some((image) => image.key === savedConceptKey && image.isConcept)) {
+        throw new Error('The concept write-failure test did not start with a saved source photo and a saved concept image.');
+      }
+      await evaluate(`(() => {
+        window.__propertyRecoveryTest.lastConceptRequestUrl = '';
+        window.__propertyRecoveryTest.failNextImageWriteWith('QuotaExceededError', 'SENSITIVE_CONCEPT_QUOTA_DETAILS');
+        document.querySelector('[data-testid="button-transform-stage"]')?.click();
+      })()`);
+      const failedConceptSave = await waitFor(
+        `(() => ({
+          error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          request: window.__propertyRecoveryTest.lastConceptRequestUrl,
+          retryEnabled: Boolean(document.querySelector('[data-testid="button-transform-stage"]') && !document.querySelector('[data-testid="button-transform-stage"]').disabled),
+          conceptLoaded: Boolean(document.querySelector('img[alt="Virtual stage concept"]')?.complete
+            && document.querySelector('img[alt="Virtual stage concept"]').naturalWidth > 0),
+        }))()`,
+        (value) => value?.error && value.request && value.retryEnabled && value.conceptLoaded,
+        'the failed concept save to keep the previous concept available for retry',
+      );
+      if (!failedConceptSave.request.includes('/api/property-transformations/virtual-staging')
+        || !failedConceptSave.error.includes('nieuwe concept is niet bewaard')
+        || failedConceptSave.error.includes('SENSITIVE_CONCEPT_QUOTA_DETAILS')) {
+        throw new Error(`The failed concept save showed the wrong state: ${JSON.stringify(failedConceptSave)}`);
+      }
+      const afterConceptWriteFailure = await readConceptState();
+      if (JSON.stringify(afterConceptWriteFailure.project) !== JSON.stringify(beforeConceptWriteFailure.project)) {
+        throw new Error('A failed concept write changed the saved project settings or concept reference.');
+      }
+      if (JSON.stringify(afterConceptWriteFailure.imageRecords) !== JSON.stringify(beforeConceptWriteFailure.imageRecords)) {
+        throw new Error('A failed concept write changed the old concept bytes or stored a partial image.');
+      }
+      if (JSON.stringify(afterConceptWriteFailure.pendingCleanup) !== JSON.stringify(beforeConceptWriteFailure.pendingCleanup)) {
+        throw new Error('A failed concept write queued photo cleanup for the old concept.');
+      }
+
+      await evaluate(`(() => {
+        window.__propertyRecoveryTest.lastConceptRequestUrl = '';
+        document.querySelector('[data-testid="button-transform-stage"]')?.click();
+      })()`);
+      await waitFor(
+        `(async () => {
+          const project = await window.__propertyRecoveryTest.readProject();
+          return {
+            replaced: Boolean(project?.resultKeys?.stage && project.resultKeys.stage !== ${JSON.stringify(savedConceptKey)}),
+            error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          };
+        })()`,
+        (value) => value?.replaced && !value.error,
+        'the retried concept to replace the previous one after storage recovered',
+      );
+      const afterConceptRetry = await readConceptState();
+      const retriedConceptKey = afterConceptRetry.project.resultKeys.stage;
+      if (afterConceptRetry.project.originalKey !== savedSourceKey
+        || afterConceptRetry.project.selectedResult !== 'stage'
+        || !afterConceptRetry.imageRecords.some((image) => image.key === retriedConceptKey && image.isConcept)
+        || afterConceptRetry.imageRecords.some((image) => image.key === savedConceptKey)
+        || afterConceptRetry.imageRecords.length !== beforeConceptWriteFailure.imageRecords.length) {
+        throw new Error('The concept retry did not replace the old concept with exactly one saved image.');
+      }
+    }
+
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
     const openProjectBeforeDeletion = await waitFor(
       `(() => {
