@@ -75,7 +75,9 @@ async function foreignKeyDefinitions() {
 async function readPreservedState() {
   return {
     usersSchema: await tableSchema("users"),
-    users: await rows("SELECT to_jsonb(user_row) AS row FROM public.users AS user_row ORDER BY id"),
+    users: await rows(
+      "SELECT to_jsonb(user_row) AS row FROM public.users AS user_row ORDER BY id",
+    ),
     sessionSchema: await tableSchema("sessions"),
     foreignKeys: await foreignKeyDefinitions(),
     properties: await rows(
@@ -93,7 +95,10 @@ async function readPreservedState() {
 }
 
 async function runCleanup(expectedRows) {
-  const cleanupScript = path.join(root, "scripts/src/legacy-session-cleanup.ts");
+  const cleanupScript = path.join(
+    root,
+    "scripts/src/legacy-session-cleanup.ts",
+  );
   const tsx = path.join(root, "scripts/node_modules/.bin/tsx");
   const args = [
     cleanupScript,
@@ -127,6 +132,82 @@ async function runCleanup(expectedRows) {
       output: `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${error.message}`,
     };
   }
+}
+
+function startCleanup(expectedRows, applicationName) {
+  const cleanupScript = path.join(
+    root,
+    "scripts/src/legacy-session-cleanup.ts",
+  );
+  const tsx = path.join(root, "scripts/node_modules/.bin/tsx");
+  const args = [
+    cleanupScript,
+    "apply",
+    "--environment",
+    "development",
+    "--database",
+    databaseName,
+    "--expected-rows",
+    String(expectedRows),
+    "--approval-reference",
+    "TEST-77",
+    "--confirm",
+    `development/${databaseName}`,
+  ];
+  const databaseUrl = new URL(process.env.DATABASE_URL);
+  databaseUrl.searchParams.set("application_name", applicationName);
+
+  let child;
+  const result = new Promise((resolve) => {
+    child = execFile(
+      tsx,
+      args,
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          DATABASE_URL: databaseUrl.toString(),
+          REALESTATEX_DEPLOYMENT_ENV: "development",
+        },
+        maxBuffer: 16 * 1024 * 1024,
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          exitCode: error
+            ? typeof error.code === "number"
+              ? error.code
+              : 1
+            : 0,
+          output: `${stdout ?? ""}\n${stderr ?? ""}\n${error?.message ?? ""}`,
+        });
+      },
+    );
+  });
+  return { result, cancel: () => child.kill("SIGTERM") };
+}
+
+async function waitForCleanupLock(applicationName) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const activity = await rows(
+      `SELECT wait_event_type, query
+       FROM pg_stat_activity
+       WHERE datname = current_database() AND application_name = $1`,
+      [applicationName],
+    );
+    if (
+      activity.some(
+        (row) =>
+          row.wait_event_type === "Lock" &&
+          row.query.toLowerCase().includes("lock table public.sessions"),
+      )
+    ) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `Cleanup did not visibly wait for the sessions table lock (${applicationName}).`,
+  );
 }
 
 test("PostgreSQL cleanup keeps active/grace sessions and customer data, and rolls back a stale preview", async () => {
@@ -215,7 +296,10 @@ test("PostgreSQL cleanup keeps active/grace sessions and customer data, and roll
 
   const stalePreview = await runCleanup(1);
   assert.notEqual(stalePreview.exitCode, 0, stalePreview.output);
-  assert.match(stalePreview.output, /Preview changed: expected 1 eligible row\(s\), found 2/u);
+  assert.match(
+    stalePreview.output,
+    /Preview changed: expected 1 eligible row\(s\), found 2/u,
+  );
   assert.deepEqual(
     await rows(
       "SELECT to_jsonb(session_row) AS row FROM public.sessions AS session_row ORDER BY sid",
@@ -225,18 +309,66 @@ test("PostgreSQL cleanup keeps active/grace sessions and customer data, and roll
   );
   assert.deepEqual(await readPreservedState(), baseline);
 
-  const approvedApply = await runCleanup(2);
+  const concurrentWriter = await pool.connect();
+  await concurrentWriter.query("BEGIN");
+  await concurrentWriter.query(
+    `INSERT INTO public.sessions (sid, sess, expire)
+     VALUES ('racing-old-session', '{"user":{"id":"concurrent-user"}}'::jsonb,
+             (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '31 days')`,
+  );
+
+  const applicationName = "legacy-session-cleanup-race-test";
+  const concurrentApply = startCleanup(2, applicationName);
+  let writerTransactionOpen = true;
+  try {
+    await waitForCleanupLock(applicationName);
+    await concurrentWriter.query("COMMIT");
+    writerTransactionOpen = false;
+
+    const raceResult = await concurrentApply.result;
+    assert.notEqual(raceResult.exitCode, 0, raceResult.output);
+    assert.match(
+      raceResult.output,
+      /Preview changed: expected 2 eligible row\(s\), found 3/u,
+    );
+
+    assert.deepEqual(
+      (await rows("SELECT sid FROM public.sessions ORDER BY sid")).map(
+        (row) => row.sid,
+      ),
+      [
+        "active-session",
+        "grace-session",
+        "near-boundary-session",
+        "old-session-without-token",
+        "old-token-session",
+        "racing-old-session",
+      ],
+      "apply must reject the newly eligible session without deleting any row",
+    );
+  } finally {
+    if (writerTransactionOpen) {
+      concurrentApply.cancel();
+      await concurrentApply.result;
+      await concurrentWriter.query("ROLLBACK");
+    }
+    concurrentWriter.release();
+  }
+
+  const approvedApply = await runCleanup(3);
   assert.equal(approvedApply.exitCode, 0, approvedApply.output);
-  assert.match(approvedApply.output, /Deleted 2 expired legacy session row\(s\)/u);
+  assert.match(
+    approvedApply.output,
+    /Deleted 3 expired legacy session row\(s\)/u,
+  );
 
   const remainingSessions = await rows(
     "SELECT sid FROM public.sessions ORDER BY sid",
   );
-  assert.deepEqual(remainingSessions.map((row) => row.sid), [
-    "active-session",
-    "grace-session",
-    "near-boundary-session",
-  ]);
+  assert.deepEqual(
+    remainingSessions.map((row) => row.sid),
+    ["active-session", "grace-session", "near-boundary-session"],
+  );
   assert.deepEqual(
     await readPreservedState(),
     baseline,
