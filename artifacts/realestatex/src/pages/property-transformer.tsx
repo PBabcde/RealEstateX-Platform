@@ -303,6 +303,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const duplicateImportReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectRef = useRef<PropertyProject | null>(project);
   const savedBaseRef = useRef<PropertyProject | null>(null);
+  // Fields whose local value conflicts with another tab's newer value; autosaves hold them back until the user explicitly saves.
+  const heldConflictRef = useRef<{ id: string; fields: string[] } | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const originalPreviewRef = useRef(originalUrl);
   const resultPreviewsRef = useRef(results);
@@ -561,21 +563,42 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   };
   // Saves always send the latest editor state (not the snapshot captured when the save was requested),
   // so queued saves never carry stale values for fields another tab has since changed.
-  const persistProject = async (target: PropertyProject): Promise<PropertyProject | null> => {
-    const sent = projectRef.current?.id === target.id ? projectRef.current : target;
+  const persistProject = async (target: PropertyProject, overwriteConflicts = false): Promise<PropertyProject | null> => {
+    let sent = projectRef.current?.id === target.id ? projectRef.current : target;
     if (externallyDeletedProjectIdRef.current === sent.id) return null;
     const base = savedBaseRef.current?.id === sent.id ? savedBaseRef.current : undefined;
+    if (overwriteConflicts) {
+      heldConflictRef.current = null;
+    } else if (heldConflictRef.current?.id === sent.id && base) {
+      // Queued autosaves must not overwrite the other tab's conflicting value; send its stored value for those fields.
+      const held: Record<string, unknown> = {};
+      for (const field of heldConflictRef.current.fields) held[field] = (base as unknown as Record<string, unknown>)[field];
+      sent = { ...sent, ...held } as PropertyProject;
+    }
     let saved: PropertyProject;
     try {
       saved = await storage.updatePropertyProject(sent, base);
     } catch (error) {
       if (error instanceof PropertyProjectConflictError) {
         savedBaseRef.current = error.latest;
-        if (projectRef.current?.id === error.latest.id) commitProject(error.latest);
+        const alreadyHeld = heldConflictRef.current?.id === error.latest.id ? heldConflictRef.current.fields : [];
+        heldConflictRef.current = { id: error.latest.id, fields: [...new Set([...alreadyHeld, ...error.fields])] };
+        const live = projectRef.current;
+        if (live && live.id === error.latest.id) {
+          // Take the other tab's newer values, but keep this editor's own value in each conflicting field
+          // so the local edit stays visible instead of being replaced.
+          const rebased: Record<string, unknown> = { ...error.latest };
+          for (const field of heldConflictRef.current?.fields ?? error.fields) rebased[field] = (live as unknown as Record<string, unknown>)[field];
+          commitProject(rebased as unknown as PropertyProject);
+        }
       }
       throw error;
     }
     savedBaseRef.current = saved;
+    if (heldConflictRef.current?.id === saved.id) {
+      const stillHeld = heldConflictRef.current.fields.filter((field) => JSON.stringify((projectRef.current as unknown as Record<string, unknown> | null)?.[field]) !== JSON.stringify((saved as unknown as Record<string, unknown>)[field]));
+      heldConflictRef.current = stillHeld.length ? { id: saved.id, fields: stillHeld } : null;
+    }
     const live = projectRef.current;
     if (live && live.id === saved.id) {
       // Adopt the merged values for fields untouched since this save was sent; keep newer local edits.
@@ -588,12 +611,12 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
     return saved;
   };
-  const save = (nextProject = project): Promise<void> => {
+  const save = (nextProject = project, overwriteConflicts = false): Promise<void> => {
     const run = saveQueueRef.current.then(async () => {
       if (!nextProject) return;
       setIsSaving(true);
       try {
-        await persistProject(nextProject);
+        await persistProject(nextProject, overwriteConflicts);
       } catch (error) {
         setUploadError(error instanceof PropertyProjectConflictError
           ? error.message
@@ -1352,7 +1375,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       </div>
       <div className="space-y-6"><Card><CardHeader eyebrow="03 / acties" title="Maak een concept" detail="Elke actie gebruikt dezelfde verkleinde bronfoto. Resultaten worden alleen lokaal opgeslagen." /><div className="space-y-2.5 p-5 sm:p-6">{actions.map((action) => <ActionButton key={action.id} action={action} disabled={!originalUrl || isUploading || activeMutation} pending={(action.id === 'declutter' && declutter.isPending) || (action.id === 'stage' && stage.isPending) || (action.id === 'makeover' && makeover.isPending) || (action.id === 'dusk' && dusk.isPending)} onClick={() => runAction(action.id)} />)}{[declutter, stage, makeover, dusk].some((mutation) => mutation.isError && !isHttpStatus(mutation.error, 402)) && <p className="rounded-lg bg-[#fff1ee] px-3 py-2 text-[10px] font-semibold leading-4 text-[#9e4336]" role="alert" data-testid="status-transform-error">De conceptactie kon niet worden voltooid. Controleer je verbinding en probeer opnieuw. Er is niets op de server opgeslagen.</p>}</div></Card>
         <Card className="overflow-hidden border-[#d7e6e0]"><div className="bg-[#eef8f4] p-5 sm:p-6"><div className="flex items-start gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#d4ece4] text-[#287b6a]"><Info size={17} /></div><div><p className="text-xs font-bold text-[#287b6a]">Eerlijk over AI-concepten</p><p className="mt-1.5 text-xs leading-5 text-[#47736b]">Deze beelden zijn richtinggevende visualisaties. Ze tonen geen feitelijke materialen, maatvoering, kosten, vergunningen of gegarandeerde marktwaarde.</p></div></div></div><div className="grid grid-cols-2 divide-x divide-border border-t border-border px-5 py-4 sm:px-6"><div><p className="mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Resultaten lokaal</p><p className="mt-1 text-sm font-bold">{Object.keys(results).length} / 4</p></div><div className="pl-5"><p className="mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Actieve stijl</p><p className="mt-1 text-sm font-bold capitalize">{form.selectedStyle}</p></div></div></Card>
-        <Card><CardHeader eyebrow="04 / project" title="Context voor het dossier" action={<Pencil size={15} className="text-muted-foreground" />} /><div className="space-y-4 p-5 sm:p-6"><Field label="Projectnaam" value={form.projectName} onChange={(value) => updateForm('projectName', value)} placeholder="Nieuwe transformatiescan" /><div className="grid gap-4 sm:grid-cols-2"><Field label="Adres" value={form.address} onChange={(value) => updateForm('address', value)} placeholder="Wibautstraat 12" /><Field label="Plaats" value={form.municipality} onChange={(value) => updateForm('municipality', value)} placeholder="Amsterdam" /></div><label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">Notitie</span><textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} rows={3} placeholder="Wat wil je met de client bespreken?" className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-project-notes" /></label><button onClick={() => void save()} disabled={isSaving} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.12em] text-[#a95f39] disabled:opacity-50" data-testid="button-save-project">{isSaving ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} {isSaving ? 'Opslaan…' : 'Wijzigingen lokaal bewaren'}</button></div></Card>
+        <Card><CardHeader eyebrow="04 / project" title="Context voor het dossier" action={<Pencil size={15} className="text-muted-foreground" />} /><div className="space-y-4 p-5 sm:p-6"><Field label="Projectnaam" value={form.projectName} onChange={(value) => updateForm('projectName', value)} placeholder="Nieuwe transformatiescan" /><div className="grid gap-4 sm:grid-cols-2"><Field label="Adres" value={form.address} onChange={(value) => updateForm('address', value)} placeholder="Wibautstraat 12" /><Field label="Plaats" value={form.municipality} onChange={(value) => updateForm('municipality', value)} placeholder="Amsterdam" /></div><label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">Notitie</span><textarea value={form.notes} onChange={(event) => updateForm('notes', event.target.value)} rows={3} placeholder="Wat wil je met de client bespreken?" className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-[#b87145] focus:ring-4 focus:ring-[#b87145]/10" data-testid="input-project-notes" /></label><button onClick={() => void save(project, true)} disabled={isSaving} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.12em] text-[#a95f39] disabled:opacity-50" data-testid="button-save-project">{isSaving ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} {isSaving ? 'Opslaan…' : 'Wijzigingen lokaal bewaren'}</button></div></Card>
       </div>
     </div>}
     {activeTab === 'split' && <SplitVisualizer project={form} updateProject={updateProject} patchUnit={patchUnit} totalArea={totalArea} save={save} />}

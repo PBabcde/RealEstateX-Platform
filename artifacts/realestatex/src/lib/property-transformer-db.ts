@@ -514,7 +514,7 @@ export class PropertyProjectConflictError extends Error {
   readonly fields: string[];
   readonly latest: PropertyProject;
   constructor(fields: string[], latest: PropertyProject) {
-    super('Dit project is ondertussen in een ander tabblad gewijzigd. Jouw wijziging aan hetzelfde veld is niet opgeslagen; de nieuwste versie is geladen.');
+    super('Dit project is ondertussen in een ander tabblad gewijzigd. Jouw wijziging aan hetzelfde veld is nog niet opgeslagen en staat nog in het formulier; de andere wijziging is bewaard. Automatisch opslaan wacht; kies ‘Wijzigingen lokaal bewaren’ om de andere versie bewust te overschrijven.');
     this.name = 'PropertyProjectConflictError';
     this.fields = fields;
     this.latest = latest;

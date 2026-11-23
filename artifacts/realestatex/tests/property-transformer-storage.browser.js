@@ -1073,6 +1073,67 @@ async function runCrossTabPhotoHealthChecks() {
         === writer.document.querySelector(`[data-testid="status-project-photo-health-${project.id}"]`)?.textContent,
       'The two open project lists showed different photo-health labels after the details edit.',
     );
+    {
+      // The open editor still holds the older form state. Its own edit must merge with the other tab's newer details.
+      const setInputValue = (element, value) => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(element, value);
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const findEditorNameInput = (value) => [...editorRootElement.querySelectorAll('input')].find((input) => input.value === value);
+      const staleEditorNotes = getEditorNotes();
+      assert(staleEditorNotes, 'The open editor lost its notes field before the stale-save check.');
+      const localNotes = 'Local edit made after the other tab changed the details';
+      setTextareaValue(staleEditorNotes, localNotes);
+      editorRootElement.querySelector('[data-testid="button-save-project"]').click();
+      await waitForEditor(async () => (await loadPropertyProject(project.id))?.notes === localNotes, 'the editor’s local notes edit to be saved');
+      const mergedProject = await loadPropertyProject(project.id);
+      assert(
+        mergedProject.projectName === updatedProjectName && mergedProject.address === updatedProjectAddress,
+        'Saving from the open editor reverted the other tab’s project name or address.',
+      );
+      assert(mergedProject.notes === localNotes, 'Saving from the open editor lost its own local notes edit.');
+      assert(
+        mergedProject.originalKey === projectBeforeDetailsEdit.originalKey
+          && JSON.stringify(mergedProject.resultKeys) === JSON.stringify(projectBeforeDetailsEdit.resultKeys),
+        'Merging the other tab’s details changed the photo references.',
+      );
+      await waitForEditor(() => findEditorNameInput(updatedProjectName), 'the editor to show the other tab’s project name after saving');
+
+      // Both tabs change the same field: nothing is overwritten, and the local value stays in the form with a notice.
+      const conflictingOtherTabName = 'Other tab conflicting name';
+      const conflictingLocalName = 'Local conflicting name';
+      await runWriterCommand('edit-project-details', { id: project.id, projectName: conflictingOtherTabName, address: updatedProjectAddress });
+      // Several keystrokes queue several saves before the first one finishes; none may overwrite the other tab's value.
+      const typingInput = findEditorNameInput(updatedProjectName);
+      for (const typed of ['Local c', 'Local conf', 'Local conflicting', conflictingLocalName]) setInputValue(typingInput, typed);
+      await waitForEditor(
+        () => editorRootElement.querySelector('[data-testid="status-upload-error"]')?.textContent.includes('ondertussen in een ander tabblad gewijzigd'),
+        'the editor to report the same-field conflict',
+      );
+      const afterConflict = await loadPropertyProject(project.id);
+      assert(afterConflict.projectName === conflictingOtherTabName, 'A conflicting save from the open editor overwrote the other tab’s project name.');
+      assert(afterConflict.notes === localNotes, 'The conflicting save changed unrelated saved details.');
+      assert(findEditorNameInput(conflictingLocalName), 'The editor discarded the local edit after the conflict.');
+
+
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      assert(
+        (await loadPropertyProject(project.id)).projectName === conflictingOtherTabName,
+        'Queued autosaves overwrote the other tab’s conflicting project name without an explicit retry.',
+      );
+      assert(findEditorNameInput(conflictingLocalName), 'The editor discarded the local edit while queued autosaves drained.');
+      // An explicit save overwrites the other tab's value with the retained local value.
+      editorRootElement.querySelector('[data-testid="button-save-project"]').click();
+      await waitForEditor(async () => (await loadPropertyProject(project.id))?.projectName === conflictingLocalName, 'the explicit save to write the retained local name');
+      // Resolve the conflict: both tabs return to the same name.
+      await runWriterCommand('edit-project-details', { id: project.id, projectName: updatedProjectName, address: updatedProjectAddress });
+      await waitForEditor(
+        () => otherTabProjectRow()?.textContent.includes(updatedProjectName),
+        'the project list to return to the original updated name after the conflict check',
+      );
+      setInputValue(findEditorNameInput(conflictingLocalName), updatedProjectName);
+      await waitForEditor(async () => (await loadPropertyProject(project.id))?.projectName === updatedProjectName, 'the resolved name to remain saved');
+    }
     const survivorProject = expectedProjects.beta;
     await waitForEditor(
       () => editorRootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
@@ -1158,7 +1219,7 @@ async function runCrossTabPhotoHealthChecks() {
       'Deleting the searched project changed an unrelated project or its photo-health status.',
     );
     await waitForEditor(
-      () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(project.projectName)
+      () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(updatedProjectName)
         && editorRootElement.querySelector('[data-testid="button-create-project"]'),
       'the editor to explain that the active project was deleted in the other tab and offer a new project',
     );
@@ -1285,6 +1346,10 @@ async function runCrossTabPhotoHealthChecks() {
       };
     });
     const openFixtureInEditor = async (fixture) => {
+      await waitForEditor(
+        () => editorRootElement.querySelector('[data-testid="button-open-projects"]')?.disabled === false,
+        'the saved-project list button to be enabled before the in-flight photo test',
+      );
       const list = editorRootElement.querySelector('[data-testid="button-open-projects"]');
       assert(list instanceof HTMLButtonElement, 'The editor did not offer the saved-project list before the in-flight photo test.');
       flushSync(() => list.click());
