@@ -672,6 +672,7 @@ async function commitProjectPhotoMutation(
     return { project: committedProject, cleanupKeys: committedCleanupKeys };
   } catch (error) {
     if (missingProjectError) throw missingProjectError;
+    if (operationError instanceof PropertyConceptSourceChangedError) throw operationError;
     const cause = operationError ?? error;
     if (classifyStorageFailure) {
       throw new PropertyPhotoStorageSaveError(getPropertyPhotoSaveFailureKind(cause), cause);
@@ -679,6 +680,13 @@ async function commitProjectPhotoMutation(
     throw new Error('De foto kon niet worden opgeslagen. Je project, gekozen scenario en bestaande foto’s zijn ongewijzigd gebleven. Controleer de browseropslag en probeer opnieuw.', { cause });
   } finally {
     db?.close();
+  }
+}
+
+export class PropertyConceptSourceChangedError extends Error {
+  constructor() {
+    super('De bronfoto is vervangen terwijl het concept werd gemaakt. Het verouderde concept is niet opgeslagen. Maak het concept opnieuw met de nieuwe bronfoto.');
+    this.name = 'PropertyConceptSourceChangedError';
   }
 }
 
@@ -751,17 +759,23 @@ export async function savePropertyConceptImage(
   image: PropertyImageRecord,
   splitRatio: number,
   scope: StorageScope = null,
+  expectedSourceKey?: string,
 ): Promise<PropertyProject> {
   const result = await commitProjectPhotoMutation(
     projectId,
     image,
-    (current) => ({
+    (current) => {
+      if (expectedSourceKey !== undefined && current.originalKey !== expectedSourceKey) {
+        throw new PropertyConceptSourceChangedError();
+      }
+      return {
       ...current,
       resultKeys: { ...current.resultKeys, [action]: image.key },
       selectedResult: action,
       splitRatio,
       updatedAt: new Date().toISOString(),
-    }),
+      };
+    },
     (current) => [current.resultKeys[action] ?? ''],
     scope,
   );
@@ -1712,8 +1726,8 @@ export function createPropertyProjectStorage(accountId: string) {
     loadPendingPropertyPhotoCleanup: () => loadPendingPropertyPhotoCleanup(accountId),
     cleanupPendingPropertyImages: (additionalKeys?: string[]) =>
       cleanupPendingPropertyImages(additionalKeys, accountId),
-    savePropertyConceptImage: (projectId: string, action: PropertyAction, image: PropertyImageRecord, splitRatio: number) =>
-      savePropertyConceptImage(projectId, action, image, splitRatio, accountId),
+    savePropertyConceptImage: (projectId: string, action: PropertyAction, image: PropertyImageRecord, splitRatio: number, expectedSourceKey?: string) =>
+      savePropertyConceptImage(projectId, action, image, splitRatio, accountId, expectedSourceKey),
     loadPropertyProjects: () => loadPropertyProjects(accountId),
     findMatchingSavedPropertyProject: (archive: unknown) => findMatchingSavedPropertyProject(archive, accountId),
     loadPropertyProjectsWithPhotoHealth: () => loadPropertyProjectsWithPhotoHealth(accountId),

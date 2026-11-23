@@ -277,6 +277,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [projectTransferNotice, setProjectTransferNotice] = useState('');
   const [pendingDuplicateImport, setPendingDuplicateImport] = useState<{ archive: unknown; existing: PropertyProject } | null>(null);
   const [uploadError, setUploadError] = useState('');
+  const [conceptConflict, setConceptConflict] = useState<{ action: PropertyAction; message: string } | null>(null);
   const [photoCleanupKeys, setPhotoCleanupKeys] = useState<string[]>([]);
   const [photoCleanupError, setPhotoCleanupError] = useState('');
   const [isPhotoCleanupRunning, setIsPhotoCleanupRunning] = useState(false);
@@ -1089,6 +1090,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
       `[data-testid="button-transform-${action}"]`,
     );
     setUploadError('');
+    setConceptConflict(null);
     void (async () => {
       try {
         const sourceProject = await storage.loadPropertyProject(project.id) ?? project;
@@ -1106,12 +1108,17 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               const key = `${project.id}-${action}-${crypto.randomUUID()}`;
               const blob = await dataUrlToBlob(response.imageDataUrl);
               const imageRecord: PropertyImageRecord = { key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() };
-              const next = await storage.savePropertyConceptImage(project.id, action, imageRecord, splitRatio);
+              const next = await storage.savePropertyConceptImage(project.id, action, imageRecord, splitRatio, sourceProject.originalKey);
               await refreshPhotoState(next.id);
               await refreshProjects().catch(() => setUploadError('Het concept is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
               setNotice(`${imageRecord.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
-            } catch {
+            } catch (error) {
+              if (error instanceof Error && error.name === 'PropertyConceptSourceChangedError') {
+                setConceptConflict({ action, message: error.message });
+                await refreshPhotoState(project.id).catch(() => undefined);
+                return;
+              }
               setUploadError('Het concept is gegenereerd, maar kon niet in deze browser worden opgeslagen. Je opgeslagen project en foto’s zijn ongewijzigd gebleven en het nieuwe concept is niet bewaard. Controleer de browseropslag en probeer opnieuw.');
             }
           };
@@ -1240,6 +1247,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
             })}</div>}
         </div>}
      </div>}
+     {conceptConflict && <div className="mb-5 flex flex-wrap items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-concept-source-conflict"><Info size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1">{conceptConflict.message}</span><button type="button" onClick={() => runAction(conceptConflict.action)} className="rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-regenerate-concept-conflict">Opnieuw genereren</button></div>}
      {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span></div>}
      {photoCleanupKeys.length > 0 && <div className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs leading-5 text-[#9e4336] sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid="status-photo-cleanup-error">
        <p>{photoCleanupError || 'Een of meer oude foto’s konden niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen. Probeer de veilige opruiming opnieuw.'}</p>

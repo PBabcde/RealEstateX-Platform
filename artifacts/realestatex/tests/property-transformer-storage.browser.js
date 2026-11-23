@@ -956,6 +956,46 @@ async function runCrossTabPhotoHealthChecks() {
         && previews.concept === 'concurrent generated concept';
     }, 'the open editor to show both concurrent photo updates');
 
+    {
+      const staleConceptKey = 'browser-stale-source-concept';
+      const staleOriginalKey = 'browser-stale-source-start';
+      const staleReplacementKey = 'browser-stale-source-replacement';
+      const staleProject = {
+        ...projectBeforeConcurrentWrites,
+        id: crypto.randomUUID(),
+        projectName: 'Stale concept source project',
+        originalKey: staleOriginalKey,
+        resultKeys: {},
+        selectedResult: null,
+        updatedAt: new Date().toISOString(),
+      };
+      await savePropertyProjectWithImage(staleProject, {
+        key: staleOriginalKey,
+        blob: new Blob(['stale start source'], { type: 'image/jpeg' }),
+        label: 'Originele foto',
+        mimeType: 'image/jpeg',
+        isConcept: false,
+        disclaimer: 'Source photo stored locally.',
+        createdAt: new Date().toISOString(),
+      });
+      const staleConcept = { ...concurrentConceptRecord, key: staleConceptKey };
+      await runWriterCommand('replace-source', { id: staleProject.id, key: staleReplacementKey, existingConceptKeys: {} });
+      let staleError;
+      try {
+        await savePropertyConceptImage(staleProject.id, 'stage', staleConcept, 50, staleOriginalKey);
+      } catch (error) {
+        staleError = error;
+      }
+      assert(staleError?.name === 'PropertyConceptSourceChangedError', 'A concept generated from a replaced source photo was saved.');
+      const afterStale = await loadPropertyProject(staleProject.id);
+      assert(afterStale.originalKey === staleReplacementKey, 'The replacement source was lost after a rejected stale concept.');
+      assert(!afterStale.resultKeys.stage, 'A stale concept was attached to the replacement source.');
+      assert(!(await loadPropertyImage(staleConceptKey)), 'A rejected stale concept image was stored.');
+      await savePropertyConceptImage(staleProject.id, 'stage', staleConcept, 50, staleReplacementKey);
+      assert((await loadPropertyProject(staleProject.id)).resultKeys.stage === staleConceptKey, 'A concept from the current source could not be saved.');
+      await deletePropertyProject(await loadPropertyProject(staleProject.id));
+    }
+
     await Promise.all([
       deletePropertyImage(concurrentSourceKey),
       runWriterCommand('safe-delete-image', { key: concurrentConceptKey }),
