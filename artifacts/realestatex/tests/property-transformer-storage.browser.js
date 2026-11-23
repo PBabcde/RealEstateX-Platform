@@ -1117,6 +1117,12 @@ async function runCrossTabPhotoHealthChecks() {
       concept: await conceptBeforeDelete.blob.text(),
     };
 
+    // The fixture project has intentionally missing photos, so build its backup from the healthy survivor's photos.
+    const survivorBackup = await exportPropertyProject(expectedProjects.beta);
+    const deletedProjectBackup = {
+      ...survivorBackup,
+      project: { ...survivorBackup.project, id: project.id, projectName: project.projectName },
+    };
     await runWriterCommand('delete-project', { id: project.id });
     await waitForEditor(
       () => !rootElement.querySelector(`[data-testid="project-row-${project.id}"]`)
@@ -1159,6 +1165,42 @@ async function runCrossTabPhotoHealthChecks() {
     const deletionNotice = editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]');
     assert(deletionNotice?.getAttribute('role') === 'alert', 'The active-project deletion was not announced as an alert.');
     assert(deletionNotice.textContent.includes('niet automatisch hersteld'), 'The deletion message did not make clear that the project would not be restored automatically.');
+    const chooseRecoveryFile = async (contents, name) => {
+      const recoverButton = editorRootElement.querySelector('[data-testid="button-recover-deleted-project"]');
+      assert(recoverButton instanceof HTMLButtonElement && !recoverButton.disabled, 'The deleted-project screen did not offer a backup recovery button.');
+      const input = editorRootElement.querySelector('[data-testid="input-import-project"]');
+      assert(input instanceof HTMLInputElement, 'The deleted-project screen did not render the backup file input.');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([contents], name, { type: 'application/json' }));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const projectCountBeforeRecovery = (await loadPropertyProjects()).length;
+    await chooseRecoveryFile('this is not a project backup', 'broken.realestatex.json');
+    await waitForEditor(
+      () => editorRootElement.querySelector('[data-testid="status-recover-project-error"]')?.textContent.includes('Import afgewezen'),
+      'the deleted-project screen to explain that the selected backup cannot be imported',
+    );
+    assert(editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]'), 'A rejected recovery file removed the deletion notice.');
+    assert((await loadPropertyProjects()).length === projectCountBeforeRecovery, 'A rejected recovery file added a project.');
+    assert(!(await loadPropertyProject(project.id)), 'A rejected recovery file recreated the deleted project.');
+
+    await chooseRecoveryFile(JSON.stringify(deletedProjectBackup), 'deleted-project.realestatex.json');
+    await waitForEditor(
+      () => !editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')
+        && editorRootElement.querySelector('[data-testid="status-transform-success"]')?.textContent.includes('hersteld'),
+      'the backup to be recovered and opened from the deleted-project screen',
+    );
+    assert(!(await loadPropertyProject(project.id)), 'Recovering a backup recreated the deleted record ID.');
+    const recoveredProjects = (await loadPropertyProjects()).filter((item) => item.projectName === project.projectName && item.id !== project.id);
+    assert(recoveredProjects.length === 1, 'Recovering a backup did not save exactly one distinct project.');
+    assert((await loadPropertyProjects()).length === projectCountBeforeRecovery + 1, 'Recovering a backup changed an unrelated project.');
+    await runWriterCommand('delete-project', { id: recoveredProjects[0].id });
+    await waitForEditor(
+      () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(project.projectName)
+        && editorRootElement.querySelector('[data-testid="button-create-project"]'),
+      'the editor to return to the deleted-project screen after removing the recovered project',
+    );
     const reopenProjectsButton = editorRootElement.querySelector('[data-testid="button-open-projects"]');
     assert(reopenProjectsButton instanceof HTMLButtonElement, 'The deleted-project screen did not offer access to saved projects.');
     flushSync(() => reopenProjectsButton.click());
