@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router } from 'wouter';
-import { createPropertyProjectStorage } from '../src/lib/property-transformer-db.ts';
+import { createPropertyProjectStorage, PropertyProjectConflictError } from '../src/lib/property-transformer-db.ts';
 import { PROPERTY_STORAGE_TEST_ACCOUNT_ID } from './property-storage-test-account.ts';
 import { ProjectManager, PropertyTransformer } from '../src/pages/property-transformer.tsx';
 
@@ -1563,6 +1563,26 @@ async function run() {
     const addedConceptHealth = await loadPropertyProjectsWithPhotoHealth();
     assert(addedConceptHealth.photoHealthById[recoveryProject.id]?.missingConcepts.length === 0, 'Adding the concept photo did not clear its missing status.');
     await removeImageForTest('recovery-stage');
+    {
+      // Two tabs hold the same loaded snapshot (base) and edit different or identical fields.
+      const stored = await loadPropertyProject(recoveryProject.id);
+      const base = structuredClone(stored);
+      const tabA = { ...stored, projectName: 'Tab A name', updatedAt: new Date().toISOString() };
+      const tabB = { ...stored, notes: 'Tab B notes', monthlyRent: 4321, roiFields: { ...stored.roiFields, monthlyRent: 4321 }, updatedAt: new Date().toISOString() };
+      await updatePropertyProject(tabA, base);
+      const mergedB = await updatePropertyProject(tabB, base);
+      const afterMerge = await loadPropertyProject(recoveryProject.id);
+      assert(afterMerge.projectName === 'Tab A name', 'A concurrent edit of the project name from another tab was reverted.');
+      assert(afterMerge.notes === 'Tab B notes' && afterMerge.monthlyRent === 4321, 'The second tab did not keep its own edits.');
+      assert(mergedB.projectName === 'Tab A name', 'The saved result did not include the other tab’s project name.');
+      assert(afterMerge.originalKey === stored.originalKey && JSON.stringify(afterMerge.resultKeys) === JSON.stringify(stored.resultKeys), 'Merging project details changed photo references.');
+      // Conflicting edits of the same field are reported and nothing is overwritten.
+      const conflictingEdit = { ...stored, projectName: 'Tab B conflicting name', updatedAt: new Date().toISOString() };
+      let conflictError = null;
+      try { await updatePropertyProject(conflictingEdit, base); } catch (error) { conflictError = error; }
+      assert(conflictError instanceof PropertyProjectConflictError && conflictError.fields.includes('projectName'), 'A conflicting edit of the same field was not identified.');
+      assert((await loadPropertyProject(recoveryProject.id)).projectName === 'Tab A name', 'A conflicting edit overwrote the other tab’s project name.');
+    }
     await runCrossTabPhotoHealthChecks();
     result.dataset.status = 'passed';
     result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the open editor explained the active-project deletion and created a separate new project without restoring it. The remaining project and shared photos stayed unchanged. The open editor and project list also refresh photo previews and warnings after cross-tab changes without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';

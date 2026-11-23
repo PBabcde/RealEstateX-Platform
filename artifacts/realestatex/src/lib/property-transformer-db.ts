@@ -510,9 +510,47 @@ export async function savePropertyProject(project: PropertyProject, scope: Stora
   notifyPropertyStorageChanged(scope);
 }
 
-export async function updatePropertyProject(project: PropertyProject, scope: StorageScope = null): Promise<void> {
+export class PropertyProjectConflictError extends Error {
+  readonly fields: string[];
+  readonly latest: PropertyProject;
+  constructor(fields: string[], latest: PropertyProject) {
+    super('Dit project is ondertussen in een ander tabblad gewijzigd. Jouw wijziging aan hetzelfde veld is niet opgeslagen; de nieuwste versie is geladen.');
+    this.name = 'PropertyProjectConflictError';
+    this.fields = fields;
+    this.latest = latest;
+  }
+}
+
+const PROJECT_MERGE_EXCLUDED_FIELDS = new Set(['id', 'originalKey', 'resultKeys', 'selectedResult', 'updatedAt']);
+
+function mergeProjectDetails(project: PropertyProject, stored: PropertyProject, base: PropertyProject): { merged: PropertyProject; conflicts: string[] } {
+  const merged = { ...stored } as Record<string, unknown>;
+  const conflicts: string[] = [];
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  for (const key of Object.keys(project) as (keyof PropertyProject)[]) {
+    if (PROJECT_MERGE_EXCLUDED_FIELDS.has(key)) continue;
+    const localChanged = !same(project[key], base[key]);
+    const storedChanged = !same(stored[key], base[key]);
+    if (localChanged && storedChanged && !same(project[key], stored[key])) conflicts.push(key);
+    else if (localChanged) merged[key] = project[key];
+  }
+  const storedNewer = stored.updatedAt > project.updatedAt;
+  merged.updatedAt = storedNewer && !Object.keys(merged).some((key) => !PROJECT_MERGE_EXCLUDED_FIELDS.has(key) && !same(merged[key], (stored as Record<string, unknown>)[key]))
+    ? stored.updatedAt
+    : project.updatedAt > stored.updatedAt ? project.updatedAt : stored.updatedAt;
+  return { merged: merged as PropertyProject, conflicts };
+}
+
+/**
+ * Saves editor changes. When `base` (the version this editor last loaded or saved) is supplied,
+ * only fields changed locally are written; fields changed by another tab are kept. If both changed
+ * the same field to different values, nothing is written and a PropertyProjectConflictError is thrown.
+ */
+export async function updatePropertyProject(project: PropertyProject, scope: StorageScope = null, base?: PropertyProject): Promise<PropertyProject> {
   const db = await openDb(scope);
   let missingProject = false;
+  let conflict: PropertyProjectConflictError | null = null;
+  let result = project;
   try {
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(PROJECTS, 'readwrite');
@@ -531,24 +569,36 @@ export async function updatePropertyProject(project: PropertyProject, scope: Sto
           : stored.selectedResult && resultKeys[stored.selectedResult]
             ? stored.selectedResult
             : null;
-        store.put({
-          ...project,
+        let next: PropertyProject = { ...project };
+        if (base && base.id === project.id) {
+          const { merged, conflicts } = mergeProjectDetails(project, stored, base);
+          if (conflicts.length) {
+            conflict = new PropertyProjectConflictError(conflicts, stored);
+            transaction.abort();
+            return;
+          }
+          next = merged;
+        }
+        result = {
+          ...next,
           originalKey: stored.originalKey,
           resultKeys,
           selectedResult,
-        });
+        };
+        store.put(result);
       };
       request.onerror = () => reject(request.error);
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(missingProject
+      transaction.onabort = () => reject(conflict ?? (missingProject
         ? new Error('Het project bestaat niet meer in deze browser.')
-        : transaction.error);
+        : transaction.error));
     });
   } finally {
     db.close();
   }
   notifyPropertyStorageChanged(scope);
+  return result;
 }
 
 export async function savePropertyProjectWithImage(project: PropertyProject, image: PropertyImageRecord, scope: StorageScope = null): Promise<void> {
@@ -1715,7 +1765,7 @@ export function createPropertyProjectStorage(accountId: string) {
     loadPropertyProjectSortOrderPreference: () => loadPropertyProjectSortOrderPreference(accountId),
     savePropertyProjectSortOrderPreference: (order: PropertyProjectSortOrder) => savePropertyProjectSortOrderPreference(order, accountId),
     savePropertyProject: (project: PropertyProject) => savePropertyProject(project, accountId),
-    updatePropertyProject: (project: PropertyProject) => updatePropertyProject(project, accountId),
+    updatePropertyProject: (project: PropertyProject, base?: PropertyProject) => updatePropertyProject(project, accountId, base),
     savePropertyProjectWithImage: (project: PropertyProject, image: PropertyImageRecord) => savePropertyProjectWithImage(project, image, accountId),
     replacePropertySourceImage: (
       projectId: string,

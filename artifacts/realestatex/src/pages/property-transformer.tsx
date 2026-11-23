@@ -3,7 +3,7 @@ import { useDeclutterPropertyImage, useStagePropertyImage, useMakeoverPropertyIm
 import { ArrowLeftRight, ArrowRight, Check, CircleHelp, Download, FileText, FlipHorizontal2, ImagePlus, Info, Layers3, LoaderCircle, Pencil, Plus, Printer, Scissors, Search, Sparkles, Split, SunMedium, Trash2, Upload, WandSparkles, X } from 'lucide-react';
 import { AppShell } from '@/components/app-shell';
 import { EnergyXScenarioHistory } from '@/components/energyx-scenario-history';
-import { createPropertyProjectStorage, getPropertyPhotoSaveFailureKind, PropertyPhotoStorageSaveError, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, readPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
+import { createPropertyProjectStorage, getPropertyPhotoSaveFailureKind, PropertyPhotoStorageSaveError, PropertyProjectConflictError, subscribeLegacyProjectClaimChanges, subscribePropertyProjectSortOrderPreferenceChanges, dataUrlToBlob, blobToObjectUrl, sortPropertyProjects, readPropertyProjectSortOrderPreference, savePropertyProjectSortOrderPreference, type LegacyProjectClaimStatus, type PropertyAction, type PropertyImageRecord, type PropertyProject, type PropertyProjectPhotoHealth, type PropertyProjectSortOrder, type PropertyStyle, type PropertyUnit } from '@/lib/property-transformer-db';
 
 type ResultMeta = { key: string; label: string; imageUrl: string; isConcept: boolean; disclaimer: string };
 type ProjectForm = Pick<PropertyProject, 'address' | 'municipality' | 'projectName' | 'notes' | 'selectedStyle' | 'purchasePrice' | 'renovationCost' | 'acquisitionCost' | 'estimatedValue' | 'monthlyRent'>;
@@ -302,6 +302,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const duplicateImportDialogRef = useRef<HTMLElement>(null);
   const duplicateImportReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectRef = useRef<PropertyProject | null>(project);
+  const savedBaseRef = useRef<PropertyProject | null>(null);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const originalPreviewRef = useRef(originalUrl);
   const resultPreviewsRef = useRef(results);
   const activePreviewRefreshSequence = useRef(0);
@@ -368,6 +370,12 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   useEffect(() => {
     projectRef.current = project;
   }, [project]);
+
+  useEffect(() => {
+    // A newly opened project is exactly what storage held, so it is the merge base for later saves.
+    savedBaseRef.current = project && savedBaseRef.current?.id !== project.id ? project : savedBaseRef.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
 
   useEffect(() => {
     originalPreviewRef.current = originalUrl;
@@ -538,22 +546,70 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   }, [project?.id, storage]);
 
   const form = project ?? makeProject();
-  const updateProject = (patch: Partial<PropertyProject>) => setProject((current) => current ? { ...current, ...patch, updatedAt: new Date().toISOString() } : current);
+  const updateProject = (patch: Partial<PropertyProject>) => {
+    const current = projectRef.current;
+    if (current) commitProject({ ...current, ...patch, updatedAt: new Date().toISOString() });
+  };
   const updateForm = <K extends keyof ProjectForm>(key: K, value: ProjectForm[K]) => {
     const next = { ...form, [key]: value, updatedAt: new Date().toISOString() };
-    updateProject(next);
+    updateProject({ [key]: value } as Partial<PropertyProject>);
     void save(next);
   };
-  const save = async (nextProject = project) => {
-    if (!nextProject || externallyDeletedProjectIdRef.current === nextProject.id) return;
-    setIsSaving(true);
+  const commitProject = (next: PropertyProject) => {
+    projectRef.current = next;
+    setProject(next);
+  };
+  // Saves always send the latest editor state (not the snapshot captured when the save was requested),
+  // so queued saves never carry stale values for fields another tab has since changed.
+  const persistProject = async (target: PropertyProject): Promise<PropertyProject | null> => {
+    const sent = projectRef.current?.id === target.id ? projectRef.current : target;
+    if (externallyDeletedProjectIdRef.current === sent.id) return null;
+    const base = savedBaseRef.current?.id === sent.id ? savedBaseRef.current : undefined;
+    let saved: PropertyProject;
     try {
-      await storage.updatePropertyProject(nextProject);
-    } catch {
-      setUploadError('Opslaan in deze browser is mislukt. Maak ruimte vrij en probeer opnieuw.');
-    } finally {
-      setIsSaving(false);
+      saved = await storage.updatePropertyProject(sent, base);
+    } catch (error) {
+      if (error instanceof PropertyProjectConflictError) {
+        savedBaseRef.current = error.latest;
+        if (projectRef.current?.id === error.latest.id) commitProject(error.latest);
+      }
+      throw error;
     }
+    savedBaseRef.current = saved;
+    const live = projectRef.current;
+    if (live && live.id === saved.id) {
+      // Adopt the merged values for fields untouched since this save was sent; keep newer local edits.
+      const adopted: Record<string, unknown> = { ...live };
+      for (const key of Object.keys(saved) as (keyof PropertyProject)[]) {
+        if (key === 'originalKey' || key === 'resultKeys' || key === 'selectedResult' || key === 'updatedAt') continue;
+        if (JSON.stringify(live[key]) === JSON.stringify(sent[key])) adopted[key] = saved[key];
+      }
+      if (JSON.stringify(adopted) !== JSON.stringify(live)) commitProject(adopted as PropertyProject);
+    }
+    return saved;
+  };
+  const save = (nextProject = project): Promise<void> => {
+    const run = saveQueueRef.current.then(async () => {
+      if (!nextProject) return;
+      setIsSaving(true);
+      try {
+        await persistProject(nextProject);
+      } catch (error) {
+        setUploadError(error instanceof PropertyProjectConflictError
+          ? error.message
+          : 'Opslaan in deze browser is mislukt. Maak ruimte vrij en probeer opnieuw.');
+      } finally {
+        setIsSaving(false);
+      }
+    });
+    saveQueueRef.current = run;
+    return run;
+  };
+  // Runs after all pending saves and propagates failures, for flows that must not continue after a failed save.
+  const saveAndWait = async (target: PropertyProject): Promise<PropertyProject> => {
+    const run = saveQueueRef.current.then(() => persistProject(target));
+    saveQueueRef.current = run.then(() => undefined, () => undefined);
+    return (await run) ?? target;
   };
   const refreshPhotoState = async (projectId: string) => {
     const sequence = ++activePreviewRefreshSequence.current;
@@ -835,8 +891,9 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setProjectTransferError('');
     setProjectTransferNotice('');
     try {
-      const current = projectRef.current?.id === target.id ? projectRef.current : target;
-      await storage.updatePropertyProject(current);
+      const stored = projectRef.current?.id === target.id ? projectRef.current : await storage.loadPropertyProject(target.id);
+      if (!stored) throw new Error('Dit project bestaat niet meer in de browseropslag.');
+      const current = projectRef.current?.id === target.id ? await saveAndWait(stored) : stored;
       const archive = await storage.exportPropertyProject(current);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(file);
@@ -862,7 +919,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     setProjectTransferNotice('');
     try {
       const current = projectRef.current;
-      if (current) await storage.updatePropertyProject(current);
+      if (current) await saveAndWait(current);
       const savedProjects = await storage.loadPropertyProjects();
       const archive = await storage.exportPropertyPortfolio(savedProjects);
       const file = new Blob([JSON.stringify(archive, null, 2)], { type: 'application/json' });
@@ -1269,7 +1326,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     </div>}
     <nav className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1" aria-label="Transformer onderdelen">{[{ id: 'studio', label: 'Studio', icon: WandSparkles }, { id: 'split', label: 'Split & flip', icon: Split }, { id: 'roi', label: 'ROI & yield', icon: CircleHelp }].map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setActiveTab(id as typeof activeTab)} className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-colors ${activeTab === id ? 'bg-[#24324b] text-[#f7f3ec]' : 'text-muted-foreground hover:bg-secondary'}`} data-testid={`button-tab-${id}`}><Icon size={15} />{label}</button>)}</nav>
     {activeTab === 'studio' && <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,.75fr)]">
-      <div className="space-y-6"><Card><CardHeader eyebrow="01 / beeld" title={result ? `${result.label} naast het origineel` : 'Start met één listingfoto'} detail="Selecteer een actie rechts. De vergelijking blijft lokaal beschikbaar zodat je keuzes kunt bespreken." action={result && <ConceptBadge />} /><div className="p-5 sm:p-6">{originalUrl ? <><BeforeAfter originalUrl={originalUrl} result={result} splitRatio={splitRatio} setSplitRatio={(value) => { const next = { ...form, splitRatio: value, updatedAt: new Date().toISOString() }; setSplitRatio(value); updateProject(next); void save(next); }} flipped={form.flipHorizontal} /><div className="mt-3 flex justify-end"><button onClick={() => { const next = { ...form, flipHorizontal: !form.flipHorizontal, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[10px] font-bold text-muted-foreground hover:bg-secondary" data-testid="button-flip-preview"><FlipHorizontal2 size={14} /> {form.flipHorizontal ? 'Spiegeling uit' : 'Spiegel voorbeeld'}</button></div></> : <button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="property-grid flex min-h-[330px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[#cfc8be] bg-[#f3f1ed] p-8 text-center transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-empty-upload"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-[#a95f39] shadow-sm"><ImagePlus size={22} /></div><p className="mt-4 text-sm font-bold">{isUploading ? 'Foto wordt lokaal voorbereid…' : 'Upload de huidige woningfoto'}</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">JPEG of PNG. We verkleinen de foto lokaal tot minder dan 620 KB voor de conceptactie.</p><span className="mt-5 rounded-lg bg-[#a95f39] px-3 py-2 text-[10px] font-bold text-[#fff8ef]">{isUploading ? 'Bezig…' : 'Foto kiezen'}</span></button>}</div></Card>
+      <div className="space-y-6"><Card><CardHeader eyebrow="01 / beeld" title={result ? `${result.label} naast het origineel` : 'Start met één listingfoto'} detail="Selecteer een actie rechts. De vergelijking blijft lokaal beschikbaar zodat je keuzes kunt bespreken." action={result && <ConceptBadge />} /><div className="p-5 sm:p-6">{originalUrl ? <><BeforeAfter originalUrl={originalUrl} result={result} splitRatio={splitRatio} setSplitRatio={(value) => { const next = { ...form, splitRatio: value, updatedAt: new Date().toISOString() }; setSplitRatio(value); updateProject({ splitRatio: value }); void save(next); }} flipped={form.flipHorizontal} /><div className="mt-3 flex justify-end"><button onClick={() => { const next = { ...form, flipHorizontal: !form.flipHorizontal, updatedAt: new Date().toISOString() }; updateProject({ flipHorizontal: next.flipHorizontal }); void save(next); }} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-[10px] font-bold text-muted-foreground hover:bg-secondary" data-testid="button-flip-preview"><FlipHorizontal2 size={14} /> {form.flipHorizontal ? 'Spiegeling uit' : 'Spiegel voorbeeld'}</button></div></> : <button onClick={() => fileRef.current?.click()} disabled={isUploading || activeMutation} className="property-grid flex min-h-[330px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-[#cfc8be] bg-[#f3f1ed] p-8 text-center transition-colors hover:border-[#b87145] hover:bg-[#fff8ef] disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-empty-upload"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-card text-[#a95f39] shadow-sm"><ImagePlus size={22} /></div><p className="mt-4 text-sm font-bold">{isUploading ? 'Foto wordt lokaal voorbereid…' : 'Upload de huidige woningfoto'}</p><p className="mt-1 max-w-xs text-xs leading-5 text-muted-foreground">JPEG of PNG. We verkleinen de foto lokaal tot minder dan 620 KB voor de conceptactie.</p><span className="mt-5 rounded-lg bg-[#a95f39] px-3 py-2 text-[10px] font-bold text-[#fff8ef]">{isUploading ? 'Bezig…' : 'Foto kiezen'}</span></button>}</div></Card>
         <Card><CardHeader eyebrow="02 / stijl" title="Kies de richting" detail="De stijl stuurt alleen de makeover-actie. Het is geen bouwadvies of toezegging." /><div className="grid gap-3 p-5 sm:grid-cols-3 sm:p-6">{styles.map((style) => <button key={style.id} onClick={() => { updateForm('selectedStyle', style.id); void save({ ...form, selectedStyle: style.id, updatedAt: new Date().toISOString() }); }} className={`rounded-xl border p-4 text-left transition-colors ${form.selectedStyle === style.id ? 'border-[#a95f39] bg-[#fff8ef] ring-2 ring-[#a95f39]/10' : 'border-border bg-background hover:border-[#c79b7d]'}`} data-testid={`button-style-${style.id}`}><div className={`mb-6 h-2 w-14 rounded-full ${style.id === 'japandi' ? 'bg-[#b5a185]' : style.id === 'modern' ? 'bg-[#24324b]' : 'bg-[#7d756c]'}`} /><p className="text-xs font-bold">{style.name}</p><p className="mt-1 text-[10px] leading-4 text-muted-foreground">{style.note}</p></button>)}</div></Card>
       </div>
       <div className="space-y-6"><Card><CardHeader eyebrow="03 / acties" title="Maak een concept" detail="Elke actie gebruikt dezelfde verkleinde bronfoto. Resultaten worden alleen lokaal opgeslagen." /><div className="space-y-2.5 p-5 sm:p-6">{actions.map((action) => <ActionButton key={action.id} action={action} disabled={!originalUrl || isUploading || activeMutation} pending={(action.id === 'declutter' && declutter.isPending) || (action.id === 'stage' && stage.isPending) || (action.id === 'makeover' && makeover.isPending) || (action.id === 'dusk' && dusk.isPending)} onClick={() => runAction(action.id)} />)}{[declutter, stage, makeover, dusk].some((mutation) => mutation.isError && !isHttpStatus(mutation.error, 402)) && <p className="rounded-lg bg-[#fff1ee] px-3 py-2 text-[10px] font-semibold leading-4 text-[#9e4336]" role="alert" data-testid="status-transform-error">De conceptactie kon niet worden voltooid. Controleer je verbinding en probeer opnieuw. Er is niets op de server opgeslagen.</p>}</div></Card>
@@ -1280,7 +1337,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     {activeTab === 'split' && <SplitVisualizer project={form} updateProject={updateProject} patchUnit={patchUnit} totalArea={totalArea} save={save} />}
     {activeTab === 'roi' && <div className="space-y-6"><RoiPanel project={form} patchCosts={patchCosts} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} /><EnergyXScenarioHistory accountId={accountId} projectId={project.id} projectName={form.projectName} /></div>}
     <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border/70 pt-5 text-[10px] text-muted-foreground sm:flex-row sm:items-center"><p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#287b6a]" /> Browser-only workspace · IndexedDB · {activeMutation ? 'conceptactie loopt…' : 'klaar voor de volgende keuze'}</p><button onClick={() => setTransferOpen(true)} className="inline-flex items-center gap-2 font-bold text-[#a95f39] hover:text-[#24324b]" data-testid="button-footer-dossier">Open client transfer dossier <ArrowRight size={13} /></button></div>
-    {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject(next); void save(next); }} />}
+    {transferOpen && <TransferDossier project={form} result={result} roi={roi} yieldValue={yieldValue} totalInvestment={totalInvestment} valueCreation={valueCreation} onClose={() => setTransferOpen(false)} onPrint={printDossier} onDownload={downloadHtml} onChecklistChange={(checklist) => { const next = { ...form, checklist, updatedAt: new Date().toISOString() }; updateProject({ checklist }); void save(next); }} />}
     {projectManagerOpen && <ProjectManager accountId={accountId} returnFocusTarget={projectManagerReturnFocusRef.current} legacyClaimStatus={legacyClaimStatus} legacyClaimBusy={isLegacyClaiming} onClaimLegacy={() => void claimLegacyProjects()} projects={projects} photoHealthByProject={photoHealthByProject} photoHealthError={photoHealthError} onRetryPhotoHealth={() => void refreshProjects().catch(() => {})} loading={projectListLoading} busy={isProjectSwitching || isProjectTransferring || isLegacyClaiming} activeProjectId={project.id} transferError={projectTransferError} transferNotice={projectTransferNotice} canRetryPortfolioRestore={canRetryPortfolioRestore} onRetryPortfolioRestore={() => void retryPortfolioRestore()} onClose={closeProjectManager} onCreate={() => void createProject()} onOpen={(id) => void openSavedProject(id)} onDelete={(target) => void removeSavedProject(target)} onExport={(target) => void exportSavedProject(target)} onExportPortfolio={() => void exportSavedPortfolio()} onImport={openProjectImport} onImportPortfolio={() => portfolioTransferFileRef.current?.click()} />}
   </div>{proBetaDialogOpen && <ProBetaWaitlistDialog
     initialEmail={userEmail}
