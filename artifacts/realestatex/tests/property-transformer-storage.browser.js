@@ -1229,6 +1229,162 @@ async function runCrossTabPhotoHealthChecks() {
       return storedProjects.some((storedProject) => !projectIdsBeforeCreate.has(storedProject.id))
         && !await loadPropertyProject(project.id);
     }, 'a new project to be created without restoring the project deleted in the other tab');
+
+    // Photo work that is still running when another tab deletes its project must not restore the project,
+    // leave a photo record behind, or replace the deletion explanation with a save message.
+    const readImageKeys = () => new Promise((resolve, reject) => {
+      const openRequest = indexedDB.open(`realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`);
+      openRequest.onerror = () => reject(openRequest.error);
+      openRequest.onsuccess = () => {
+        const database = openRequest.result;
+        const keysRequest = database.transaction('images', 'readonly').objectStore('images').getAllKeys();
+        keysRequest.onerror = () => { database.close(); reject(keysRequest.error); };
+        keysRequest.onsuccess = () => { database.close(); resolve(keysRequest.result.map(String)); };
+      };
+    });
+    const openFixtureInEditor = async (fixture) => {
+      const list = editorRootElement.querySelector('[data-testid="button-open-projects"]');
+      assert(list instanceof HTMLButtonElement, 'The editor did not offer the saved-project list before the in-flight photo test.');
+      flushSync(() => list.click());
+      await waitForEditor(
+        () => editorRootElement.querySelector(`[data-testid="button-open-project-${fixture.id}"]`)?.disabled === false,
+        `the in-flight photo fixture ${fixture.id} to be openable`,
+      );
+      flushSync(() => editorRootElement.querySelector(`[data-testid="button-open-project-${fixture.id}"]`).click());
+      await waitForEditor(
+        () => editorRootElement.querySelector('img[alt="Originele woningfoto"]') && !editorRootElement.querySelector('[data-testid="dialog-project-manager"]'),
+        `the in-flight photo fixture ${fixture.id} to open in the editor`,
+      );
+    };
+    const makeInFlightFixture = async (id) => {
+      const fixture = {
+        ...expectedProjects.alpha,
+        id,
+        projectName: `In-flight photo ${id}`,
+        originalKey: `${id}-original`,
+        resultKeys: {},
+        selectedResult: null,
+        updatedAt: '2099-11-01T12:00:00.000Z',
+      };
+      await savePropertyProjectWithImage(fixture, {
+        key: fixture.originalKey,
+        blob: new Blob([`${id} source`], { type: 'image/png' }),
+        label: 'Originele foto',
+        mimeType: 'image/png',
+        isConcept: false,
+        disclaimer: 'Source photo stored locally.',
+        createdAt: fixture.updatedAt,
+      });
+      return fixture;
+    };
+    const assertDeletionStaysExplained = async (fixture, description) => {
+      await waitForEditor(
+        () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(fixture.projectName),
+        `the editor to explain the deletion before ${description} finishes`,
+      );
+    };
+    const assertNoLateWork = async (fixture, description, orphanPrefix) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      assert(!(await loadPropertyProject(fixture.id)), `The ${description} restored the project deleted in the other tab.`);
+      const orphanKeys = (await readImageKeys()).filter((key) => key.startsWith(orphanPrefix));
+      assert(orphanKeys.length === 0, `The ${description} left a photo record behind: ${orphanKeys.join(', ')}.`);
+      const notice = editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]');
+      assert(notice?.textContent.includes(fixture.projectName), `The ${description} replaced the deletion explanation.`);
+      assert(notice.textContent.includes('niet automatisch hersteld'), `The ${description} changed the deletion message.`);
+      assert(!editorRootElement.querySelector('[data-testid="status-transform-success"]'), `The ${description} showed a save-success message.`);
+      const alerts = [...editorRootElement.querySelectorAll('[role="alert"]')].filter((alert) => alert !== notice);
+      assert(alerts.length === 0, `The ${description} showed a misleading error: ${alerts.map((alert) => alert.textContent).join(' | ')}`);
+      assert(!editorRootElement.textContent.includes('lokaal opgeslagen.'), `The ${description} showed a save-success message.`);
+    };
+
+    const generatingFixture = await makeInFlightFixture('browser-in-flight-generation');
+    await openFixtureInEditor(generatingFixture);
+    const originalFetch = window.fetch;
+    let releaseGeneration;
+    let generationRequested = false;
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (!url.includes('/api/property-transformations/virtual-staging')) return originalFetch.call(this, input, init);
+      generationRequested = true;
+      return new Promise((resolve) => {
+        releaseGeneration = () => resolve(new Response(JSON.stringify({
+          imageDataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=',
+          mimeType: 'image/jpeg',
+          isConcept: true,
+          disclaimer: 'AI concept, not a factual representation.',
+        }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      });
+    };
+    try {
+      flushSync(() => editorRootElement.querySelector('[data-testid="button-transform-stage"]').click());
+      await waitForEditor(() => generationRequested, 'the concept request to be paused');
+      await runWriterCommand('delete-project', { id: generatingFixture.id });
+      await assertDeletionStaysExplained(generatingFixture, 'the concept request');
+      releaseGeneration();
+    } finally {
+      window.fetch = originalFetch;
+    }
+    await assertNoLateWork(generatingFixture, 'late concept response', `${generatingFixture.id}-stage-`);
+
+    const uploadingFixture = await makeInFlightFixture('browser-in-flight-upload');
+    await openFixtureInEditor(uploadingFixture);
+    const jpegCanvas = document.createElement('canvas');
+    jpegCanvas.width = 8;
+    jpegCanvas.height = 8;
+    jpegCanvas.getContext('2d').fillRect(0, 0, 8, 8);
+    const jpegBlob = await new Promise((resolve) => jpegCanvas.toBlob(resolve, 'image/jpeg'));
+    const originalCreateImageBitmap = window.createImageBitmap;
+    let releaseDecode;
+    let decodeRequested = false;
+    window.createImageBitmap = function (...args) {
+      decodeRequested = true;
+      return new Promise((resolve, reject) => {
+        releaseDecode = () => originalCreateImageBitmap.apply(window, args).then(resolve, reject);
+      });
+    };
+    try {
+      const fileInput = editorRootElement.querySelector('[data-testid="input-property-image"]');
+      assert(fileInput instanceof HTMLInputElement, 'The editor did not offer a photo replacement input.');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([jpegBlob], 'replacement.jpg', { type: 'image/jpeg' }));
+      fileInput.files = transfer.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitForEditor(() => decodeRequested, 'the replacement upload to be paused');
+      await runWriterCommand('delete-project', { id: uploadingFixture.id });
+      await assertDeletionStaysExplained(uploadingFixture, 'the replacement upload');
+      releaseDecode();
+    } finally {
+      window.createImageBitmap = originalCreateImageBitmap;
+    }
+    await assertNoLateWork(uploadingFixture, 'late replacement upload', `${uploadingFixture.id}-original-`);
+
+    for (const failure of [{ status: 500, label: 'failed' }, { status: 402, label: 'pro-beta-limited' }]) {
+      const failingFixture = await makeInFlightFixture(`browser-in-flight-${failure.label}`);
+      await openFixtureInEditor(failingFixture);
+      let releaseFailure;
+      let failureRequested = false;
+      window.fetch = function (input, init) {
+        const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+        if (!url.includes('/api/property-transformations/virtual-staging')) return originalFetch.call(this, input, init);
+        failureRequested = true;
+        return new Promise((resolve) => {
+          releaseFailure = () => resolve(new Response(JSON.stringify({ error: 'simulated failure' }), {
+            status: failure.status,
+            headers: { 'content-type': 'application/json' },
+          }));
+        });
+      };
+      try {
+        flushSync(() => editorRootElement.querySelector('[data-testid="button-transform-stage"]').click());
+        await waitForEditor(() => failureRequested, `the ${failure.label} concept request to be paused`);
+        await runWriterCommand('delete-project', { id: failingFixture.id });
+        await assertDeletionStaysExplained(failingFixture, `the ${failure.label} concept request`);
+        releaseFailure();
+      } finally {
+        window.fetch = originalFetch;
+      }
+      await assertNoLateWork(failingFixture, `late ${failure.label} concept response`, `${failingFixture.id}-stage-`);
+    }
   } finally {
     window.__simulateSleepingPhotoListTab = false;
     if (originalVisibilityDescriptor) {

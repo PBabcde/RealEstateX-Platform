@@ -1079,6 +1079,16 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
   };
 
+  // True once the project was deleted elsewhere; late photo work must then stay silent so the deletion notice remains the only message.
+  const isProjectGone = async (projectId: string): Promise<boolean> => {
+    if (externallyDeletedProjectIdRef.current === projectId) return true;
+    try {
+      return !(await storage.loadPropertyProject(projectId));
+    } catch {
+      return false;
+    }
+  };
+
   const onFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.currentTarget.value = '';
@@ -1089,8 +1099,10 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     }
     setUploadError('');
     setIsUploading(true);
+    let uploadProjectId: string | undefined;
     try {
       const projectAtUploadStart = projectRef.current ?? form;
+      uploadProjectId = projectAtUploadStart.id;
       const projectSnapshot = await storage.loadPropertyProject(projectAtUploadStart.id) ?? projectAtUploadStart;
       const compressed = await compressImage(file);
       const key = `${projectSnapshot.id}-original-${crypto.randomUUID()}`;
@@ -1115,7 +1127,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         setPhotoCleanupError('');
       }
     } catch (error) {
-      setUploadError(sourcePhotoSaveErrorMessage(error));
+      if (!(uploadProjectId && await isProjectGone(uploadProjectId))) setUploadError(sourcePhotoSaveErrorMessage(error));
     } finally {
       setIsUploading(false);
     }
@@ -1162,6 +1174,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
           const imageDataUrl = String(reader.result);
           const onSuccess = async (response: { imageDataUrl: string; mimeType: string; isConcept: true; disclaimer: string }) => {
             try {
+              if (await isProjectGone(project.id)) return;
               const key = `${project.id}-${action}-${crypto.randomUUID()}`;
               const blob = await dataUrlToBlob(response.imageDataUrl);
               const imageRecord: PropertyImageRecord = { key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() };
@@ -1171,6 +1184,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               setNotice(`${imageRecord.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
             } catch (error) {
+              if (await isProjectGone(project.id)) return;
               if (error instanceof Error && error.name === 'PropertyConceptSourceChangedError') {
                 setConceptConflict({ action, message: error.message });
                 await refreshPhotoState(project.id).catch(() => undefined);
@@ -1179,7 +1193,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               setUploadError('Het concept is gegenereerd, maar kon niet in deze browser worden opgeslagen. Je opgeslagen project en foto’s zijn ongewijzigd gebleven en het nieuwe concept is niet bewaard. Controleer de browseropslag en probeer opnieuw.');
             }
           };
-          const onError = (error: unknown) => {
+          const onError = async (error: unknown) => {
+            if (await isProjectGone(project.id)) return;
             if (isHttpStatus(error, 402)) {
               setProBetaDialogOpen(true);
               return;
