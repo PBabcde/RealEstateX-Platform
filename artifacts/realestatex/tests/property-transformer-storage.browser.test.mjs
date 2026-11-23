@@ -1850,7 +1850,34 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
     await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(${JSON.stringify(secondAccountId)})`);
     await waitForState(firstTab, 'recent', recentOrder, 'the second account after switching back');
 
-    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}); switching accounts loaded and saved each account's separate project order.`;
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(null)`);
+    await waitForState(firstTab, 'municipality', municipalityOrder, 'the legacy signed-out preference after switching scopes');
+    const initialScopePreferences = await evaluate(firstTab, `({
+      account: window.__propertySortSyncTest.readPreference(window.__propertySortSyncTest.accountId),
+      legacy: window.__propertySortSyncTest.readPreference(null),
+    })`);
+    if (initialScopePreferences.account !== 'name' || initialScopePreferences.legacy !== 'municipality') {
+      throw new Error(`Switching to the legacy scope did not preserve its separate order: ${JSON.stringify(initialScopePreferences)}.`);
+    }
+
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(window.__propertySortSyncTest.accountId)`);
+    await waitForState(firstTab, 'name', nameOrder, 'the first account after viewing the legacy preference');
+    await selectOrder(firstTab, 'recent');
+    await waitForState(firstTab, 'recent', recentOrder, 'the account to save a new order without changing the legacy preference');
+    const changedScopePreferences = await evaluate(firstTab, `({
+      account: window.__propertySortSyncTest.readPreference(window.__propertySortSyncTest.accountId),
+      legacy: window.__propertySortSyncTest.readPreference(null),
+    })`);
+    if (changedScopePreferences.account !== 'recent' || changedScopePreferences.legacy !== 'municipality') {
+      throw new Error(`Changing the account order changed or confused the legacy preference: ${JSON.stringify(changedScopePreferences)}.`);
+    }
+
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(null)`);
+    await waitForState(firstTab, 'municipality', municipalityOrder, 'the unchanged legacy preference after changing the account order');
+    await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(window.__propertySortSyncTest.accountId)`);
+    await waitForState(firstTab, 'recent', recentOrder, 'the updated account preference after switching back');
+
+    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}); switching accounts and the signed-out legacy scope loaded and saved separate project orders.`;
   } finally {
     for (const { devTools } of targets) devTools.close();
     await Promise.all(targets.map(({ targetId }) =>

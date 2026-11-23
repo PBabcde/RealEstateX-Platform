@@ -70,6 +70,7 @@ async function initialize() {
     throw new Error('The project-order test fixtures could not be loaded from IndexedDB.');
   }
   savePropertyProjectSortOrderPreference('recent', accountId);
+  savePropertyProjectSortOrderPreference('municipality', null);
 
   const managerProps = {
     accountId,
