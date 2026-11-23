@@ -369,6 +369,47 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (recoveredPreview.width !== 2 || recoveredPreview.height !== 3) {
       throw new Error(`The recovered phone-camera photo preview is not upright portrait: ${recoveredPreview.width}x${recoveredPreview.height}.`);
     }
+    const narrowViewportWidth = 360;
+    const readPreviewFit = `(() => {
+      const img = document.querySelector('img[alt="Originele woningfoto"]');
+      if (!img) return { found: false };
+      const frame = img.parentElement.getBoundingClientRect();
+      const box = img.getBoundingClientRect();
+      const scale = Math.min(box.width / img.naturalWidth, box.height / img.naturalHeight);
+      return {
+        found: true,
+        objectFit: getComputedStyle(img).objectFit,
+        viewportWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        frameLeft: frame.left, frameRight: frame.right,
+        boxLeft: box.left, boxRight: box.right, boxTop: box.top, boxBottom: box.bottom,
+        frameTop: frame.top, frameBottom: frame.bottom,
+        shownWidth: img.naturalWidth * scale, shownHeight: img.naturalHeight * scale,
+        naturalRatio: img.naturalWidth / img.naturalHeight,
+        shownRatio: (img.naturalWidth * scale) / (img.naturalHeight * scale),
+        boxWidth: box.width, boxHeight: box.height,
+      };
+    })()`;
+    const assertPortraitFullyVisible = (fit, when) => {
+      if (!fit?.found) throw new Error(`The recovered source preview was not rendered on a narrow screen ${when}.`);
+      if (fit.viewportWidth > narrowViewportWidth + 1) throw new Error(`The narrow viewport was not applied ${when}: ${fit.viewportWidth}px.`);
+      if (fit.scrollWidth > fit.viewportWidth) throw new Error(`The narrow studio overflows horizontally ${when}: ${fit.scrollWidth}px > ${fit.viewportWidth}px.`);
+      if (fit.frameLeft < -0.5 || fit.frameRight > fit.viewportWidth + 0.5) throw new Error(`The source-photo frame extends beyond the narrow screen ${when}.`);
+      if (fit.boxLeft < fit.frameLeft - 0.5 || fit.boxRight > fit.frameRight + 0.5 || fit.boxTop < fit.frameTop - 0.5 || fit.boxBottom > fit.frameBottom + 0.5) {
+        throw new Error(`The source photo is clipped by its frame ${when}.`);
+      }
+      if (fit.objectFit !== 'contain') throw new Error(`The portrait source photo is cropped (object-fit ${fit.objectFit}) ${when}.`);
+      if (Math.abs(fit.shownRatio - fit.naturalRatio) > 0.01 || fit.shownWidth > fit.boxWidth + 0.5 || fit.shownHeight > fit.boxHeight + 0.5) {
+        throw new Error(`The portrait source photo is not fully shown ${when}.`);
+      }
+    };
+    await devTools.send('Emulation.setDeviceMetricsOverride', { width: narrowViewportWidth, height: 740, deviceScaleFactor: 2, mobile: true });
+    const narrowBefore = await waitFor(
+      readPreviewFit,
+      (value) => value?.found && value.viewportWidth <= narrowViewportWidth + 1,
+      'the recovered source photo to render in the narrow layout',
+    );
+    assertPortraitFullyVisible(narrowBefore, 'before refresh');
     const finalNotice = await evaluate(
       `document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? ''`,
     );
@@ -405,6 +446,13 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (recoveredAfterRefresh.previewWidth !== 2 || recoveredAfterRefresh.previewHeight !== 3) {
       throw new Error(`The recovered phone-camera photo preview is sideways after refresh: ${recoveredAfterRefresh.previewWidth}x${recoveredAfterRefresh.previewHeight}.`);
     }
+    const narrowAfter = await waitFor(
+      readPreviewFit,
+      (value) => value?.found && value.viewportWidth <= narrowViewportWidth + 1,
+      'the recovered source photo to render in the narrow layout after refresh',
+    );
+    assertPortraitFullyVisible(narrowAfter, 'after refresh');
+    await devTools.send('Emulation.clearDeviceMetricsOverride');
     const refreshedSettings = { ...recoveredAfterRefresh.project };
     delete refreshedSettings.originalKey;
     delete refreshedSettings.updatedAt;
