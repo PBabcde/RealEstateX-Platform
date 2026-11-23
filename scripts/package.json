@@ -23,6 +23,7 @@
     "test:investment-policy": "tsx ../tests/investment-policy.test.js && tsx ../tests/energyx-metrics.test.js",
     "test:investment-policy-api": "INVESTMENT_POLICY_TEST=1 tsx ./src/dealing-room-tenant-isolation.ts",
     "test:property-dossier-api": "PROPERTY_DOSSIER_TEST=1 tsx ./src/dealing-room-tenant-isolation.ts",
+    "test:real-estate-report": "tsx ../tests/real_estate_report.test.js && PROPERTY_DOSSIER_TEST=1 tsx ./src/dealing-room-tenant-isolation.ts",
     "test:dealing-room-commitments": "tsx ./src/dealing-room-commitments.ts",
     "test:enterprise-core-tenant-isolation": "tsx ../tests/enterprise_core_tenant_isolation.test.js",
     "test:ownerworld-compatibility": "tsx ../tests/module_data_ownerworld_compatibility.test.js",

@@ -251,6 +251,57 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /properties/{propertyId}/report:
+    get:
+      operationId: getPropertyReport
+      tags: [properties]
+      summary: Generate a current property and Energy Brain report
+      description: Uses the saved dossier and current indicative Energy Brain. The gross yield below is annual rent divided by market value and is not the RealEstateX investment-policy gross BAR or a GO approval.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "200":
+          description: Property report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /properties/{propertyId}/report/pdf:
+    get:
+      operationId: downloadPropertyReportPdf
+      tags: [properties]
+      summary: Download the current property report as a PDF
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "200":
+          description: Downloadable PDF report
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="realestatex-rapport-property-123.pdf"
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /valuations/calculate:
     post:
       operationId: calculateValuation
@@ -2434,6 +2485,52 @@ components:
           enum: [true]
         methodology:
           type: string
+    PropertyReport:
+      type: object
+      required: [property, energy_brain, profitability, recommendation, disclaimer, generated_at]
+      properties:
+        property:
+          type: object
+          required: [property_id, name, address, postcode, city, construction_year, living_area_m2, energy_label, monthly_rent_eur, market_value_eur]
+          properties:
+            property_id: { type: string }
+            name: { type: ["string", "null"] }
+            address: { type: string }
+            postcode: { type: ["string", "null"] }
+            city: { type: ["string", "null"] }
+            construction_year: { type: integer }
+            living_area_m2: { type: number }
+            energy_label: { type: string }
+            monthly_rent_eur: { type: ["number", "null"] }
+            market_value_eur: { type: ["number", "null"] }
+        energy_brain:
+          type: object
+          required: [score, recommended_measure, estimated_investment_eur, estimated_annual_saving_eur, payback_years, indicative]
+          properties:
+            score: { type: integer, minimum: 0, maximum: 100 }
+            recommended_measure: { type: string }
+            estimated_investment_eur: { type: number }
+            estimated_annual_saving_eur: { type: number }
+            payback_years: { type: number }
+            indicative: { type: boolean, enum: [true] }
+        profitability:
+          type: object
+          required: [gross_yield_percent, classification, basis, note]
+          properties:
+            gross_yield_percent: { type: ["number", "null"] }
+            classification:
+              type: string
+              enum: [Laag, Gemiddeld, Sterk, "Onvoldoende gegevens"]
+            basis: { type: string }
+            note: { type: string }
+        recommendation:
+          type: string
+          enum: [Verduurzaming aanbevolen, Optimalisatie aanbevolen, Hoogwaardig vastgoedprofiel]
+        disclaimer:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
     ValuationInput:
       type: object
       properties:

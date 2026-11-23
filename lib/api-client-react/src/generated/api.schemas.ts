@@ -1010,6 +1010,73 @@ export interface EnergyBrainAnalysis {
   methodology: string;
 }
 
+export type PropertyReportProperty = {
+  property_id: string;
+  /** @nullable */
+  name: string | null;
+  address: string;
+  /** @nullable */
+  postcode: string | null;
+  /** @nullable */
+  city: string | null;
+  construction_year: number;
+  living_area_m2: number;
+  energy_label: string;
+  /** @nullable */
+  monthly_rent_eur: number | null;
+  /** @nullable */
+  market_value_eur: number | null;
+};
+
+export type PropertyReportEnergyBrain = {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  recommended_measure: string;
+  estimated_investment_eur: number;
+  estimated_annual_saving_eur: number;
+  payback_years: number;
+  indicative: true;
+};
+
+export type PropertyReportProfitabilityClassification = typeof PropertyReportProfitabilityClassification[keyof typeof PropertyReportProfitabilityClassification];
+
+
+export const PropertyReportProfitabilityClassification = {
+  Laag: 'Laag',
+  Gemiddeld: 'Gemiddeld',
+  Sterk: 'Sterk',
+  Onvoldoende_gegevens: 'Onvoldoende gegevens',
+} as const;
+
+export type PropertyReportProfitability = {
+  /** @nullable */
+  gross_yield_percent: number | null;
+  classification: PropertyReportProfitabilityClassification;
+  basis: string;
+  note: string;
+};
+
+export type PropertyReportRecommendation = typeof PropertyReportRecommendation[keyof typeof PropertyReportRecommendation];
+
+
+export const PropertyReportRecommendation = {
+  Verduurzaming_aanbevolen: 'Verduurzaming aanbevolen',
+  Optimalisatie_aanbevolen: 'Optimalisatie aanbevolen',
+  Hoogwaardig_vastgoedprofiel: 'Hoogwaardig vastgoedprofiel',
+} as const;
+
+export interface PropertyReport {
+  property: PropertyReportProperty;
+  energy_brain: PropertyReportEnergyBrain;
+  profitability: PropertyReportProfitability;
+  recommendation: PropertyReportRecommendation;
+  disclaimer: string;
+  generated_at: string;
+}
+
 export interface ValuationInput {
   /** @minimum 1 */
   woonoppervlak: number;

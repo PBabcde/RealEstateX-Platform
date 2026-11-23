@@ -15,6 +15,7 @@ import {
   GetPropertyParams,
   GetPropertyResponse,
   GetPropertyEnergyBrainResponse,
+  GetPropertyReportResponse,
   ReplacePropertyBody,
   ListPropertiesResponse,
   ListEnergyXRenovationScenariosResponse,
@@ -52,6 +53,8 @@ import {
 } from "../middlewares/authorization";
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
 import { calculateEnergyBrain, EnergyBrainInputError } from "../lib/energy-brain";
+import { generateRealEstateReport } from "../lib/real-estate-report";
+import { renderRealEstateReportPdf } from "../lib/real-estate-report-pdf";
 
 const router: IRouter = Router();
 const ENERGYX_SCENARIO_RETENTION_DAYS = 365;
@@ -63,6 +66,33 @@ function normalizedPropertyInput(body: unknown): unknown {
     if (typeof result[key] === "string") result[key] = result[key].trim();
   }
   return result;
+}
+
+async function reportForRequest(
+  req: Parameters<typeof requireAuthentication>[0],
+  res: Parameters<typeof requireAuthentication>[1],
+) {
+  const params = GetPropertyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return undefined;
+  }
+  const property = await getProperty(params.data.propertyId);
+  if (!property) {
+    res.status(404).json({ error: "Property not found" });
+    return undefined;
+  }
+  if (!canAccessOwner(req, property.ownerId)) {
+    forbidden(res);
+    return undefined;
+  }
+  try {
+    return GetPropertyReportResponse.parse(generateRealEstateReport(property));
+  } catch (error) {
+    if (!(error instanceof EnergyBrainInputError)) throw error;
+    res.status(400).json({ error: error.message });
+    return undefined;
+  }
 }
 
 function scenarioResponse(row: typeof energyxRenovationScenariosTable.$inferSelect) {
@@ -217,6 +247,25 @@ router.get("/properties/:propertyId/energy-brain", async (req, res): Promise<voi
     if (!(error instanceof EnergyBrainInputError)) throw error;
     res.status(400).json({ error: error.message });
   }
+});
+
+router.get("/properties/:propertyId/report", async (req, res): Promise<void> => {
+  const report = await reportForRequest(req, res);
+  if (!report) return;
+  res.setHeader("Cache-Control", "private, no-store");
+  res.json(report);
+});
+
+router.get("/properties/:propertyId/report/pdf", async (req, res): Promise<void> => {
+  const report = await reportForRequest(req, res);
+  if (!report) return;
+  const pdf = await renderRealEstateReportPdf(report);
+  const safeId = report.property.property_id.replace(/[^a-zA-Z0-9_-]/g, "-");
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="realestatex-rapport-${safeId}.pdf"`);
+  res.setHeader("Content-Length", pdf.byteLength);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(pdf);
 });
 
 router.put("/properties/:propertyId", async (req, res): Promise<void> => {

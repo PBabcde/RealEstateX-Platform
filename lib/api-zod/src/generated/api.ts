@@ -527,6 +527,68 @@ export const GetPropertyEnergyBrainResponse = zod.object({
 
 
 /**
+ * Uses the saved dossier and current indicative Energy Brain. The gross yield below is annual rent divided by market value and is not the RealEstateX investment-policy gross BAR or a GO approval.
+ * @summary Generate a current property and Energy Brain report
+ */
+
+
+
+export const GetPropertyReportParams = zod.object({
+  "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
+})
+
+export const getPropertyReportResponseEnergyBrainScoreMin = 0;
+export const getPropertyReportResponseEnergyBrainScoreMax = 100;
+
+
+
+export const GetPropertyReportResponse = zod.object({
+  "property": zod.object({
+  "property_id": zod.string(),
+  "name": zod.string().nullable(),
+  "address": zod.string(),
+  "postcode": zod.string().nullable(),
+  "city": zod.string().nullable(),
+  "construction_year": zod.number().int(),
+  "living_area_m2": zod.number(),
+  "energy_label": zod.string(),
+  "monthly_rent_eur": zod.number().nullable(),
+  "market_value_eur": zod.number().nullable()
+}),
+  "energy_brain": zod.object({
+  "score": zod.number().int().min(getPropertyReportResponseEnergyBrainScoreMin).max(getPropertyReportResponseEnergyBrainScoreMax),
+  "recommended_measure": zod.string(),
+  "estimated_investment_eur": zod.number(),
+  "estimated_annual_saving_eur": zod.number(),
+  "payback_years": zod.number(),
+  "indicative": zod.literal(true)
+}),
+  "profitability": zod.object({
+  "gross_yield_percent": zod.number().nullable(),
+  "classification": zod.enum(['Laag', 'Gemiddeld', 'Sterk', 'Onvoldoende gegevens']),
+  "basis": zod.string(),
+  "note": zod.string()
+}),
+  "recommendation": zod.enum(['Verduurzaming aanbevolen', 'Optimalisatie aanbevolen', 'Hoogwaardig vastgoedprofiel']),
+  "disclaimer": zod.string(),
+  "generated_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Download the current property report as a PDF
+ */
+
+
+
+export const DownloadPropertyReportPdfParams = zod.object({
+  "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
+})
+
+export const DownloadPropertyReportPdfResponse = zod.unknown()
+
+
+/**
  * @summary Estimate property value
  */
 

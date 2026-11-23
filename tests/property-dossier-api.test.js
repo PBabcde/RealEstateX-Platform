@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { test } from "node:test";
@@ -79,10 +80,43 @@ test("property dossier CRUD and Energy Brain use real PostgreSQL and preserve ac
       assert.ok((await (await call("/properties")).json()).some(p => p.propertyId === property.propertyId));
       assert.deepEqual(await (await call("/properties", "GET", undefined, "stranger")).json(), []);
     });
+    await t.test("JSON report uses the saved property and indicates the market-value yield basis", async () => {
+      const response = await call(`/properties/${property.propertyId}/report`);
+      assert.equal(response.status, 200, await response.clone().text());
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      const report = await response.json();
+      assert.equal(report.property.property_id, property.propertyId);
+      assert.equal(report.property.address, input.adres);
+      assert.equal(report.property.monthly_rent_eur, input.huurprijs);
+      assert.equal(report.energy_brain.score, 70);
+      assert.equal(report.energy_brain.recommended_measure, "HR++ glas");
+      assert.equal(report.profitability.gross_yield_percent, 4.35);
+      assert.equal(report.profitability.classification, "Gemiddeld");
+      assert.match(report.profitability.note, /niet de BAR op totale investering/);
+      assert.equal(report.recommendation, "Optimalisatie aanbevolen");
+      assert.match(report.disclaimer, /afzonderlijke RealEstateX-investeringstoets/);
+    });
+    await t.test("PDF endpoint downloads a private, valid report containing all seven sections", async () => {
+      const response = await call(`/properties/${property.propertyId}/report/pdf`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-type"), "application/pdf");
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.match(response.headers.get("content-disposition"), /^attachment; filename="realestatex-rapport-/);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      assert.equal(bytes.toString("latin1", 0, 8), "%PDF-1.3");
+      const pdf = execFileSync("pdftotext", ["-", "-"], { input: bytes, encoding: "utf8" });
+      for (const section of [
+        "Vastgoedrapport", "1. Vastgoedobject", "2. Financiële analyse",
+        "3. Energy Brain-analyse", "4. Aanbevolen maatregel",
+        "5. Geschatte jaarlijkse besparing", "6. Indicatieve terugverdientijd",
+        "7. Eindconclusie", "Teststraat 1",
+      ]) assert.ok(pdf.includes(section), `PDF missing section or property text: ${section}`);
+    });
     await t.test("all operations reject anonymous users and other owners", async () => {
       for (const [url, method, body] of [
         [path, "GET"], [path, "PUT", input], [path, "PATCH", { naam: "Verboden" }],
         [path, "DELETE"], [`${path}/energy-brain`, "GET"],
+        [`${path}/report`, "GET"], [`${path}/report/pdf`, "GET"],
       ]) {
         assert.equal((await call(url, method, body, "anonymous")).status, 401);
         assert.equal((await call(url, method, body, "stranger")).status, 403);
@@ -151,7 +185,8 @@ test("property dossier CRUD and Energy Brain use real PostgreSQL and preserve ac
       assert.equal((await pool.query("SELECT count(*) FROM properties WHERE property_id=$1", [property.propertyId])).rows[0].count, "0");
       for (const [url, method, body] of [
         [path, "GET"], [path, "PUT", input], [path, "PATCH", { naam: "Niet herstellen" }],
-        [path, "DELETE"], [`${path}/energy-brain`, "GET"],
+        [path, "DELETE"], [`${path}/energy-brain`, "GET"], [`${path}/report`, "GET"],
+        [`${path}/report/pdf`, "GET"],
       ]) assert.equal((await call(url, method, body)).status, 404);
     });
   } finally {

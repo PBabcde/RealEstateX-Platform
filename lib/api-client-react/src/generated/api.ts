@@ -79,6 +79,7 @@ import type {
   PropertyImageTransformResult,
   PropertyInput,
   PropertyMakeoverInput,
+  PropertyReport,
   PropertyUpdate,
   RentalInput,
   RentalResult,
@@ -937,6 +938,161 @@ export function useGetPropertyEnergyBrain<TData = Awaited<ReturnType<typeof getP
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPropertyEnergyBrainQueryOptions(propertyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPropertyReportUrl = (propertyId: string,) => {
+
+
+
+
+  return `/api/properties/${propertyId}/report`
+}
+
+/**
+ * Uses the saved dossier and current indicative Energy Brain. The gross yield below is annual rent divided by market value and is not the RealEstateX investment-policy gross BAR or a GO approval.
+ * @summary Generate a current property and Energy Brain report
+ */
+export const getPropertyReport = async (propertyId: string, options?: Parameters<typeof customFetch>[1]): Promise<PropertyReport> => {
+
+  return customFetch<PropertyReport>(getGetPropertyReportUrl(propertyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPropertyReportQueryKey = (propertyId: string,) => {
+    return [
+    `/api/properties/${propertyId}/report`
+    ] as const;
+    }
+
+
+export const getGetPropertyReportQueryOptions = <TData = Awaited<ReturnType<typeof getPropertyReport>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPropertyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPropertyReportQueryKey(propertyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPropertyReport>>> = ({ signal }) => getPropertyReport(propertyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: propertyId !== null && propertyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPropertyReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPropertyReportQueryResult = NonNullable<Awaited<ReturnType<typeof getPropertyReport>>>
+export type GetPropertyReportQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Generate a current property and Energy Brain report
+ */
+
+export function useGetPropertyReport<TData = Awaited<ReturnType<typeof getPropertyReport>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPropertyReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPropertyReportQueryOptions(propertyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadPropertyReportPdfUrl = (propertyId: string,) => {
+
+
+
+
+  return `/api/properties/${propertyId}/report/pdf`
+}
+
+/**
+ * @summary Download the current property report as a PDF
+ */
+export const downloadPropertyReportPdf = async (propertyId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadPropertyReportPdfUrl(propertyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPropertyReportPdfQueryKey = (propertyId: string,) => {
+    return [
+    `/api/properties/${propertyId}/report/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadPropertyReportPdfQueryOptions = <TData = Awaited<ReturnType<typeof downloadPropertyReportPdf>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPropertyReportPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPropertyReportPdfQueryKey(propertyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPropertyReportPdf>>> = ({ signal }) => downloadPropertyReportPdf(propertyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: propertyId !== null && propertyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPropertyReportPdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadPropertyReportPdfQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPropertyReportPdf>>>
+export type DownloadPropertyReportPdfQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Download the current property report as a PDF
+ */
+
+export function useDownloadPropertyReportPdf<TData = Awaited<ReturnType<typeof downloadPropertyReportPdf>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadPropertyReportPdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadPropertyReportPdfQueryOptions(propertyId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
