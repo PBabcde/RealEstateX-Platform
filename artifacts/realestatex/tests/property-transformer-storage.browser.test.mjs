@@ -1122,14 +1122,17 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       }))()`,
       true,
     );
-    await uploadReplacement(uploadPath);
+    const pendingRetryOffered = await evaluate(`Boolean(document.querySelector('[data-testid="button-retry-pending-photo"]'))`);
+    if (!pendingRetryOffered) throw new Error('A failed storage save did not offer a retry that reuses the chosen photo.');
+    await evaluate(`document.querySelector('[data-testid="button-retry-pending-photo"]').click()`);
     await waitFor(
       `(() => ({
         error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+        retryStillOffered: Boolean(document.querySelector('[data-testid="button-retry-pending-photo"]')),
         uploadEnabled: Boolean(document.querySelector('[data-testid="button-upload-property"]') && !document.querySelector('[data-testid="button-upload-property"]').disabled),
         projectReady: document.querySelector('[data-testid="button-transform-stage"]') && !document.querySelector('[data-testid="button-transform-stage"]').disabled,
       }))()`,
-      (value) => !value?.error && value?.uploadEnabled && value?.projectReady,
+      (value) => !value?.error && !value?.retryStillOffered && value?.uploadEnabled && value?.projectReady,
       'the retry replacement photo to save successfully',
     );
     const afterRetriedPhotoSave = await evaluate(

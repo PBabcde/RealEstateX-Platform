@@ -277,6 +277,8 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
   const [projectTransferNotice, setProjectTransferNotice] = useState('');
   const [pendingDuplicateImport, setPendingDuplicateImport] = useState<{ archive: unknown; existing: PropertyProject } | null>(null);
   const [uploadError, setUploadError] = useState('');
+  // Held only in this page's memory after a storage failure; never persisted.
+  const [pendingRetryPhoto, setPendingRetryPhoto] = useState<{ file: File; projectId: string } | null>(null);
   const [startupStorageFailed, setStartupStorageFailed] = useState(false);
   const [startupRetryNonce, setStartupRetryNonce] = useState(0);
   const [conceptConflict, setConceptConflict] = useState<{ action: PropertyAction; message: string } | null>(null);
@@ -1126,11 +1128,26 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
     const file = event.target.files?.[0];
     event.currentTarget.value = '';
     if (!file) return;
+    setPendingRetryPhoto(null);
+    await uploadSourceFile(file);
+  };
+
+  const retryPendingPhoto = async () => {
+    if (!pendingRetryPhoto || activeMutation || isUploading) return;
+    if (pendingRetryPhoto.projectId !== (projectRef.current?.id ?? form.id)) {
+      setPendingRetryPhoto(null);
+      return;
+    }
+    await uploadSourceFile(pendingRetryPhoto.file);
+  };
+
+  const uploadSourceFile = async (file: File) => {
     if (activeMutation || isUploading) {
       setUploadError('Wacht tot de huidige bewerking klaar is voordat je de foto vervangt.');
       return;
     }
     setUploadError('');
+    setPendingRetryPhoto(null);
     setIsUploading(true);
     let uploadProjectId: string | undefined;
     try {
@@ -1160,7 +1177,12 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         setPhotoCleanupError('');
       }
     } catch (error) {
-      if (!(uploadProjectId && await isProjectGone(uploadProjectId))) setUploadError(sourcePhotoSaveErrorMessage(error));
+      if (!(uploadProjectId && await isProjectGone(uploadProjectId))) {
+        setUploadError(sourcePhotoSaveErrorMessage(error));
+        if (uploadProjectId && (error instanceof PropertyPhotoStorageSaveError || error instanceof DOMException)) {
+          setPendingRetryPhoto({ file, projectId: uploadProjectId });
+        }
+      }
     } finally {
       setIsUploading(false);
     }
@@ -1335,7 +1357,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         </div>
         : <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground">Maak een nieuw vastgoedproject of open een eerder opgeslagen project. Projectgegevens en foto’s blijven in deze browser.</p>}
       {projectTransferError && !projectManagerOpen && !pendingDuplicateImport && <p className="mx-auto mt-4 max-w-lg rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-left text-xs leading-5 text-[#9e4336]" role="alert" data-testid="status-recover-project-error">{projectTransferError}</p>}
-      {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}{startupStorageFailed && <button type="button" onClick={retryStartupLoad} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-retry-startup-load">Opnieuw proberen</button>}</p>}
+      {uploadError && <p className="mt-5 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert">{uploadError}{pendingRetryPhoto && <button type="button" onClick={() => void retryPendingPhoto()} disabled={isUploading || Boolean(activeMutation)} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white disabled:opacity-50" data-testid="button-retry-pending-photo">Opnieuw opslaan zonder foto te kiezen</button>}{startupStorageFailed && <button type="button" onClick={retryStartupLoad} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-retry-startup-load">Opnieuw proberen</button>}</p>}
       {photoCleanupKeys.length > 0 && <div className="mx-auto mt-4 flex max-w-lg flex-col gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-left text-xs leading-5 text-[#9e4336]" role="alert" data-testid="status-photo-cleanup-error">
         <p>{photoCleanupError || 'Een of meer oude foto’s konden niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen. Probeer de veilige opruiming opnieuw.'}</p>
         <button type="button" onClick={() => void retryPhotoCleanup()} disabled={isPhotoCleanupRunning} className="self-start rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold hover:bg-[#fbe9e5] disabled:cursor-wait disabled:opacity-60" data-testid="button-retry-photo-cleanup">{isPhotoCleanupRunning ? 'Oude foto’s controleren…' : 'Oude foto’s opnieuw opruimen'}</button>
@@ -1371,7 +1393,7 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
         </div>}
      </div>}
      {conceptConflict && <div className="mb-5 flex flex-wrap items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-concept-source-conflict"><Info size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 flex-1">{conceptConflict.message}</span><button type="button" onClick={() => runAction(conceptConflict.action)} className="rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-regenerate-concept-conflict">Opnieuw genereren</button></div>}
-     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span>{startupStorageFailed && <button type="button" onClick={retryStartupLoad} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-retry-startup-load">Opnieuw proberen</button>}</div>}
+     {uploadError && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs text-[#9e4336]" role="alert" data-testid="status-upload-error"><Info size={16} className="mt-0.5 shrink-0" /><span>{uploadError}</span>{pendingRetryPhoto && <button type="button" onClick={() => void retryPendingPhoto()} disabled={isUploading || Boolean(activeMutation)} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white disabled:opacity-50" data-testid="button-retry-pending-photo">Opnieuw opslaan zonder foto te kiezen</button>}{startupStorageFailed && <button type="button" onClick={retryStartupLoad} className="ml-3 rounded-lg bg-[#9e4336] px-3 py-1.5 font-bold text-white" data-testid="button-retry-startup-load">Opnieuw proberen</button>}</div>}
      {photoCleanupKeys.length > 0 && <div className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-[#e7b4a8] bg-[#fff1ee] px-4 py-3 text-xs leading-5 text-[#9e4336] sm:flex-row sm:items-center sm:justify-between" role="alert" data-testid="status-photo-cleanup-error">
        <p>{photoCleanupError || 'Een of meer oude foto’s konden niet worden verwijderd. Je nieuwe foto en project zijn opgeslagen. Probeer de veilige opruiming opnieuw.'}</p>
        <button type="button" onClick={() => void retryPhotoCleanup()} disabled={isPhotoCleanupRunning || isUploading} className="shrink-0 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold hover:bg-[#fbe9e5] disabled:cursor-wait disabled:opacity-60" data-testid="button-retry-photo-cleanup">{isPhotoCleanupRunning ? 'Oude foto’s controleren…' : 'Oude foto’s opnieuw opruimen'}</button>
