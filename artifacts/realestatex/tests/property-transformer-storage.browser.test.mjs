@@ -1673,14 +1673,18 @@ function makeOrientationTaggedTestJpeg() {
 }
 
 async function runSortOrderCrossTabTest(debugPort, url, browser) {
+  await getPageTarget(debugPort, browser);
   const versionResponse = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
   if (!versionResponse.ok) throw new Error('Could not connect to the Chromium browser debugging endpoint.');
   const { webSocketDebuggerUrl } = await versionResponse.json();
   const browserDevTools = await connectDevTools(webSocketDebuggerUrl);
   const targets = [];
 
-  const openPage = async () => {
-    const page = await openBrowserPage(debugPort, browser, browserDevTools, url);
+  const openPage = async (account, initialOrder) => {
+    const pageUrl = new URL(url);
+    if (account) pageUrl.searchParams.set('account', account);
+    if (initialOrder) pageUrl.searchParams.set('order', initialOrder);
+    const page = await openBrowserPage(debugPort, browser, browserDevTools, pageUrl.toString());
     targets.push(page);
     return page.devTools;
   };
@@ -1850,6 +1854,29 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
     await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(${JSON.stringify(secondAccountId)})`);
     await waitForState(firstTab, 'recent', recentOrder, 'the second account after switching back');
 
+    const isolatedAccountA = 'property-sort-order-isolated-account-a';
+    const isolatedAccountB = 'property-sort-order-isolated-account-b';
+    const isolatedTabA = await openPage(isolatedAccountA, 'municipality');
+    const isolatedTabB = await openPage(isolatedAccountB, 'name');
+    await waitForState(isolatedTabA, 'municipality', municipalityOrder, 'Account A’s separately scoped project list');
+    await waitForState(isolatedTabB, 'name', nameOrder, 'Account B’s separately scoped project list');
+
+    await selectOrder(isolatedTabA, 'recent');
+    await waitForState(isolatedTabA, 'recent', recentOrder, 'Account A to change its saved order');
+    await waitForState(isolatedTabB, 'name', nameOrder, 'Account B to retain its own order after Account A changes');
+
+    await selectOrder(isolatedTabB, 'municipality');
+    await waitForState(isolatedTabB, 'municipality', municipalityOrder, 'Account B to change its saved order');
+    await waitForState(isolatedTabA, 'recent', recentOrder, 'Account A to retain its own order after Account B changes');
+
+    const isolatedPreferences = await evaluate(isolatedTabA, `({
+      accountA: window.__propertySortSyncTest.readPreference(${JSON.stringify(isolatedAccountA)}),
+      accountB: window.__propertySortSyncTest.readPreference(${JSON.stringify(isolatedAccountB)}),
+    })`);
+    if (isolatedPreferences.accountA !== 'recent' || isolatedPreferences.accountB !== 'municipality') {
+      throw new Error(`Changing one account’s order altered the other account’s saved preference: ${JSON.stringify(isolatedPreferences)}.`);
+    }
+
     await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(null)`);
     await waitForState(firstTab, 'municipality', municipalityOrder, 'the legacy signed-out preference after switching scopes');
     const initialScopePreferences = await evaluate(firstTab, `({
@@ -1877,7 +1904,7 @@ async function runSortOrderCrossTabTest(debugPort, url, browser) {
     await evaluate(firstTab, `window.__propertySortSyncTest.switchAccount(window.__propertySortSyncTest.accountId)`);
     await waitForState(firstTab, 'recent', recentOrder, 'the updated account preference after switching back');
 
-    return `Cross-tab project sorting passed; blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}); switching accounts and the signed-out legacy scope loaded and saved separate project orders.`;
+    return `Cross-tab project sorting passed; same-account tabs synchronized order changes, separate-account tabs retained independent selections and project order in both change directions, blocked preference reads and writes showed a warning while sorting remained usable (read state: ${blockedRead.order}, reload state: ${afterReload.order}), and switching accounts and the signed-out legacy scope loaded and saved separate project orders.`;
   } finally {
     for (const { devTools } of targets) devTools.close();
     await Promise.all(targets.map(({ targetId }) =>
@@ -2168,6 +2195,9 @@ try {
       const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
       const crossTabResult = await runAccountIsolationCrossTabTest(debugPort, accountIsolationCrossTabUrl, browser);
       console.log(`${accountIsolationResult}\n${crossTabResult}`);
+    } else if (process.env.PROPERTY_SORT_SYNC_ONLY === '1') {
+      const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
+      console.log(sortSyncResult);
     } else {
       const storageResult = await runBrowserTest(debugPort, storageUrl, browser);
       if (process.env.PROPERTY_STORAGE_ONLY === '1') {

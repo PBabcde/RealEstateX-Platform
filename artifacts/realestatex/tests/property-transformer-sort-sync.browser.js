@@ -7,7 +7,12 @@ import {
 } from '../src/lib/property-transformer-db.ts';
 import { ProjectManager } from '../src/pages/property-transformer.tsx';
 
-const accountId = 'property-sort-order-cross-tab-browser-test';
+const searchParams = new URLSearchParams(window.location.search);
+const accountId = searchParams.get('account') || 'property-sort-order-cross-tab-browser-test';
+const requestedInitialOrder = searchParams.get('order');
+const initialOrder = requestedInitialOrder === 'name' || requestedInitialOrder === 'municipality'
+  ? requestedInitialOrder
+  : 'recent';
 const storage = createPropertyProjectStorage(accountId);
 const projectFixtures = [
   {
@@ -69,7 +74,7 @@ async function initialize() {
   if (projects.length !== projectFixtures.length) {
     throw new Error('The project-order test fixtures could not be loaded from IndexedDB.');
   }
-  savePropertyProjectSortOrderPreference('recent', accountId);
+  savePropertyProjectSortOrderPreference(initialOrder, accountId);
   savePropertyProjectSortOrderPreference('municipality', null);
 
   const managerProps = {
