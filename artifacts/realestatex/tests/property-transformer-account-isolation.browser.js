@@ -51,7 +51,7 @@ function image(key, content, isConcept) {
 }
 
 function crossTabProject(accountKey) {
-  const projectId = `privacy-cross-tab-project-${accountKey}`;
+  const projectId = 'privacy-cross-tab-shared-project';
   const label = accountKey === 'a' ? 'Account A' : 'Account B';
   return {
     ...legacyProject,
@@ -59,8 +59,8 @@ function crossTabProject(accountKey) {
     address: accountKey === 'a' ? '11 Private A Street' : '22 Private B Street',
     municipality: accountKey === 'a' ? 'Utrecht' : 'Leiden',
     projectName: `${label} private project`,
-    originalKey: `${projectId}-source`,
-    resultKeys: { stage: `${projectId}-concept` },
+    originalKey: 'privacy-cross-tab-shared-source',
+    resultKeys: { stage: 'privacy-cross-tab-shared-concept' },
     selectedResult: 'stage',
   };
 }
@@ -160,21 +160,21 @@ async function runCrossTabAccountScope() {
     conceptMarker: `privacy-${accountKey === 'a' ? 'account-a' : 'account-b'}-concept`,
     foreignSourceMarker: `privacy-${foreignKey === 'a' ? 'account-a' : 'account-b'}-source`,
     foreignConceptMarker: `privacy-${foreignKey === 'a' ? 'account-a' : 'account-b'}-concept`,
-    readForeignReferences: async () => {
-      const [foreignProjectRecord, foreignSource, foreignConcept, projectImages] = await Promise.all([
-        storage.loadPropertyProject(foreignProject.id),
-        storage.loadPropertyImage(foreignProject.originalKey),
-        storage.loadPropertyImage(foreignProject.resultKeys.stage),
-        storage.loadPropertyProjectImages(foreignProject),
+    readOwnStorage: async () => {
+      const [storedProject, source, concept] = await Promise.all([
+        storage.loadPropertyProject(project.id),
+        storage.loadPropertyImage(project.originalKey),
+        storage.loadPropertyImage(project.resultKeys.stage),
       ]);
       return {
-        foreignProjectRecord: Boolean(foreignProjectRecord),
-        foreignSource: Boolean(foreignSource),
-        foreignConcept: Boolean(foreignConcept),
-        projectImagesHasOriginal: Boolean(projectImages.original),
-        projectImagesHasConcept: Boolean(projectImages.results.stage),
-        missingOriginal: projectImages.missingOriginal,
-        missingConcepts: projectImages.missingConcepts,
+        projectId: storedProject?.id,
+        projectName: storedProject?.projectName,
+        address: storedProject?.address,
+        municipality: storedProject?.municipality,
+        originalKey: storedProject?.originalKey,
+        conceptKey: storedProject?.resultKeys.stage,
+        sourceBytes: await source?.blob.text(),
+        conceptBytes: await concept?.blob.text(),
       };
     },
     getNotificationCount: () => notificationCount,
@@ -183,6 +183,11 @@ async function runCrossTabAccountScope() {
       const storedProject = await storage.loadPropertyProject(project.id);
       if (!storedProject) throw new Error('The account-scoped writer could not load its own project.');
       await storage.savePropertyProject({ ...storedProject, projectName, updatedAt: new Date().toISOString() });
+    },
+    deleteOwnProject: async () => {
+      const storedProject = await storage.loadPropertyProject(project.id);
+      if (!storedProject) throw new Error('The account-scoped writer could not load its own project for deletion.');
+      await storage.deletePropertyProject(storedProject);
     },
   };
 

@@ -2022,6 +2022,11 @@ async function runAccountIsolationCrossTabTest(debugPort, url, browser) {
     if (accountATest.accountId === accountBTest.accountId) {
       throw new Error('The separate browser tabs did not use distinct account scopes.');
     }
+    if (accountATest.project.id !== accountBTest.project.id
+      || accountATest.project.originalKey !== accountBTest.project.originalKey
+      || accountATest.project.resultKeys.stage !== accountBTest.project.resultKeys.stage) {
+      throw new Error('The account-isolation fixtures did not use matching project and photo identifiers.');
+    }
 
     const assertImages = async (devTools, test, accountLabel) => {
       const state = await waitFor(
@@ -2043,20 +2048,36 @@ async function runAccountIsolationCrossTabTest(debugPort, url, browser) {
     await assertImages(accountATab, accountATest, 'Account A');
     await assertImages(accountBTab, accountBTest, 'Account B');
 
-    const assertDirectReadsScoped = async (devTools, accountLabel) => {
-      const reads = await evaluate(
+    const assertOwnStorage = async (devTools, test, accountLabel, expectedProjectName = test.project.projectName) => {
+      const stored = await evaluate(
         devTools,
-        'window.__accountIsolationCrossTabTest.readForeignReferences()',
+        'window.__accountIsolationCrossTabTest.readOwnStorage()',
         true,
       );
-      if (reads.foreignProjectRecord || reads.foreignSource || reads.foreignConcept
-        || reads.projectImagesHasOriginal || reads.projectImagesHasConcept
-        || !reads.missingOriginal || !reads.missingConcepts.includes('stage')) {
-        throw new Error(`${accountLabel} could load the other account’s project or image records: ${JSON.stringify(reads)}.`);
+      if (stored.projectId !== test.project.id
+        || stored.projectName !== expectedProjectName
+        || stored.address !== test.project.address
+        || stored.municipality !== test.project.municipality
+        || stored.originalKey !== test.project.originalKey
+        || stored.conceptKey !== test.project.resultKeys.stage
+        || !stored.sourceBytes.includes(test.sourceMarker)
+        || !stored.conceptBytes.includes(test.conceptMarker)
+        || stored.sourceBytes.includes(test.foreignSourceMarker)
+        || stored.sourceBytes.includes(test.foreignConceptMarker)
+        || stored.conceptBytes.includes(test.foreignSourceMarker)
+        || stored.conceptBytes.includes(test.foreignConceptMarker)) {
+        throw new Error(`${accountLabel} did not read only its own project details and photos: ${JSON.stringify(stored)}.`);
       }
+      return stored;
     };
-    await assertDirectReadsScoped(accountATab, 'Account A');
-    await assertDirectReadsScoped(accountBTab, 'Account B');
+    const accountAInitialStorage = await assertOwnStorage(accountATab, accountATest, 'Account A');
+    const accountBInitialStorage = await assertOwnStorage(accountBTab, accountBTest, 'Account B');
+    if (accountAInitialStorage.address === accountBInitialStorage.address
+      || accountAInitialStorage.projectName === accountBInitialStorage.projectName
+      || accountAInitialStorage.sourceBytes === accountBInitialStorage.sourceBytes
+      || accountAInitialStorage.conceptBytes === accountBInitialStorage.conceptBytes) {
+      throw new Error('The matching project and photo identifiers did not contain distinct account-specific data.');
+    }
 
     await evaluate(accountATab, `document.querySelector('[data-testid="button-open-projects"]')?.click()`);
     await evaluate(accountBTab, `document.querySelector('[data-testid="button-open-projects"]')?.click()`);
@@ -2075,11 +2096,15 @@ async function runAccountIsolationCrossTabTest(debugPort, url, browser) {
       ),
     ]);
     if (accountAList.projectIds[0] !== accountATest.project.id
-      || accountAList.text.includes(accountATest.foreignProject.projectName)) {
+      || !accountAList.text.includes(accountATest.project.projectName)
+      || accountAList.text.includes(accountATest.foreignProject.projectName)
+      || accountAList.text.includes(accountATest.foreignProject.address)) {
       throw new Error('Account A’s project list displayed a project from Account B.');
     }
     if (accountBList.projectIds[0] !== accountBTest.project.id
-      || accountBList.text.includes(accountBTest.foreignProject.projectName)) {
+      || !accountBList.text.includes(accountBTest.project.projectName)
+      || accountBList.text.includes(accountBTest.foreignProject.projectName)
+      || accountBList.text.includes(accountBTest.foreignProject.address)) {
       throw new Error('Account B’s project list displayed a project from Account A.');
     }
 
@@ -2119,13 +2144,81 @@ async function runAccountIsolationCrossTabTest(debugPort, url, browser) {
     if (accountBNotifications < 1) {
       throw new Error('The matching Account B tab did not receive its storage-change notification.');
     }
+    const accountAAfterUpdateStorage = await assertOwnStorage(accountATab, accountATest, 'Account A');
     if (accountAAfterUpdate.text.includes(updatedAccountBProjectName)
       || accountAAfterUpdate.text.includes(accountATest.foreignProject.projectName)
-      || accountAAfterUpdate.projectIds?.join(',') !== accountATest.project.id) {
+      || accountAAfterUpdate.text.includes(accountATest.foreignProject.address)
+      || accountAAfterUpdate.projectIds?.join(',') !== accountATest.project.id
+      || accountAAfterUpdateStorage.projectName !== accountAInitialStorage.projectName
+      || accountAAfterUpdateStorage.sourceBytes !== accountAInitialStorage.sourceBytes
+      || accountAAfterUpdateStorage.conceptBytes !== accountAInitialStorage.conceptBytes) {
       throw new Error('Account B’s storage change refreshed or exposed project data in Account A’s tab.');
     }
 
-    return 'Passed: separate Account A and B tabs showed and loaded only their own projects and photo bytes; foreign project/image reads were empty; and an Account B storage update refreshed the matching tab without notifying or exposing data to Account A.';
+    await Promise.all([
+      evaluate(accountATab, 'window.__accountIsolationCrossTabTest.resetNotifications()'),
+      evaluate(accountBTab, 'window.__accountIsolationCrossTabTest.resetNotifications()'),
+    ]);
+    await evaluate(
+      accountBWriterTab,
+      'window.__accountIsolationCrossTabTest.deleteOwnProject()',
+      true,
+    );
+    const emptiedAccountBStorage = await waitFor(
+      accountBTab,
+      'window.__accountIsolationCrossTabTest.readOwnStorage()',
+      (state) => state?.projectId === undefined
+        && state?.sourceBytes === undefined
+        && state?.conceptBytes === undefined,
+      'Account B’s matching project and photos to disappear',
+    );
+    const [accountAAfterDeleteStorage, accountBAfterDeleteStorage, notificationsAfterDelete] = await Promise.all([
+      assertOwnStorage(accountATab, accountATest, 'Account A'),
+      evaluate(accountBTab, 'window.__accountIsolationCrossTabTest.readOwnStorage()', true),
+      evaluate(accountATab, 'window.__accountIsolationCrossTabTest.getNotificationCount()'),
+    ]);
+    const accountAListAfterDelete = await evaluate(accountATab, projectDialogExpression);
+    const accountBAfterDeleteNotifications = await evaluate(
+      accountBTab,
+      'window.__accountIsolationCrossTabTest.getNotificationCount()',
+    );
+    const accountBUiAfterDelete = await evaluate(accountBTab, `(() => ({
+      text: document.body.textContent,
+      projectRowCount: document.querySelectorAll('li[data-testid^="project-row-"]').length,
+    }))()`);
+    if (emptiedAccountBStorage.projectId !== undefined
+      || accountBAfterDeleteStorage.projectId !== undefined
+      || accountBAfterDeleteStorage.sourceBytes !== undefined
+      || accountBAfterDeleteStorage.conceptBytes !== undefined
+      || accountBUiAfterDelete.projectRowCount !== 0
+      || !accountBUiAfterDelete.text.includes('in een ander tabblad verwijderd')
+      || accountBUiAfterDelete.text.includes(accountBTest.project.address)) {
+      throw new Error(`Deleting Account B’s project did not remove its own matching project and photo records: ${JSON.stringify({
+        emptiedAccountBStorage,
+        accountBAfterDeleteStorage,
+        accountBUiAfterDelete: {
+          projectRowCount: accountBUiAfterDelete.projectRowCount,
+          text: accountBUiAfterDelete.text.slice(-500),
+        },
+      })}.`);
+    }
+    if (notificationsAfterDelete !== 0 || accountBAfterDeleteNotifications < 1) {
+      throw new Error('Deleting Account B’s project notified the wrong account tabs.');
+    }
+    if (accountAAfterDeleteStorage.projectId !== accountATest.project.id
+      || accountAAfterDeleteStorage.projectName !== accountAInitialStorage.projectName
+      || accountAAfterDeleteStorage.originalKey !== accountATest.project.originalKey
+      || accountAAfterDeleteStorage.conceptKey !== accountATest.project.resultKeys.stage
+      || accountAAfterDeleteStorage.sourceBytes !== accountAInitialStorage.sourceBytes
+      || accountAAfterDeleteStorage.conceptBytes !== accountAInitialStorage.conceptBytes
+      || !accountAListAfterDelete.open
+      || accountAListAfterDelete.projectIds?.join(',') !== accountATest.project.id
+      || !accountAListAfterDelete.text.includes(accountATest.project.projectName)
+      || accountAListAfterDelete.text.includes(accountATest.foreignProject.address)) {
+      throw new Error('Deleting Account B’s matching identifiers changed Account A’s project or photo records.');
+    }
+
+    return 'Passed: separate Account A and B tabs used identical project and photo identifiers but displayed only their own project details and photo bytes; updating then deleting Account B’s project left Account A’s matching project and images unchanged.';
   } finally {
     for (const { devTools } of targets) devTools.close();
     await Promise.all(targets.map(({ targetId }) =>

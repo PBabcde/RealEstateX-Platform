@@ -20,3 +20,9 @@ When testing account-private data in separate tabs, configure each tab's mocked 
 **Why:** The app selects its IndexedDB scope when its account-scoped page mounts, so a late identity change can hide a transient cross-account read.
 
 **How to apply:** Set each tab's test identity before importing or rendering the app, then verify its project list, image previews, and storage notifications.
+
+When two account scopes intentionally use identical project IDs and photo keys, verify the distinct project details and photo bytes returned by each scoped store, then mutate one scope and confirm the other scope's matching records remain unchanged. A lookup by the shared identifier is expected to return the current account's record, so it is not evidence of a cross-account leak by itself.
+
+**Why:** Account-scoped databases can safely contain the same local keys; isolation is demonstrated by which content each scope resolves and whether writes or deletion affect the other scope.
+
+**How to apply:** Seed account-specific content under shared identifiers in separate browser tabs, assert each UI and storage snapshot, then update or delete one account's record and recheck the other account's keys and bytes.
