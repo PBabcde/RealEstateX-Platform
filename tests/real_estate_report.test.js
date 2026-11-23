@@ -71,6 +71,9 @@ test("PDF contains all seven report sections and a valid PDF signature", async (
   const pdf = await renderRealEstateReportPdf(report);
   assert.equal(pdf.toString("latin1", 0, 8), "%PDF-1.3");
   const source = execFileSync("pdftotext", ["-", "-"], { input: pdf, encoding: "utf8" });
+  const info = execFileSync("pdfinfo", ["-"], { input: pdf, encoding: "utf8" });
+  const pages = Number(info.match(/^Pages:\s+(\d+)/m)?.[1]);
+  assert.ok(pages >= 1 && pages <= 2, `Expected a concise one- or two-page report, got ${pages} pages`);
   for (const section of [
     "Vastgoedrapport", "1. Vastgoedobject", "2. Financiële analyse",
     "3. Energy Brain-analyse", "4. Aanbevolen maatregel",

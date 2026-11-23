@@ -114,9 +114,6 @@ export async function renderRealEstateReportPdf(report: PropertyReport): Promise
   paragraph(report.recommendation, 11, "#17344D");
   document.moveDown(0.45);
   paragraph(report.disclaimer, 9, muted, 3);
-  document.moveDown(0.45);
-  document.fillColor(muted).font("Helvetica-Oblique").fontSize(8)
-    .text(`Dossier-ID: ${report.property.property_id}  ·  ${report.generated_at}`, 52, document.y, { width: pageWidth });
 
   document.end();
   return result;
