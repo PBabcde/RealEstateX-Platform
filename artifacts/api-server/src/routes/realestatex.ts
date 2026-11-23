@@ -14,6 +14,8 @@ import {
   GetMarketTrendsResponse,
   GetPropertyParams,
   GetPropertyResponse,
+  GetPropertyEnergyBrainResponse,
+  ReplacePropertyBody,
   ListPropertiesResponse,
   ListEnergyXRenovationScenariosResponse,
   SaveEnergyXRenovationScenarioBody,
@@ -49,9 +51,19 @@ import {
   requireAuthentication,
 } from "../middlewares/authorization";
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
+import { calculateEnergyBrain, EnergyBrainInputError } from "../lib/energy-brain";
 
 const router: IRouter = Router();
 const ENERGYX_SCENARIO_RETENTION_DAYS = 365;
+
+function normalizedPropertyInput(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return body;
+  const result = { ...body } as Record<string, unknown>;
+  for (const key of ["naam", "adres", "postcode", "plaats", "type", "energielabel"]) {
+    if (typeof result[key] === "string") result[key] = result[key].trim();
+  }
+  return result;
+}
 
 function scenarioResponse(row: typeof energyxRenovationScenariosTable.$inferSelect) {
   return {
@@ -146,7 +158,7 @@ router.get("/properties", async (req, res): Promise<void> => {
 });
 
 router.post("/properties", async (req, res): Promise<void> => {
-  const parsed = CreatePropertyBody.safeParse(req.body);
+  const parsed = CreatePropertyBody.safeParse(normalizedPropertyInput(req.body));
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
@@ -181,15 +193,84 @@ router.get("/properties/:propertyId", async (req, res): Promise<void> => {
   res.json(GetPropertyResponse.parse(property));
 });
 
+router.get("/properties/:propertyId/energy-brain", async (req, res): Promise<void> => {
+  const params = GetPropertyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const property = await getProperty(params.data.propertyId);
+  if (!property) {
+    res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  if (!canAccessOwner(req, property.ownerId)) {
+    forbidden(res);
+    return;
+  }
+  try {
+    res.json(GetPropertyEnergyBrainResponse.parse({
+      property_id: property.propertyId,
+      ...calculateEnergyBrain(property.energielabel, property.bouwjaar, property.woonoppervlak),
+    }));
+  } catch (error) {
+    if (!(error instanceof EnergyBrainInputError)) throw error;
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.put("/properties/:propertyId", async (req, res): Promise<void> => {
+  const params = UpdatePropertyParams.safeParse(req.params);
+  const body = ReplacePropertyBody.safeParse(normalizedPropertyInput(req.body));
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: !params.success ? params.error.message : !body.success ? body.error.message : "Invalid input" });
+    return;
+  }
+  const property = await getProperty(params.data.propertyId);
+  if (!property) {
+    res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  if (!canManageOwner(req, property.ownerId)) {
+    forbidden(res);
+    return;
+  }
+  const updated = await updateProperty(
+    params.data.propertyId,
+    {
+      ...body.data,
+      naam: body.data.naam ?? null,
+      postcode: body.data.postcode ?? null,
+      plaats: body.data.plaats ?? null,
+      huurprijs: body.data.huurprijs ?? null,
+      marktwaarde: body.data.marktwaarde ?? null,
+      perceel: body.data.perceel ?? null,
+      kenmerken: body.data.kenmerken ?? {},
+    },
+    req.dbUser!.id,
+    isAdministrator(req) ? undefined : req.dbUser!.id,
+    req.enterpriseContext!.tenantId,
+  );
+  if (!updated) {
+    res.status(404).json({ error: "Property not found" });
+    return;
+  }
+  res.json(UpdatePropertyResponse.parse(updated));
+});
+
 router.patch("/properties/:propertyId", async (req, res): Promise<void> => {
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const body = UpdatePropertyBody.safeParse(req.body);
+  const body = UpdatePropertyBody.safeParse(normalizedPropertyInput(req.body));
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
+    return;
+  }
+  if (Object.keys(body.data).length === 0) {
+    res.status(400).json({ error: "Geef minimaal één wijzigbaar dossierkenmerk op." });
     return;
   }
 

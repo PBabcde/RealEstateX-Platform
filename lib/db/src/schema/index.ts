@@ -2,6 +2,8 @@ import { relations, sql } from "drizzle-orm";
 import {
   bigint,
   integer,
+  doublePrecision,
+  numeric,
   jsonb,
   pgTable,
   primaryKey,
@@ -25,11 +27,16 @@ export const propertiesTable = pgTable(
   {
     propertyId: text("property_id").primaryKey(),
     ownerId: text("owner_id").notNull(),
+    naam: text("naam"),
+    postcode: text("postcode"),
+    plaats: text("plaats"),
+    huurprijs: numeric("huurprijs", { precision: 15, scale: 2, mode: "number" }),
+    marktwaarde: numeric("marktwaarde", { precision: 15, scale: 2, mode: "number" }),
     adres: text("adres").notNull(),
     type: text("type").notNull(),
     bouwjaar: integer("bouwjaar").notNull(),
-    woonoppervlak: integer("woonoppervlak").notNull(),
-    perceel: integer("perceel"),
+    woonoppervlak: doublePrecision("woonoppervlak").notNull(),
+    perceel: doublePrecision("perceel"),
     energielabel: text("energielabel").notNull(),
     kenmerken: jsonb("kenmerken")
       .$type<PropertyFeatures>()

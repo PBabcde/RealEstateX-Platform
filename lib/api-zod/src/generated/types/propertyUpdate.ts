@@ -8,6 +8,36 @@
 import type { PropertyUpdateKenmerken } from './propertyUpdateKenmerken';
 
 export interface PropertyUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  naam?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 20
+     * @nullable
+     */
+  postcode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  plaats?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  huurprijs?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  marktwaarde?: number | null;
   /** @minLength 1 */
   adres?: string;
   /** @minLength 1 */

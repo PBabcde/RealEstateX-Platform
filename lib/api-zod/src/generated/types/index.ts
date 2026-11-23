@@ -53,6 +53,7 @@ export * from './documentPassage';
 export * from './documentResponse';
 export * from './documentSummary';
 export * from './energyAnalysis';
+export * from './energyBrainAnalysis';
 export * from './energyMeasure';
 export * from './energyResponse';
 export * from './energyResponseSubsidies';

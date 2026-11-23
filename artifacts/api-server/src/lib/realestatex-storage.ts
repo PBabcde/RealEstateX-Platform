@@ -16,11 +16,18 @@ import { and, asc, eq, sql } from "drizzle-orm";
 export type PropertyRecord = {
   propertyId: string;
   ownerId: string;
+  naam?: string | null;
+  postcode?: string | null;
+  plaats?: string | null;
+  huurprijs?: number | null;
+  marktwaarde?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
   adres: string;
   type: string;
   bouwjaar: number;
   woonoppervlak: number;
-  perceel?: number;
+  perceel?: number | null;
   energielabel: string;
   kenmerken?: Record<string, string>;
 };
@@ -163,6 +170,13 @@ function propertyFromRow(row: typeof propertiesTable.$inferSelect): PropertyReco
   return {
     propertyId: row.propertyId,
     ownerId: row.ownerId,
+    naam: row.naam,
+    postcode: row.postcode,
+    plaats: row.plaats,
+    huurprijs: row.huurprijs,
+    marktwaarde: row.marktwaarde,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
     adres: row.adres,
     type: row.type,
     bouwjaar: row.bouwjaar,
@@ -298,6 +312,11 @@ export async function createProperty(
         .values({
           propertyId: property.propertyId,
           ownerId: property.ownerId,
+          naam: property.naam,
+          postcode: property.postcode,
+          plaats: property.plaats,
+          huurprijs: property.huurprijs,
+          marktwaarde: property.marktwaarde,
           adres: property.adres,
           type: property.type,
           bouwjaar: property.bouwjaar,
@@ -332,6 +351,8 @@ export async function createProperty(
   }
 
   const properties = await loadProperties();
+  const now = new Date().toISOString();
+  property = { ...property, createdAt: now, updatedAt: now };
   properties[property.propertyId] = property;
   writeJson("properties.json", properties);
   await recordAudit(
@@ -349,7 +370,7 @@ export async function createProperty(
 
 export async function updateProperty(
   propertyId: string,
-  changes: Partial<Omit<PropertyRecord, "propertyId">>,
+  changes: Partial<Omit<PropertyRecord, "propertyId" | "ownerId" | "createdAt" | "updatedAt">>,
   actorId?: string,
   ownerId?: string,
   tenantId = DEFAULT_TENANT_ID,
@@ -418,7 +439,7 @@ export async function updateProperty(
   if (!existing) {
     return undefined;
   }
-  const updated = { ...existing, ...changes };
+  const updated = { ...existing, ...changes, updatedAt: new Date().toISOString() };
   properties[propertyId] = updated;
   writeJson("properties.json", properties);
   await recordAudit(
@@ -503,11 +524,18 @@ export async function saveProperties(
           .insert(propertiesTable)
           .values({
             ...property,
+            createdAt: property.createdAt ? new Date(property.createdAt) : undefined,
+            updatedAt: property.updatedAt ? new Date(property.updatedAt) : undefined,
             kenmerken: property.kenmerken ?? {},
           })
           .onConflictDoUpdate({
             target: propertiesTable.propertyId,
             set: {
+              naam: property.naam,
+              postcode: property.postcode,
+              plaats: property.plaats,
+              huurprijs: property.huurprijs,
+              marktwaarde: property.marktwaarde,
               adres: property.adres,
               type: property.type,
               bouwjaar: property.bouwjaar,

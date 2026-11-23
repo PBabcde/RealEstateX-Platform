@@ -15,6 +15,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./mid
 import { resolveLocalUser } from "./middlewares/localUser";
 import { attachEnterpriseContext } from "./lib/enterprise-core-access";
 import paymentHoldRouter from "./routes/payment-hold";
+import apiDocsRouter from "./routes/api-docs";
 
 const app: Express = express();
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
@@ -67,6 +68,7 @@ app.use(
   }),
 );
 app.use("/api", paymentHoldRouter);
+app.use("/api", apiDocsRouter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(

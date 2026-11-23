@@ -889,6 +889,36 @@ export interface ErrorResponse {
 export type PropertyInputKenmerken = {[key: string]: string};
 
 export interface PropertyInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  naam?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 20
+     * @nullable
+     */
+  postcode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  plaats?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  huurprijs?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  marktwaarde?: number | null;
   /** @minLength 1 */
   adres: string;
   /** @minLength 1 */
@@ -909,11 +939,44 @@ export interface PropertyInput {
 
 export type Property = PropertyInput & {
   propertyId: string;
+  readonly ownerId?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
 };
 
 export type PropertyUpdateKenmerken = {[key: string]: string};
 
 export interface PropertyUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  naam?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 20
+     * @nullable
+     */
+  postcode?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     * @nullable
+     */
+  plaats?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  huurprijs?: number | null;
+  /**
+     * @minimum 0
+     * @maximum 1000000000000
+     * @nullable
+     */
+  marktwaarde?: number | null;
   /** @minLength 1 */
   adres?: string;
   /** @minLength 1 */
@@ -930,6 +993,21 @@ export interface PropertyUpdate {
   /** @minLength 1 */
   energielabel?: string;
   kenmerken?: PropertyUpdateKenmerken;
+}
+
+export interface EnergyBrainAnalysis {
+  property_id: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  energy_score: number;
+  recommended_measure: string;
+  estimated_investment: number;
+  estimated_annual_saving: number;
+  payback_years: number;
+  indicative: true;
+  methodology: string;
 }
 
 export interface ValuationInput {

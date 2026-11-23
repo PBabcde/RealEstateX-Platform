@@ -9,4 +9,7 @@ import type { PropertyInput } from './propertyInput';
 
 export type Property = PropertyInput & {
   propertyId: string;
+  readonly ownerId?: string;
+  readonly createdAt?: Date;
+  readonly updatedAt?: Date;
 };

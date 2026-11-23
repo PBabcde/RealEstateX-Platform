@@ -48,6 +48,7 @@ import type {
   DocumentInput,
   DocumentListResponse,
   DocumentResponse,
+  EnergyBrainAnalysis,
   EnergyResponse,
   EnergyXRenovationScenario,
   EnergyXRenovationScenarioInput,
@@ -540,6 +541,96 @@ export const useCreateProperty = <TError = ErrorType<BadRequestResponse | Unauth
       return useMutation(getCreatePropertyMutationOptions(options));
     }
 
+export const getReplacePropertyUrl = (propertyId: string,) => {
+
+
+
+
+  return `/api/properties/${propertyId}`
+}
+
+/**
+ * Full update of required fields. Optional fields omitted from PUT are cleared. Ownership and creation time cannot be changed.
+ * @summary Replace the editable property dossier fields
+ */
+export const replaceProperty = async (propertyId: string,
+    propertyInput: PropertyInput, options?: Parameters<typeof customFetch>[1]): Promise<Property> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Property>(getReplacePropertyUrl(propertyId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(propertyInput)
+  }
+);}
+
+
+
+
+
+export const getReplacePropertyMutationKey = () => ['replaceProperty'] as const;
+
+export const getReplacePropertyMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceProperty>>, TError,ReplacePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceProperty>>, TError,ReplacePropertyMutationVariables, TContext> => {
+
+const mutationKey = getReplacePropertyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceProperty>>, ReplacePropertyMutationVariables> = (props) => {
+          const {propertyId,data} = props ?? {};
+
+          return  replaceProperty(propertyId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplacePropertyMutationResult = NonNullable<Awaited<ReturnType<typeof replaceProperty>>>
+    export type ReplacePropertyMutationBody = BodyType<PropertyInput>
+    export type ReplacePropertyMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+    export type ReplacePropertyMutationVariables = {propertyId: string;data: BodyType<PropertyInput>}
+
+    /**
+ * @summary Replace the editable property dossier fields
+ */
+export const useReplaceProperty = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceProperty>>, TError,ReplacePropertyMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceProperty>>,
+        TError,
+        ReplacePropertyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReplacePropertyMutationOptions(options));
+    }
+
 export const getGetPropertyUrl = (propertyId: string,) => {
 
 
@@ -779,6 +870,84 @@ export const useDeleteProperty = <TError = ErrorType<UnauthorizedResponse | Forb
       > => {
       return useMutation(getDeletePropertyMutationOptions(options));
     }
+
+export const getGetPropertyEnergyBrainUrl = (propertyId: string,) => {
+
+
+
+
+  return `/api/properties/${propertyId}/energy-brain`
+}
+
+/**
+ * Label-based baseline estimate, not an installation design or investment-policy approval. Construction year and area are validated but do not alter this baseline model.
+ * @summary Calculate an indicative Energy Brain analysis for a saved property
+ */
+export const getPropertyEnergyBrain = async (propertyId: string, options?: Parameters<typeof customFetch>[1]): Promise<EnergyBrainAnalysis> => {
+
+  return customFetch<EnergyBrainAnalysis>(getGetPropertyEnergyBrainUrl(propertyId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPropertyEnergyBrainQueryKey = (propertyId: string,) => {
+    return [
+    `/api/properties/${propertyId}/energy-brain`
+    ] as const;
+    }
+
+
+export const getGetPropertyEnergyBrainQueryOptions = <TData = Awaited<ReturnType<typeof getPropertyEnergyBrain>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPropertyEnergyBrain>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPropertyEnergyBrainQueryKey(propertyId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPropertyEnergyBrain>>> = ({ signal }) => getPropertyEnergyBrain(propertyId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: propertyId !== null && propertyId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPropertyEnergyBrain>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPropertyEnergyBrainQueryResult = NonNullable<Awaited<ReturnType<typeof getPropertyEnergyBrain>>>
+export type GetPropertyEnergyBrainQueryError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>
+
+
+/**
+ * @summary Calculate an indicative Energy Brain analysis for a saved property
+ */
+
+export function useGetPropertyEnergyBrain<TData = Awaited<ReturnType<typeof getPropertyEnergyBrain>>, TError = ErrorType<BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>>(
+ propertyId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPropertyEnergyBrain>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPropertyEnergyBrainQueryOptions(propertyId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCalculateValuationUrl = () => {
 

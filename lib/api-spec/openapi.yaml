@@ -139,6 +139,34 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
   /properties/{propertyId}:
+    put:
+      operationId: replaceProperty
+      tags: [properties]
+      summary: Replace the editable property dossier fields
+      description: Full update of required fields. Optional fields omitted from PUT are cleared. Ownership and creation time cannot be changed.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyInput"
+      responses:
+        "200":
+          description: Updated property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     get:
       operationId: getProperty
       tags: [properties]
@@ -200,6 +228,29 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /properties/{propertyId}/energy-brain:
+    get:
+      operationId: getPropertyEnergyBrain
+      tags: [properties]
+      summary: Calculate an indicative Energy Brain analysis for a saved property
+      description: Label-based baseline estimate, not an installation design or investment-policy approval. Construction year and area are validated but do not alter this baseline model.
+      parameters:
+        - $ref: "#/components/parameters/PropertyId"
+      responses:
+        "200":
+          description: Indicative energy analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnergyBrainAnalysis"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /valuations/calculate:
     post:
       operationId: calculateValuation
@@ -2255,10 +2306,41 @@ components:
           properties:
             propertyId:
               type: string
+            ownerId:
+              type: string
+              readOnly: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
           required: [propertyId]
     PropertyInput:
       type: object
       properties:
+        naam:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+        postcode:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 20
+        plaats:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+        huurprijs:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1000000000000
+        marktwaarde:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1000000000000
         adres:
           type: string
           minLength: 1
@@ -2286,6 +2368,26 @@ components:
     PropertyUpdate:
       type: object
       properties:
+        naam:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+        postcode:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 20
+        plaats:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+        huurprijs:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1000000000000
+        marktwaarde:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1000000000000
         adres:
           type: string
           minLength: 1
@@ -2309,6 +2411,29 @@ components:
           type: object
           additionalProperties:
             type: string
+    EnergyBrainAnalysis:
+      type: object
+      required: [property_id, energy_score, recommended_measure, estimated_investment, estimated_annual_saving, payback_years, indicative, methodology]
+      properties:
+        property_id:
+          type: string
+        energy_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+        recommended_measure:
+          type: string
+        estimated_investment:
+          type: number
+        estimated_annual_saving:
+          type: number
+        payback_years:
+          type: number
+        indicative:
+          type: boolean
+          enum: [true]
+        methodology:
+          type: string
     ValuationInput:
       type: object
       properties:

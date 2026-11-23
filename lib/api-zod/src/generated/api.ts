@@ -116,6 +116,18 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List saved properties
  */
+export const listPropertiesResponseOneNaamMax = 200;
+
+export const listPropertiesResponseOnePostcodeMax = 20;
+
+export const listPropertiesResponseOnePlaatsMax = 200;
+
+export const listPropertiesResponseOneHuurprijsMin = 0;
+export const listPropertiesResponseOneHuurprijsMax = 1000000000000;
+
+export const listPropertiesResponseOneMarktwaardeMin = 0;
+export const listPropertiesResponseOneMarktwaardeMax = 1000000000000;
+
 
 
 export const listPropertiesResponseOneBouwjaarMin = 1000;
@@ -128,6 +140,11 @@ export const listPropertiesResponseOnePerceelMin = 0;
 
 
 export const ListPropertiesResponseItem = zod.object({
+  "naam": zod.string().min(1).max(listPropertiesResponseOneNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(listPropertiesResponseOnePostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(listPropertiesResponseOnePlaatsMax).nullish(),
+  "huurprijs": zod.number().min(listPropertiesResponseOneHuurprijsMin).max(listPropertiesResponseOneHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(listPropertiesResponseOneMarktwaardeMin).max(listPropertiesResponseOneMarktwaardeMax).nullish(),
   "adres": zod.string().min(1),
   "type": zod.string().min(1),
   "bouwjaar": zod.number().int().min(listPropertiesResponseOneBouwjaarMin).max(listPropertiesResponseOneBouwjaarMax),
@@ -136,7 +153,10 @@ export const ListPropertiesResponseItem = zod.object({
   "energielabel": zod.string().min(1),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 }).and(zod.object({
-  "propertyId": zod.string()
+  "propertyId": zod.string(),
+  "ownerId": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
 }))
 export const ListPropertiesResponse = zod.array(ListPropertiesResponseItem)
 
@@ -144,6 +164,18 @@ export const ListPropertiesResponse = zod.array(ListPropertiesResponseItem)
 /**
  * @summary Add a property to the portfolio
  */
+export const createPropertyBodyNaamMax = 200;
+
+export const createPropertyBodyPostcodeMax = 20;
+
+export const createPropertyBodyPlaatsMax = 200;
+
+export const createPropertyBodyHuurprijsMin = 0;
+export const createPropertyBodyHuurprijsMax = 1000000000000;
+
+export const createPropertyBodyMarktwaardeMin = 0;
+export const createPropertyBodyMarktwaardeMax = 1000000000000;
+
 
 
 export const createPropertyBodyBouwjaarMin = 1000;
@@ -156,6 +188,11 @@ export const createPropertyBodyPerceelMin = 0;
 
 
 export const CreatePropertyBody = zod.object({
+  "naam": zod.string().min(1).max(createPropertyBodyNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(createPropertyBodyPostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(createPropertyBodyPlaatsMax).nullish(),
+  "huurprijs": zod.number().min(createPropertyBodyHuurprijsMin).max(createPropertyBodyHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(createPropertyBodyMarktwaardeMin).max(createPropertyBodyMarktwaardeMax).nullish(),
   "adres": zod.string().min(1),
   "type": zod.string().min(1),
   "bouwjaar": zod.number().int().min(createPropertyBodyBouwjaarMin).max(createPropertyBodyBouwjaarMax),
@@ -164,6 +201,18 @@ export const CreatePropertyBody = zod.object({
   "energielabel": zod.string().min(1),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 })
+
+export const createPropertyResponseOneNaamMax = 200;
+
+export const createPropertyResponseOnePostcodeMax = 20;
+
+export const createPropertyResponseOnePlaatsMax = 200;
+
+export const createPropertyResponseOneHuurprijsMin = 0;
+export const createPropertyResponseOneHuurprijsMax = 1000000000000;
+
+export const createPropertyResponseOneMarktwaardeMin = 0;
+export const createPropertyResponseOneMarktwaardeMax = 1000000000000;
 
 
 
@@ -177,6 +226,11 @@ export const createPropertyResponseOnePerceelMin = 0;
 
 
 export const CreatePropertyResponse = zod.object({
+  "naam": zod.string().min(1).max(createPropertyResponseOneNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(createPropertyResponseOnePostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(createPropertyResponseOnePlaatsMax).nullish(),
+  "huurprijs": zod.number().min(createPropertyResponseOneHuurprijsMin).max(createPropertyResponseOneHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(createPropertyResponseOneMarktwaardeMin).max(createPropertyResponseOneMarktwaardeMax).nullish(),
   "adres": zod.string().min(1),
   "type": zod.string().min(1),
   "bouwjaar": zod.number().int().min(createPropertyResponseOneBouwjaarMin).max(createPropertyResponseOneBouwjaarMax),
@@ -185,7 +239,103 @@ export const CreatePropertyResponse = zod.object({
   "energielabel": zod.string().min(1),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 }).and(zod.object({
-  "propertyId": zod.string()
+  "propertyId": zod.string(),
+  "ownerId": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
+}))
+
+
+/**
+ * Full update of required fields. Optional fields omitted from PUT are cleared. Ownership and creation time cannot be changed.
+ * @summary Replace the editable property dossier fields
+ */
+
+
+
+export const ReplacePropertyParams = zod.object({
+  "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
+})
+
+export const replacePropertyBodyNaamMax = 200;
+
+export const replacePropertyBodyPostcodeMax = 20;
+
+export const replacePropertyBodyPlaatsMax = 200;
+
+export const replacePropertyBodyHuurprijsMin = 0;
+export const replacePropertyBodyHuurprijsMax = 1000000000000;
+
+export const replacePropertyBodyMarktwaardeMin = 0;
+export const replacePropertyBodyMarktwaardeMax = 1000000000000;
+
+
+
+export const replacePropertyBodyBouwjaarMin = 1000;
+export const replacePropertyBodyBouwjaarMax = 2100;
+
+
+export const replacePropertyBodyPerceelMin = 0;
+
+
+
+
+export const ReplacePropertyBody = zod.object({
+  "naam": zod.string().min(1).max(replacePropertyBodyNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(replacePropertyBodyPostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(replacePropertyBodyPlaatsMax).nullish(),
+  "huurprijs": zod.number().min(replacePropertyBodyHuurprijsMin).max(replacePropertyBodyHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(replacePropertyBodyMarktwaardeMin).max(replacePropertyBodyMarktwaardeMax).nullish(),
+  "adres": zod.string().min(1),
+  "type": zod.string().min(1),
+  "bouwjaar": zod.number().int().min(replacePropertyBodyBouwjaarMin).max(replacePropertyBodyBouwjaarMax),
+  "woonoppervlak": zod.number().min(1),
+  "perceel": zod.number().min(replacePropertyBodyPerceelMin).optional(),
+  "energielabel": zod.string().min(1),
+  "kenmerken": zod.record(zod.string(), zod.string()).optional()
+})
+
+export const replacePropertyResponseOneNaamMax = 200;
+
+export const replacePropertyResponseOnePostcodeMax = 20;
+
+export const replacePropertyResponseOnePlaatsMax = 200;
+
+export const replacePropertyResponseOneHuurprijsMin = 0;
+export const replacePropertyResponseOneHuurprijsMax = 1000000000000;
+
+export const replacePropertyResponseOneMarktwaardeMin = 0;
+export const replacePropertyResponseOneMarktwaardeMax = 1000000000000;
+
+
+
+export const replacePropertyResponseOneBouwjaarMin = 1000;
+export const replacePropertyResponseOneBouwjaarMax = 2100;
+
+
+export const replacePropertyResponseOnePerceelMin = 0;
+
+
+
+
+export const ReplacePropertyResponse = zod.object({
+  "naam": zod.string().min(1).max(replacePropertyResponseOneNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(replacePropertyResponseOnePostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(replacePropertyResponseOnePlaatsMax).nullish(),
+  "huurprijs": zod.number().min(replacePropertyResponseOneHuurprijsMin).max(replacePropertyResponseOneHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(replacePropertyResponseOneMarktwaardeMin).max(replacePropertyResponseOneMarktwaardeMax).nullish(),
+  "adres": zod.string().min(1),
+  "type": zod.string().min(1),
+  "bouwjaar": zod.number().int().min(replacePropertyResponseOneBouwjaarMin).max(replacePropertyResponseOneBouwjaarMax),
+  "woonoppervlak": zod.number().min(1),
+  "perceel": zod.number().min(replacePropertyResponseOnePerceelMin).optional(),
+  "energielabel": zod.string().min(1),
+  "kenmerken": zod.record(zod.string(), zod.string()).optional()
+}).and(zod.object({
+  "propertyId": zod.string(),
+  "ownerId": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
 }))
 
 
@@ -199,6 +349,18 @@ export const GetPropertyParams = zod.object({
   "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
 })
 
+export const getPropertyResponseOneNaamMax = 200;
+
+export const getPropertyResponseOnePostcodeMax = 20;
+
+export const getPropertyResponseOnePlaatsMax = 200;
+
+export const getPropertyResponseOneHuurprijsMin = 0;
+export const getPropertyResponseOneHuurprijsMax = 1000000000000;
+
+export const getPropertyResponseOneMarktwaardeMin = 0;
+export const getPropertyResponseOneMarktwaardeMax = 1000000000000;
+
 
 
 export const getPropertyResponseOneBouwjaarMin = 1000;
@@ -211,6 +373,11 @@ export const getPropertyResponseOnePerceelMin = 0;
 
 
 export const GetPropertyResponse = zod.object({
+  "naam": zod.string().min(1).max(getPropertyResponseOneNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(getPropertyResponseOnePostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(getPropertyResponseOnePlaatsMax).nullish(),
+  "huurprijs": zod.number().min(getPropertyResponseOneHuurprijsMin).max(getPropertyResponseOneHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(getPropertyResponseOneMarktwaardeMin).max(getPropertyResponseOneMarktwaardeMax).nullish(),
   "adres": zod.string().min(1),
   "type": zod.string().min(1),
   "bouwjaar": zod.number().int().min(getPropertyResponseOneBouwjaarMin).max(getPropertyResponseOneBouwjaarMax),
@@ -219,7 +386,10 @@ export const GetPropertyResponse = zod.object({
   "energielabel": zod.string().min(1),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 }).and(zod.object({
-  "propertyId": zod.string()
+  "propertyId": zod.string(),
+  "ownerId": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
 }))
 
 
@@ -233,6 +403,18 @@ export const UpdatePropertyParams = zod.object({
   "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
 })
 
+export const updatePropertyBodyNaamMax = 200;
+
+export const updatePropertyBodyPostcodeMax = 20;
+
+export const updatePropertyBodyPlaatsMax = 200;
+
+export const updatePropertyBodyHuurprijsMin = 0;
+export const updatePropertyBodyHuurprijsMax = 1000000000000;
+
+export const updatePropertyBodyMarktwaardeMin = 0;
+export const updatePropertyBodyMarktwaardeMax = 1000000000000;
+
 
 
 export const updatePropertyBodyBouwjaarMin = 1000;
@@ -245,6 +427,11 @@ export const updatePropertyBodyPerceelMin = 0;
 
 
 export const UpdatePropertyBody = zod.object({
+  "naam": zod.string().min(1).max(updatePropertyBodyNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(updatePropertyBodyPostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(updatePropertyBodyPlaatsMax).nullish(),
+  "huurprijs": zod.number().min(updatePropertyBodyHuurprijsMin).max(updatePropertyBodyHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(updatePropertyBodyMarktwaardeMin).max(updatePropertyBodyMarktwaardeMax).nullish(),
   "adres": zod.string().min(1).optional(),
   "type": zod.string().min(1).optional(),
   "bouwjaar": zod.number().int().min(updatePropertyBodyBouwjaarMin).max(updatePropertyBodyBouwjaarMax).optional(),
@@ -253,6 +440,18 @@ export const UpdatePropertyBody = zod.object({
   "energielabel": zod.string().min(1).optional(),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 })
+
+export const updatePropertyResponseOneNaamMax = 200;
+
+export const updatePropertyResponseOnePostcodeMax = 20;
+
+export const updatePropertyResponseOnePlaatsMax = 200;
+
+export const updatePropertyResponseOneHuurprijsMin = 0;
+export const updatePropertyResponseOneHuurprijsMax = 1000000000000;
+
+export const updatePropertyResponseOneMarktwaardeMin = 0;
+export const updatePropertyResponseOneMarktwaardeMax = 1000000000000;
 
 
 
@@ -266,6 +465,11 @@ export const updatePropertyResponseOnePerceelMin = 0;
 
 
 export const UpdatePropertyResponse = zod.object({
+  "naam": zod.string().min(1).max(updatePropertyResponseOneNaamMax).nullish(),
+  "postcode": zod.string().min(1).max(updatePropertyResponseOnePostcodeMax).nullish(),
+  "plaats": zod.string().min(1).max(updatePropertyResponseOnePlaatsMax).nullish(),
+  "huurprijs": zod.number().min(updatePropertyResponseOneHuurprijsMin).max(updatePropertyResponseOneHuurprijsMax).nullish(),
+  "marktwaarde": zod.number().min(updatePropertyResponseOneMarktwaardeMin).max(updatePropertyResponseOneMarktwaardeMax).nullish(),
   "adres": zod.string().min(1),
   "type": zod.string().min(1),
   "bouwjaar": zod.number().int().min(updatePropertyResponseOneBouwjaarMin).max(updatePropertyResponseOneBouwjaarMax),
@@ -274,7 +478,10 @@ export const UpdatePropertyResponse = zod.object({
   "energielabel": zod.string().min(1),
   "kenmerken": zod.record(zod.string(), zod.string()).optional()
 }).and(zod.object({
-  "propertyId": zod.string()
+  "propertyId": zod.string(),
+  "ownerId": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional(),
+  "updatedAt": zod.coerce.date().optional()
 }))
 
 
@@ -289,6 +496,34 @@ export const DeletePropertyParams = zod.object({
 })
 
 export const DeletePropertyResponse = zod.void()
+
+
+/**
+ * Label-based baseline estimate, not an installation design or investment-policy approval. Construction year and area are validated but do not alter this baseline model.
+ * @summary Calculate an indicative Energy Brain analysis for a saved property
+ */
+
+
+
+export const GetPropertyEnergyBrainParams = zod.object({
+  "propertyId": zod.coerce.string().min(1).describe('Stable property identifier')
+})
+
+export const getPropertyEnergyBrainResponseEnergyScoreMin = 0;
+export const getPropertyEnergyBrainResponseEnergyScoreMax = 100;
+
+
+
+export const GetPropertyEnergyBrainResponse = zod.object({
+  "property_id": zod.string(),
+  "energy_score": zod.number().int().min(getPropertyEnergyBrainResponseEnergyScoreMin).max(getPropertyEnergyBrainResponseEnergyScoreMax),
+  "recommended_measure": zod.string(),
+  "estimated_investment": zod.number(),
+  "estimated_annual_saving": zod.number(),
+  "payback_years": zod.number(),
+  "indicative": zod.literal(true),
+  "methodology": zod.string()
+})
 
 
 /**
