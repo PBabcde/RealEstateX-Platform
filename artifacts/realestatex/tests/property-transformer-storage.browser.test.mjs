@@ -1279,6 +1279,37 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('The failed cleanup did not preserve the new image, referenced old image, unused concept, and retry record.');
     }
 
+    // Reload the studio: the persisted cleanup queue must restore the warning and retry action.
+    await devTools.send('Page.navigate', { url });
+    const cleanupAfterReloadUi = await waitFor(
+      `(() => {
+        const retryButton = document.querySelector('[data-testid="button-retry-photo-cleanup"]');
+        return {
+          status: document.querySelector('#test-result')?.dataset.status,
+          fixtureReady: typeof window.__propertyRecoveryTest?.readProject === 'function',
+          alert: document.querySelector('[data-testid="status-photo-cleanup-error"]')?.textContent ?? '',
+          retryEnabled: Boolean(retryButton && !retryButton.disabled),
+        };
+      })()`,
+      (value) => value?.status === 'app-started' && value.fixtureReady && value.alert && value.retryEnabled,
+      'the photo-cleanup warning and retry action to return after reloading the studio',
+    );
+    if (!cleanupAfterReloadUi.alert.includes('oude foto')) {
+      throw new Error(`The cleanup warning after reload was not the expected message: ${cleanupAfterReloadUi.alert}`);
+    }
+    const afterCleanupReload = await evaluate(
+      `(async () => ({
+        pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+      }))()`,
+      true,
+    );
+    if (!afterCleanupReload.pendingCleanup.includes(oldSourceKey)
+      || !afterCleanupReload.pendingCleanup.includes(oldConceptKey)
+      || !afterCleanupReload.imageRecords.some((image) => image.key === oldConceptKey)) {
+      throw new Error('Reloading the studio lost the saved photo-cleanup retry record or its images.');
+    }
+
     await evaluate(`document.querySelector('[data-testid="button-retry-photo-cleanup"]')?.click()`);
     const cleanupRetryUi = await waitFor(
       `(() => ({
