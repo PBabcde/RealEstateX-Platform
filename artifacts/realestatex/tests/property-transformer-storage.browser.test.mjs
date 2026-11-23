@@ -440,6 +440,41 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       throw new Error('A failed concept repair changed the saved scenario or project settings.');
     }
 
+    const makeoverRepairVisible = await evaluate(`Boolean(document.querySelector('[data-testid="button-repair-concept-makeover"]'))`, true);
+    if (!makeoverRepairVisible) throw new Error('The missing Style makeover repair action was not offered before the failure check.');
+    {
+      const projectBeforeMakeoverRepair = await evaluate(`window.__propertyRecoveryTest.readProject()`, true);
+      await evaluate(`(() => {
+        window.__propertyRecoveryTest.lastConceptRequestUrl = '';
+        window.__propertyRecoveryTest.failConceptRequestPath = '/api/property-transformations/makeover';
+        window.__propertyRecoveryTest.failNextConceptRequest = true;
+        document.querySelector('[data-testid="button-repair-concept-makeover"]')?.click();
+      })()`);
+      const failedMakeoverRepair = await waitFor(
+        `(() => ({
+          error: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+          request: window.__propertyRecoveryTest.lastConceptRequestUrl,
+          actionFinished: !document.querySelector('[data-testid="button-open-projects"]')?.disabled,
+        }))()`,
+        (value) => value?.error && value?.request && value.actionFinished,
+        'the targeted Style makeover repair request to fail cleanly',
+      );
+      if (!failedMakeoverRepair.request.includes('/api/property-transformations/makeover')) {
+        throw new Error(`The makeover repair started the wrong concept action: ${failedMakeoverRepair.request}`);
+      }
+      const projectAfterMakeoverRepair = await evaluate(`window.__propertyRecoveryTest.readProject()`, true);
+      if (JSON.stringify(projectAfterMakeoverRepair) !== JSON.stringify(projectBeforeMakeoverRepair)) {
+        throw new Error('A failed Style makeover repair changed the selected scenario or saved concept references.');
+      }
+      const makeoverRepairStillAvailable = await evaluate(`(() => {
+        const button = document.querySelector('[data-testid="button-repair-concept-makeover"]');
+        return Boolean(button && !button.disabled);
+      })()`, true);
+      if (!makeoverRepairStillAvailable) {
+        throw new Error('The Style makeover repair action disappeared after its request failed.');
+      }
+    }
+
     await evaluate(`document.querySelector('[data-testid="button-open-projects"]')?.click()`);
     const portfolioControls = await waitFor(
       `(() => {

@@ -175,6 +175,7 @@ async function prepareFixture() {
   window.__propertyRecoveryTest = {
     initialProject: project,
     failNextConceptRequest: false,
+    failConceptRequestPath: null,
     lastConceptRequestUrl: '',
     deleteConfirmations: [],
     successfulConceptDataUrl: fixturePngDataUrl,
@@ -297,8 +298,9 @@ async function prepareFixture() {
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, ...init) => {
     const url = input instanceof Request ? input.url : String(input);
-    if (window.__propertyRecoveryTest.failNextConceptRequest && url.includes('/api/property-transformations/virtual-staging')) {
+    if (window.__propertyRecoveryTest.failNextConceptRequest && url.includes(window.__propertyRecoveryTest.failConceptRequestPath || '/api/property-transformations/virtual-staging')) {
       window.__propertyRecoveryTest.failNextConceptRequest = false;
+      window.__propertyRecoveryTest.failConceptRequestPath = null;
       window.__propertyRecoveryTest.lastConceptRequestUrl = url;
       return Promise.reject(new TypeError('Failed to fetch'));
     }
