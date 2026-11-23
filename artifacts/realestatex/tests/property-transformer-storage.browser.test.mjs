@@ -1897,13 +1897,24 @@ function makeTestJpeg() {
   );
 }
 
-function makeOrientationTaggedTestJpeg() {
+function makeOrientationTaggedTestJpeg(orientation = 6) {
   const jpeg = makeTestJpeg();
   const frameOffset = jpeg.indexOf(Buffer.from([0xff, 0xc0]));
   if (frameOffset < 0) throw new Error('The JPEG test fixture has no baseline frame header.');
   // The fixture is smaller than a JPEG block, so widening its frame keeps the encoded scan valid.
   jpeg.writeUInt16BE(3, frameOffset + 7);
+  return insertExifOrientation(jpeg, orientation);
+}
 
+// 32x16 JPEG with red (top-left), green (top-right), blue (bottom-left), and yellow (bottom-right) quadrants.
+function makeQuadrantTestJpeg(orientation) {
+  return insertExifOrientation(Buffer.from(
+    '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAIBAQEBAQIBAQECAgICAgQDAgICAgUEBAMEBgUGBgYFBgYGBwkIBgcJBwYGCAsICQoKCgoKBggLDAsKDAkKCgr/2wBDAQICAgICAgUDAwUKBwYHCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgr/wAARCAAQACADAREAAhEBAxEB/8QAFwABAQEBAAAAAAAAAAAAAAAAAAkICv/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAXAQEBAQEAAAAAAAAAAAAAAAAACAoJ/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AxelN38AUoS2wrgINtpjqwA7FGANVAD//2Q==',
+    'base64',
+  ), orientation);
+}
+
+function insertExifOrientation(jpeg, orientation) {
   const tiff = Buffer.alloc(26);
   tiff.write('MM', 0, 'ascii');
   tiff.writeUInt16BE(42, 2);
@@ -1912,7 +1923,7 @@ function makeOrientationTaggedTestJpeg() {
   tiff.writeUInt16BE(0x0112, 10);
   tiff.writeUInt16BE(3, 12);
   tiff.writeUInt32BE(1, 14);
-  tiff.writeUInt16BE(6, 18);
+  tiff.writeUInt16BE(orientation, 18);
   tiff.writeUInt32BE(0, 22);
   const payload = Buffer.concat([Buffer.from('Exif\0\0', 'ascii'), tiff]);
   const app1 = Buffer.alloc(4 + payload.length);
@@ -1920,6 +1931,133 @@ function makeOrientationTaggedTestJpeg() {
   app1.writeUInt16BE(payload.length + 2, 2);
   payload.copy(app1, 4);
   return Buffer.concat([jpeg.subarray(0, 2), app1, jpeg.subarray(2)]);
+}
+
+// Expected quadrant colours (row by row) after applying each EXIF orientation to the red/green/blue/yellow fixture.
+const exifOrientationExpectations = [
+  { orientation: 2, description: 'mirrored horizontally', width: 32, height: 16, quadrants: ['green', 'red', 'yellow', 'blue'] },
+  { orientation: 3, description: 'rotated 180 degrees', width: 32, height: 16, quadrants: ['yellow', 'blue', 'green', 'red'] },
+  { orientation: 4, description: 'mirrored vertically', width: 32, height: 16, quadrants: ['blue', 'yellow', 'red', 'green'] },
+  { orientation: 5, description: 'mirrored and rotated 90 degrees counter-clockwise', width: 16, height: 32, quadrants: ['red', 'blue', 'green', 'yellow'] },
+  { orientation: 6, description: 'rotated 90 degrees clockwise', width: 16, height: 32, quadrants: ['blue', 'red', 'yellow', 'green'] },
+  { orientation: 7, description: 'mirrored and rotated 90 degrees clockwise', width: 16, height: 32, quadrants: ['yellow', 'green', 'blue', 'red'] },
+  { orientation: 8, description: 'rotated 90 degrees counter-clockwise', width: 16, height: 32, quadrants: ['green', 'yellow', 'red', 'blue'] },
+];
+
+async function runExifOrientationRecoveryTest(debugPort, url, userDataDir, browser) {
+  const socketUrl = await getPageTarget(debugPort, browser);
+  const devTools = await connectDevTools(socketUrl);
+  await devTools.send('Runtime.enable');
+  await devTools.send('Page.enable');
+  await devTools.send('DOM.enable');
+  const evaluate = async (expression) => {
+    const response = await devTools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+    }
+    return response.result?.value;
+  };
+  const waitFor = async (expression, predicate, description, timeoutMs = 30_000) => {
+    const deadline = Date.now() + timeoutMs;
+    let lastValue;
+    while (Date.now() < deadline) {
+      if (browser.exitCode !== null) throw new Error(`Chromium exited during ${description} (code ${browser.exitCode}).`);
+      lastValue = await evaluate(expression);
+      if (lastValue?.status === 'failed') throw new Error(`Photo recovery fixture failed:\n${lastValue.text}`);
+      if (predicate(lastValue)) return lastValue;
+      if (devTools.exceptions.length) throw new Error(`Browser exception during ${description}:\n${devTools.exceptions.join('\n')}`);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    throw new Error(`Timed out waiting for ${description}. Last browser state: ${JSON.stringify(lastValue)}`);
+  };
+  const readPreview = `(async () => {
+    const fixture = window.__propertyRecoveryTest;
+    if (typeof fixture?.readProject !== 'function') return { fixtureReady: false };
+    const project = await fixture.readProject();
+    const preview = document.querySelector('img[alt="Originele woningfoto"]');
+    return {
+      fixtureReady: true,
+      project,
+      loaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+      width: preview?.naturalWidth ?? 0,
+      height: preview?.naturalHeight ?? 0,
+      quadrants: preview?.complete && preview.naturalWidth > 0 ? (() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = preview.naturalWidth;
+        canvas.height = preview.naturalHeight;
+        const context = canvas.getContext('2d');
+        context.drawImage(preview, 0, 0);
+        const palette = { red: [255, 0, 0], green: [0, 255, 0], blue: [0, 0, 255], yellow: [255, 255, 0] };
+        return [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]].map(([fx, fy]) => {
+          const [r, g, b] = context.getImageData(Math.floor(canvas.width * fx), Math.floor(canvas.height * fy), 1, 1).data;
+          return Object.entries(palette).map(([name, rgb]) => [name, Math.hypot(r - rgb[0], g - rgb[1], b - rgb[2])]).sort((a, b) => a[1] - b[1])[0][0];
+        });
+      })() : [],
+    };
+  })()`;
+  const stripVolatile = (project) => {
+    const copy = { ...project };
+    delete copy.originalKey;
+    delete copy.updatedAt;
+    return JSON.stringify(copy);
+  };
+
+  try {
+    for (const expectation of exifOrientationExpectations) {
+      const filePath = path.join(userDataDir, `exif-orientation-${expectation.orientation}.jpeg`);
+      await writeFile(filePath, makeQuadrantTestJpeg(expectation.orientation));
+      const label = `EXIF orientation ${expectation.orientation} (${expectation.description})`;
+
+      await devTools.send('Page.navigate', { url: 'about:blank' });
+      await devTools.send('Page.navigate', { url });
+      await waitFor(
+        `(async () => {
+          if (typeof window.__propertyRecoveryTest?.readProject !== 'function') return { ready: false };
+          sessionStorage.removeItem('realestatex-photo-recovery-fixture-ready');
+          return { ready: true };
+        })()`,
+        (value) => value?.ready,
+        'the recovery fixture to load',
+      );
+      // Reload so the fixture reseeds its project with a missing source photo for this orientation.
+      await devTools.send('Page.navigate', { url });
+      await waitFor(
+        `(() => ({
+          signedIn: Boolean(document.querySelector('[data-testid="button-logout"]')),
+          notice: document.querySelector('[data-testid="status-missing-project-images"]')?.textContent ?? '',
+        }))()`,
+        (value) => value?.signedIn && value.notice.includes('De bronfoto ontbreekt.'),
+        `the missing source-photo notice before ${label}`,
+      );
+      const before = await evaluate('window.__propertyRecoveryTest.readProject()');
+      const documentRoot = await devTools.send('DOM.getDocument');
+      const input = await devTools.send('DOM.querySelector', { nodeId: documentRoot.root.nodeId, selector: '[data-testid="input-property-image"]' });
+      if (!input.nodeId) throw new Error('The source-photo upload input was not rendered.');
+      await devTools.send('DOM.setFileInputFiles', { files: [filePath], nodeId: input.nodeId });
+
+      const recovered = await waitFor(readPreview, (value) => value?.fixtureReady && value.loaded && value.project?.originalKey, `the ${label} preview to load`);
+      if (recovered.width !== expectation.width || recovered.height !== expectation.height
+        || recovered.quadrants.join() !== expectation.quadrants.join()) {
+        throw new Error(`The ${label} preview is not upright: expected ${expectation.width}x${expectation.height} [${expectation.quadrants}], got ${recovered.width}x${recovered.height} [${recovered.quadrants}].`);
+      }
+      if (stripVolatile(recovered.project) !== stripVolatile(before) || recovered.project.selectedResult !== 'stage') {
+        throw new Error(`Recovering the ${label} photo changed saved project assumptions or the selected scenario.`);
+      }
+
+      await devTools.send('Page.navigate', { url });
+      const refreshed = await waitFor(readPreview, (value) => value?.fixtureReady && value.loaded && value.project?.id === before.id, `the ${label} preview to return after refresh`);
+      if (refreshed.width !== expectation.width || refreshed.height !== expectation.height
+        || refreshed.quadrants.join() !== expectation.quadrants.join()) {
+        throw new Error(`The ${label} preview changed after refresh: expected ${expectation.width}x${expectation.height} [${expectation.quadrants}], got ${refreshed.width}x${refreshed.height} [${refreshed.quadrants}].`);
+      }
+      if (stripVolatile(refreshed.project) !== stripVolatile(before) || refreshed.project.selectedResult !== 'stage') {
+        throw new Error(`Refreshing after ${label} recovery changed saved project assumptions or the selected scenario.`);
+      }
+    }
+    return `Passed: rotated and mirrored EXIF orientations ${exifOrientationExpectations.map((entry) => entry.orientation).join(', ')} kept the expected pixel arrangement upright before and after refresh without changing project assumptions or the selected scenario.`;
+  } finally {
+    devTools.close();
+  }
 }
 
 async function runSortOrderCrossTabTest(debugPort, url, browser) {
@@ -2533,7 +2671,8 @@ try {
       console.log(duplicateImportResult);
     } else if (process.env.PROPERTY_RECOVERY_ONLY === '1') {
       const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
-      console.log(recoveryResult);
+      const exifResult = await runExifOrientationRecoveryTest(debugPort, recoveryUrl, userDataDir, browser);
+      console.log(`${recoveryResult}\n${exifResult}`);
     } else if (process.env.PROPERTY_ACCOUNT_ISOLATION_ONLY === '1') {
       const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
       const crossTabResult = await runAccountIsolationCrossTabTest(debugPort, accountIsolationCrossTabUrl, browser);
@@ -2549,10 +2688,11 @@ try {
         const accountIsolationResult = await runBrowserTest(debugPort, accountIsolationUrl, browser);
         const crossTabAccountIsolationResult = await runAccountIsolationCrossTabTest(debugPort, accountIsolationCrossTabUrl, browser);
         const recoveryResult = await runAuthenticatedRecoveryTest(debugPort, recoveryUrl, recoveryImagePath, recoveryJpegImagePath, unreadableImagePath, unsupportedImagePath, browser);
+        const exifOrientationResult = await runExifOrientationRecoveryTest(debugPort, recoveryUrl, userDataDir, browser);
         const duplicateImportResult = await runBrowserTest(debugPort, duplicateImportUrl, browser);
         const searchResult = await runBrowserTest(debugPort, searchUrl, browser);
         const sortSyncResult = await runSortOrderCrossTabTest(debugPort, sortSyncUrl, browser);
-        console.log(`${storageResult}\n${accountIsolationResult}\n${crossTabAccountIsolationResult}\n${recoveryResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
+        console.log(`${storageResult}\n${accountIsolationResult}\n${crossTabAccountIsolationResult}\n${recoveryResult}\n${exifOrientationResult}\n${duplicateImportResult}\n${searchResult}\n${sortSyncResult}`);
       }
     }
   } finally {
