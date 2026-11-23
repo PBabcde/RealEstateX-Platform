@@ -773,6 +773,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (!makeoverRepairButton) throw new Error('The missing Style makeover concept did not offer its targeted repair action.');
     await evaluate(`(() => {
       window.__propertyRecoveryTest.lastConceptRequestUrl = '';
+      window.__propertyRecoveryTest.lastConceptRequestBody = '';
       document.querySelector('[data-testid="button-repair-concept-makeover"]')?.click();
     })()`);
     const successfulMakeoverRepair = await waitFor(
@@ -786,6 +787,7 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
           project,
           image,
           request: window.__propertyRecoveryTest.lastConceptRequestUrl,
+          requestBody: window.__propertyRecoveryTest.lastConceptRequestBody,
           missingConcept: notice.includes('Style makeover'),
         };
       })()`,
@@ -798,6 +800,16 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
         && !value.missingConcept,
       'the missing Style makeover concept to be repaired',
     );
+    let makeoverRequestStyle;
+    try {
+      makeoverRequestStyle = JSON.parse(successfulMakeoverRepair.requestBody).style;
+    } catch {
+      throw new Error(`The Style makeover request body was not captured as JSON: ${successfulMakeoverRepair.requestBody}`);
+    }
+    if (makeoverRequestStyle !== beforeMakeoverRepair.selectedStyle
+      || successfulMakeoverRepair.project.selectedStyle !== beforeMakeoverRepair.selectedStyle) {
+      throw new Error(`The Style makeover repair sent style ${makeoverRequestStyle} instead of the saved ${beforeMakeoverRepair.selectedStyle}.`);
+    }
     if (successfulMakeoverRepair.project.selectedResult !== 'makeover') {
       throw new Error(`The successful Style makeover repair selected ${successfulMakeoverRepair.project.selectedResult} instead.`);
     }
@@ -865,6 +877,9 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
     if (JSON.stringify(persistedMakeoverRepair.project.resultKeys)
       !== JSON.stringify(successfulMakeoverRepair.project.resultKeys)) {
       throw new Error('The Style makeover image references changed after reloading the studio.');
+    }
+    if (persistedMakeoverRepair.project.selectedStyle !== beforeMakeoverRepair.selectedStyle) {
+      throw new Error('The saved interior style changed after reloading the repaired Style makeover.');
     }
 
     await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);

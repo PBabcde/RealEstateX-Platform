@@ -305,6 +305,8 @@ async function prepareFixture() {
     if (url.includes('/api/property-transformations/virtual-staging')
       || url.includes('/api/property-transformations/makeover')) {
       window.__propertyRecoveryTest.lastConceptRequestUrl = url;
+      const rawBody = init[0]?.body ?? (input instanceof Request ? undefined : undefined);
+      window.__propertyRecoveryTest.lastConceptRequestBody = typeof rawBody === 'string' ? rawBody : '';
       return Promise.resolve(new Response(JSON.stringify({
         imageDataUrl: window.__propertyRecoveryTest.successfulConceptDataUrl,
         mimeType: 'image/png',
