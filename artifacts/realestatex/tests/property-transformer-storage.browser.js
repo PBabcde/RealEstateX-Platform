@@ -543,6 +543,82 @@ function runSavedProjectSearchUiChecks(transferError = '') {
   root.unmount();
 }
 
+async function runStartupStorageFailureChecks() {
+  const databaseName = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const project = {
+    ...expectedProjects.alpha,
+    id: 'browser-startup-retry-project',
+    projectName: 'Startup retry saved project',
+    originalKey: 'browser-startup-retry-original',
+    resultKeys: {},
+    selectedResult: null,
+    updatedAt: '2100-01-01T12:00:00.000Z',
+  };
+  await savePropertyProjectWithImage(project, {
+    key: project.originalKey,
+    blob: new Blob(['startup retry source'], { type: 'image/png' }),
+    label: 'Originele foto',
+    mimeType: 'image/png',
+    isConcept: false,
+    disclaimer: 'Source photo stored locally.',
+    createdAt: project.updatedAt,
+  });
+  const idsBefore = (await loadPropertyProjects()).map((item) => item.id).sort();
+
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const originalOpen = indexedDB.open;
+  indexedDB.open = function failingOpen(name, ...args) {
+    if (name !== databaseName) return originalOpen.call(this, name, ...args);
+    const request = {};
+    setTimeout(() => {
+      Object.defineProperty(request, 'error', { value: new DOMException('Storage unavailable', 'UnknownError') });
+      request.onerror?.();
+    }, 0);
+    return request;
+  };
+  const waitFor = async (predicate, description) => {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`Timed out waiting for ${description}.`);
+  };
+  try {
+    flushSync(() => root.render(
+      React.createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        React.createElement(Router, null,
+          React.createElement(PropertyTransformer, { accountId: PROPERTY_STORAGE_TEST_ACCOUNT_ID, userEmail: '' }),
+        ),
+      ),
+    ));
+    await waitFor(() => container.querySelector('[data-testid="button-retry-startup-load"]'), 'the startup storage retry action');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert(container.querySelector('[data-testid="button-retry-startup-load"]'), 'The retry action disappeared before storage recovered.');
+    indexedDB.open = originalOpen;
+    const idsAfterFailure = (await loadPropertyProjects()).map((item) => item.id).sort();
+    assert(JSON.stringify(idsAfterFailure) === JSON.stringify(idsBefore), 'A failed startup read created or removed a saved project.');
+    assert(JSON.stringify(await loadPropertyProject(project.id)) === JSON.stringify(project), 'A failed startup read changed the saved project.');
+
+    container.querySelector('[data-testid="button-retry-startup-load"]').click();
+    await waitFor(
+      () => [...container.querySelectorAll('input')].some((input) => input.value === project.projectName),
+      'the retry to reload the saved project',
+    );
+    assert(!container.querySelector('[data-testid="button-retry-startup-load"]'), 'The retry action stayed visible after a successful reload.');
+    assert(!container.querySelector('[data-testid="status-upload-error"]'), 'The startup storage error stayed visible after a successful reload.');
+    await waitFor(() => container.querySelector('img'), 'the saved source photo to reload');
+    assert(JSON.stringify((await loadPropertyProjects()).map((item) => item.id).sort()) === JSON.stringify(idsBefore), 'Retrying created an extra saved project.');
+  } finally {
+    indexedDB.open = originalOpen;
+    root.unmount();
+    container.remove();
+    await deletePropertyProject(project);
+  }
+}
+
 async function runCrossTabPhotoHealthChecks() {
   const originalVisibilityDescriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState');
   let simulatedVisibilityState = document.visibilityState;
@@ -1873,8 +1949,9 @@ async function run() {
       assert((await loadPropertyProject(recoveryProject.id)).projectName === 'Tab A name', 'A conflicting edit overwrote the other tab’s project name.');
     }
     await runCrossTabPhotoHealthChecks();
+    await runStartupStorageFailureChecks();
     result.dataset.status = 'passed';
-    result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the open editor explained the active-project deletion and created a separate new project without restoring it. The remaining project and shared photos stayed unchanged. The open editor and project list also refresh photo previews and warnings after cross-tab changes without overwriting in-progress edits. Portfolio restore, search, ordering, export, and import checks also passed.';
+    result.textContent = 'Passed: two open project lists stayed current after one tab deleted a project; the open editor explained the active-project deletion and created a separate new project without restoring it. The remaining project and shared photos stayed unchanged. The open editor and project list also refresh photo previews and warnings after cross-tab changes without overwriting in-progress edits. A failed startup storage read offered a retry without saving a placeholder, and retrying reloaded the saved project and photo. Portfolio restore, search, ordering, export, and import checks also passed.';
     return;
   }
 
