@@ -616,8 +616,8 @@ async function runCrossTabPhotoHealthChecks() {
   })));
   const refresh = async () => {
     const stored = await loadPropertyProjectsWithPhotoHealth();
-    displayedProjects = stored.projects.filter((item) => item.id === project.id);
-    photoHealthByProject = { [project.id]: stored.photoHealthById[project.id] };
+    displayedProjects = stored.projects;
+    photoHealthByProject = stored.photoHealthById;
     render();
   };
   await refresh();
@@ -629,6 +629,12 @@ async function runCrossTabPhotoHealthChecks() {
   const statusSelector = `[data-testid="status-project-photo-health-${project.id}"]`;
   const readStatus = () => rootElement.querySelector(statusSelector)?.textContent ?? '';
   const readOpenProjectListStatus = () => editorRootElement.querySelector(statusSelector)?.textContent ?? '';
+  const setProjectListSearchQuery = (query) => {
+    const input = rootElement.querySelector('[data-testid="input-search-projects"]');
+    assert(input instanceof HTMLInputElement, 'The first tab project list did not render its search field.');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, query);
+    flushSync(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+  };
   const waitForStatus = async (predicate, description) => {
     const deadline = Date.now() + 15_000;
     while (Date.now() < deadline) {
@@ -1039,6 +1045,29 @@ async function runCrossTabPhotoHealthChecks() {
       'the surviving project to appear with healthy shared-photo status in the second tab',
     );
 
+    const unrelatedProjectsBeforeDelete = await loadPropertyProjectsWithPhotoHealth();
+    const serializeUnrelatedProjects = (snapshot) => JSON.stringify({
+      projects: snapshot.projects
+        .filter((item) => item.id !== project.id)
+        .sort((left, right) => left.id.localeCompare(right.id)),
+      photoHealthById: Object.fromEntries(
+        Object.entries(snapshot.photoHealthById)
+          .filter(([id]) => id !== project.id)
+          .sort(([left], [right]) => left.localeCompare(right)),
+      ),
+    });
+    const unrelatedSnapshotBeforeDelete = serializeUnrelatedProjects(unrelatedProjectsBeforeDelete);
+    await waitForEditor(
+      () => rootElement.querySelector(`[data-testid="project-row-${project.id}"]`)?.textContent.includes(updatedProjectName),
+      'the first-tab saved-project list to reflect the renamed project',
+    );
+    setProjectListSearchQuery(updatedProjectName);
+    assert(
+      JSON.stringify([...rootElement.querySelectorAll('[data-testid^="project-row-"]')].map((row) => row.getAttribute('data-testid')))
+        === JSON.stringify([`project-row-${project.id}`]),
+      'Searching in the first tab did not isolate the project that will be deleted.',
+    );
+
     const originalBeforeDelete = await loadPropertyImage(survivorProject.originalKey);
     const survivorResultAction = Object.keys(survivorProject.resultKeys)[0];
     const conceptBeforeDelete = await loadPropertyImage(survivorProject.resultKeys[survivorResultAction]);
@@ -1049,6 +1078,39 @@ async function runCrossTabPhotoHealthChecks() {
     };
 
     await runWriterCommand('delete-project', { id: project.id });
+    await waitForEditor(
+      () => !rootElement.querySelector(`[data-testid="project-row-${project.id}"]`)
+        && rootElement.querySelector('[data-testid="empty-project-search"]'),
+      'the first tab to remove the deleted search match and show the no-results state',
+    );
+    const noResultsAfterCrossTabDelete = rootElement.querySelector('[data-testid="empty-project-search"]');
+    const searchAfterCrossTabDelete = rootElement.querySelector('[data-testid="input-search-projects"]');
+    assert(searchAfterCrossTabDelete instanceof HTMLInputElement, 'The first tab search field disappeared after the cross-tab deletion.');
+    assert(searchAfterCrossTabDelete.value === updatedProjectName, 'The first tab did not retain its search after the matching project was deleted.');
+    assert(noResultsAfterCrossTabDelete.textContent.includes('Geen opgeslagen projecten gevonden'), 'The cross-tab deletion did not show the no-results explanation.');
+    assert(noResultsAfterCrossTabDelete.textContent.includes(updatedProjectName), 'The no-results explanation did not retain the deleted project search.');
+    assert(!rootElement.querySelector('[data-testid="empty-project-list"]'), 'The cross-tab deletion replaced the search explanation with the generic empty-portfolio state.');
+    const clearSearchAfterCrossTabDelete = rootElement.querySelector('[data-testid="button-clear-project-search"]');
+    assert(clearSearchAfterCrossTabDelete instanceof HTMLButtonElement, 'The first tab did not offer a way to clear its retained search.');
+    flushSync(() => clearSearchAfterCrossTabDelete.click());
+    await waitForEditor(
+      () => rootElement.querySelector(`[data-testid="project-row-${survivorProject.id}"]`)
+        && rootElement.querySelector(`[data-testid="status-project-photo-health-${survivorProject.id}"]`)?.textContent === 'Geen ontbrekende foto’s',
+      'clearing the search to restore the unrelated survivor and its photo-health status',
+    );
+    const restoredRowIds = [...rootElement.querySelectorAll('[data-testid^="project-row-"]')]
+      .map((row) => row.getAttribute('data-testid').replace('project-row-', ''))
+      .sort();
+    const expectedUnrelatedIds = unrelatedProjectsBeforeDelete.projects
+      .filter((item) => item.id !== project.id)
+      .map((item) => item.id)
+      .sort();
+    assert(JSON.stringify(restoredRowIds) === JSON.stringify(expectedUnrelatedIds), 'Clearing the search did not restore every unrelated project.');
+    const unrelatedProjectsAfterDelete = await loadPropertyProjectsWithPhotoHealth();
+    assert(
+      serializeUnrelatedProjects(unrelatedProjectsAfterDelete) === unrelatedSnapshotBeforeDelete,
+      'Deleting the searched project changed an unrelated project or its photo-health status.',
+    );
     await waitForEditor(
       () => editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]')?.textContent.includes(project.projectName)
         && editorRootElement.querySelector('[data-testid="button-create-project"]'),
