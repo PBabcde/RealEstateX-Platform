@@ -1492,6 +1492,32 @@ async function runCrossTabPhotoHealthChecks() {
       }
       await assertNoLateWork(failingFixture, `late ${failure.label} concept response`, `${failingFixture.id}-stage-`);
     }
+
+    // A sleeping editor misses the deletion broadcast; waking it must detect the missing record without recreating it.
+    const sleepingFixture = await makeInFlightFixture('browser-sleeping-deleted-project');
+    await openFixtureInEditor(sleepingFixture);
+    simulatedVisibilityState = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await runWriterCommand('delete-project-without-notification', { id: sleepingFixture.id });
+    assert(!(await loadPropertyProject(sleepingFixture.id)), 'The second tab did not delete the project while the editor slept.');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert(
+      !editorRootElement.querySelector('[data-testid="status-project-deleted-elsewhere"]'),
+      'The sleeping editor noticed the deletion before it became visible.',
+    );
+    let sleepingStaleSaveError = '';
+    try {
+      await updatePropertyProject(sleepingFixture);
+    } catch (error) {
+      sleepingStaleSaveError = error instanceof Error ? error.message : String(error);
+    }
+    assert(sleepingStaleSaveError.includes('bestaat niet meer'), 'Saving stale sleeping-editor state recreated the deleted project.');
+    simulatedVisibilityState = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await assertDeletionStaysExplained(sleepingFixture, 'the sleeping editor waking');
+    assert(editorRootElement.querySelector('[data-testid="button-recover-deleted-project"]'), 'The woken editor did not offer backup recovery.');
+    assert(editorRootElement.querySelector('[data-testid="button-create-project"]'), 'The woken editor did not offer a new project.');
+    await assertNoLateWork(sleepingFixture, 'sleeping editor wake-up', `${sleepingFixture.id}-stage-`);
   } finally {
     window.__simulateSleepingPhotoListTab = false;
     if (originalVisibilityDescriptor) {

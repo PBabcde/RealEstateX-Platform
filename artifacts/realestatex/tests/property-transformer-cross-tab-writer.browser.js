@@ -107,6 +107,40 @@ async function deleteImageWithoutNotification(key, notify = false) {
   }
 }
 
+async function deleteProjectWithoutNotification(id) {
+  const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
+  const database = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, 2);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(['projects', 'images'], 'readwrite');
+      const projectStore = transaction.objectStore('projects');
+      const imageStore = transaction.objectStore('images');
+      const request = projectStore.get(id);
+      request.onsuccess = () => {
+        const project = request.result;
+        if (!project) {
+          transaction.abort();
+          return;
+        }
+        projectStore.delete(id);
+        for (const key of [project.originalKey, ...Object.values(project.resultKeys ?? {})]) {
+          if (key) imageStore.delete(key);
+        }
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error ?? new Error('The silent project deletion was aborted.'));
+    });
+  } finally {
+    database.close();
+  }
+}
+
 async function replaceSourceWithoutNotification(id, key) {
   const name = `realestatex-property-transformer:account:${encodeURIComponent(PROPERTY_STORAGE_TEST_ACCOUNT_ID)}`;
   const database = await new Promise((resolve, reject) => {
@@ -174,6 +208,8 @@ window.addEventListener('message', async (event) => {
       await openProjectList();
     } else if (operation === 'delete-project') {
       await deleteProjectFromList(id);
+    } else if (operation === 'delete-project-without-notification') {
+      await deleteProjectWithoutNotification(id);
     } else if (operation === 'edit-project-details') {
       const current = await loadPropertyProject(id);
       if (!current) throw new Error(`The project ${id} no longer exists.`);
