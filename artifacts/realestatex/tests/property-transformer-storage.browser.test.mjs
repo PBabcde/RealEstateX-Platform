@@ -1312,6 +1312,89 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
       || afterPhotoCleanupRetry.pendingCleanup.length !== 0) {
       throw new Error('The cleanup retry removed a still-referenced photo, retained the unreferenced concept, or changed the saved project.');
     }
+    // Concept replacement: the new concept must be saved even when the old concept cannot be removed.
+    await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
+    const firstConcept = await waitFor(
+      `(async () => (await window.__propertyRecoveryTest.readProject())?.resultKeys?.stage ?? '')()`,
+      (value) => Boolean(value),
+      'a first generated concept to be saved before testing concept replacement cleanup',
+    );
+    await evaluate(
+      `window.__propertyRecoveryTest.failNextPhotoCleanup([${JSON.stringify(firstConcept)}])`,
+    );
+    await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
+    const conceptCleanupFailureUi = await waitFor(
+      `(async () => {
+        const project = await window.__propertyRecoveryTest.readProject();
+        return {
+          replaced: Boolean(project?.resultKeys?.stage && project.resultKeys.stage !== ${JSON.stringify(firstConcept)}),
+          alert: document.querySelector('[data-testid="status-photo-cleanup-error"]')?.textContent ?? '',
+          retryEnabled: Boolean(document.querySelector('[data-testid="button-retry-photo-cleanup"]') && !document.querySelector('[data-testid="button-retry-photo-cleanup"]').disabled),
+          injected: window.__propertyRecoveryTest.didInjectPhotoCleanupFailure(),
+          uploadError: document.querySelector('[data-testid="status-upload-error"]')?.textContent ?? '',
+        };
+      })()`,
+      (value) => (value?.replaced && value.alert && value.retryEnabled && value.injected) || value?.uploadError,
+      'a failed old-concept cleanup to keep the replacement concept and offer retry',
+    );
+    if (conceptCleanupFailureUi.uploadError || !conceptCleanupFailureUi.replaced) {
+      throw new Error(`The replacement concept was not kept after cleanup failure: ${conceptCleanupFailureUi.uploadError}`);
+    }
+    const conceptProjectAfterFailure = await evaluate(
+      `window.__propertyRecoveryTest.readProject()`,
+      true,
+    );
+    const sharedConceptProject = {
+      ...conceptProjectAfterFailure,
+      id: 'browser-concept-cleanup-shared-reference',
+      projectName: 'Concept cleanup shared reference',
+      resultKeys: { stage: firstConcept },
+      selectedResult: 'stage',
+    };
+    await evaluate(
+      `window.__propertyRecoveryTest.saveProject(${JSON.stringify(sharedConceptProject)})`,
+      true,
+    );
+    const afterFailedConceptCleanup = await evaluate(
+      `(async () => ({
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+      }))()`,
+      true,
+    );
+    if (!afterFailedConceptCleanup.imageRecords.some((image) => image.key === conceptProjectAfterFailure.resultKeys.stage)
+      || !afterFailedConceptCleanup.imageRecords.some((image) => image.key === firstConcept)
+      || !afterFailedConceptCleanup.pendingCleanup.includes(firstConcept)) {
+      throw new Error('The failed concept cleanup did not keep the new concept, old concept, and retry record.');
+    }
+    await evaluate(`document.querySelector('[data-testid="button-retry-photo-cleanup"]')?.click()`);
+    await waitFor(
+      `(() => ({
+        alertGone: !document.querySelector('[data-testid="status-photo-cleanup-error"]'),
+        notice: document.querySelector('[data-testid="status-transform-success"]')?.textContent ?? '',
+      }))()`,
+      (value) => value?.alertGone && value.notice.includes('behouden'),
+      'the concept cleanup retry to complete and keep the concept still used by another project',
+    );
+    const afterConceptCleanupRetry = await evaluate(
+      `(async () => ({
+        shared: await window.__propertyRecoveryTest.readProject('browser-concept-cleanup-shared-reference'),
+        imageRecords: await window.__propertyRecoveryTest.readImageRecords(),
+        pendingCleanup: await window.__propertyRecoveryTest.readPendingPhotoCleanup(),
+      }))()`,
+      true,
+    );
+    if (afterConceptCleanupRetry.shared?.resultKeys?.stage !== firstConcept
+      || !afterConceptCleanupRetry.imageRecords.some((image) => image.key === firstConcept)
+      || !afterConceptCleanupRetry.imageRecords.some((image) => image.key === conceptProjectAfterFailure.resultKeys.stage)
+      || afterConceptCleanupRetry.pendingCleanup.length !== 0) {
+      throw new Error('The concept cleanup retry removed a concept still referenced by another project.');
+    }
+    await evaluate(
+      `window.__propertyRecoveryTest.deleteProject(${JSON.stringify(sharedConceptProject)})`,
+      true,
+    );
+
     await evaluate(
       `window.__propertyRecoveryTest.deleteProject(${JSON.stringify(sharedPhotoProject)})`,
       true,
@@ -1326,12 +1409,16 @@ async function runAuthenticatedRecoveryTest(debugPort, url, uploadPath, jpegUplo
 
     await evaluate(`document.querySelector('[data-testid="button-transform-stage"]')?.click()`);
     const finalActivePreview = await waitFor(
-      `(() => {
+      `(async () => {
         const source = document.querySelector('img[alt="Originele woningfoto"]');
         const concept = document.querySelector('img[alt="Virtual stage concept"]');
+        const project = await window.__propertyRecoveryTest.readProject();
+        const pending = await window.__propertyRecoveryTest.readPendingPhotoCleanup();
         return {
           sourceLoaded: Boolean(source?.complete && source.naturalWidth > 0),
-          conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0),
+          conceptLoaded: Boolean(concept?.complete && concept.naturalWidth > 0
+            && project?.resultKeys?.stage && project.resultKeys.stage !== ${JSON.stringify(conceptProjectAfterFailure.resultKeys.stage)}
+            && pending.length === 0),
         };
       })()`,
       (value) => value?.sourceLoaded && value.conceptLoaded,

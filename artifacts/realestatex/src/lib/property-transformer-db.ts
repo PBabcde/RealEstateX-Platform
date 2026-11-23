@@ -810,8 +810,8 @@ export async function savePropertyConceptImage(
   splitRatio: number,
   scope: StorageScope = null,
   expectedSourceKey?: string,
-): Promise<PropertyProject> {
-  const result = await commitProjectPhotoMutation(
+): Promise<{ project: PropertyProject; cleanupKeys: string[] }> {
+  return commitProjectPhotoMutation(
     projectId,
     image,
     (current) => {
@@ -828,8 +828,9 @@ export async function savePropertyConceptImage(
     },
     (current) => [current.resultKeys[action] ?? ''],
     scope,
+    false,
+    true,
   );
-  return result.project;
 }
 
 export async function loadPropertyProjects(scope: StorageScope = null): Promise<PropertyProject[]> {

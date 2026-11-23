@@ -1233,9 +1233,22 @@ function PropertyTransformer({ accountId, userEmail }: { accountId: string; user
               const key = `${project.id}-${action}-${crypto.randomUUID()}`;
               const blob = await dataUrlToBlob(response.imageDataUrl);
               const imageRecord: PropertyImageRecord = { key, blob, label: actions.find((item) => item.id === action)?.label ?? action, mimeType: response.mimeType, isConcept: response.isConcept, disclaimer: response.disclaimer, createdAt: new Date().toISOString() };
-              const next = await storage.savePropertyConceptImage(project.id, action, imageRecord, splitRatio, sourceProject.originalKey);
+              const saved = await storage.savePropertyConceptImage(project.id, action, imageRecord, splitRatio, sourceProject.originalKey);
+              const next = saved.project;
               await refreshPhotoState(next.id);
               await refreshProjects().catch(() => setUploadError('Het concept is opgeslagen, maar de status in de projectlijst kon niet worden bijgewerkt.'));
+              if (saved.cleanupKeys.length > 0) {
+                const conceptCleanupKeys = [...new Set([...photoCleanupKeys, ...saved.cleanupKeys])];
+                try {
+                  await storage.cleanupPendingPropertyImages(conceptCleanupKeys);
+                  setPhotoCleanupKeys([]);
+                  setPhotoCleanupError('');
+                } catch {
+                  const pendingKeys = await storage.loadPendingPropertyPhotoCleanup().catch(() => []);
+                  setPhotoCleanupKeys([...new Set([...pendingKeys, ...conceptCleanupKeys])]);
+                  setPhotoCleanupError('');
+                }
+              }
               setNotice(`${imageRecord.label} concept is lokaal opgeslagen.`);
               setTimeout(() => setNotice(''), 3500);
             } catch (error) {
