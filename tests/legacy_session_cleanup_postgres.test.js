@@ -79,6 +79,13 @@ async function readPreservedState() {
       "SELECT to_jsonb(user_row) AS row FROM public.users AS user_row ORDER BY id",
     ),
     sessionSchema: await tableSchema("sessions"),
+    sessionTriggers: await rows(
+      `SELECT tgname AS name
+       FROM pg_trigger
+       WHERE tgrelid = 'public.sessions'::regclass
+         AND NOT tgisinternal
+       ORDER BY tgname`,
+    ),
     foreignKeys: await foreignKeyDefinitions(),
     properties: await rows(
       "SELECT to_jsonb(property_row) AS row FROM public.properties AS property_row ORDER BY property_id",
@@ -282,6 +289,11 @@ test("PostgreSQL cleanup keeps active/grace sessions and customer data, and roll
     "session cleanup fixture must not add a session foreign key",
   );
   assert.deepEqual(
+    baseline.sessionTriggers,
+    [],
+    "session cleanup fixture must not add a user-defined session trigger",
+  );
+  assert.deepEqual(
     baseline.sessionSchema.columns.map((column) => [
       column.column_name,
       column.data_type,
@@ -293,6 +305,72 @@ test("PostgreSQL cleanup keeps active/grace sessions and customer data, and roll
       ["expire", "timestamp without time zone", "NO"],
     ],
   );
+
+  await pool.query(
+    `CREATE TABLE public.session_cleanup_reference_fixture (
+       session_sid varchar PRIMARY KEY REFERENCES public.sessions(sid)
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO public.session_cleanup_reference_fixture (session_sid)
+     VALUES ('active-session')`,
+  );
+  try {
+    const blockedByForeignKey = await runCleanup(2);
+    assert.notEqual(blockedByForeignKey.exitCode, 0, blockedByForeignKey.output);
+    assert.match(
+      blockedByForeignKey.output,
+      /foreign keys: 1; user triggers: 0/u,
+    );
+    assert.match(blockedByForeignKey.output, /No rows were deleted/u);
+    assert.deepEqual(
+      await rows(
+        "SELECT to_jsonb(session_row) AS row FROM public.sessions AS session_row ORDER BY sid",
+      ),
+      initialSessions,
+      "a real foreign key referencing sessions must block cleanup without deleting any session",
+    );
+  } finally {
+    await pool.query("DROP TABLE public.session_cleanup_reference_fixture");
+  }
+
+  await pool.query(
+    `CREATE FUNCTION public.session_cleanup_test_trigger()
+     RETURNS trigger
+     LANGUAGE plpgsql
+     AS $$
+     BEGIN
+       RETURN OLD;
+     END;
+     $$`,
+  );
+  await pool.query(
+    `CREATE TRIGGER session_cleanup_test_trigger
+     BEFORE DELETE ON public.sessions
+     FOR EACH ROW
+     EXECUTE FUNCTION public.session_cleanup_test_trigger()`,
+  );
+  try {
+    const blockedByTrigger = await runCleanup(2);
+    assert.notEqual(blockedByTrigger.exitCode, 0, blockedByTrigger.output);
+    assert.match(
+      blockedByTrigger.output,
+      /foreign keys: 0; user triggers: 1/u,
+    );
+    assert.match(blockedByTrigger.output, /No rows were deleted/u);
+    assert.deepEqual(
+      await rows(
+        "SELECT to_jsonb(session_row) AS row FROM public.sessions AS session_row ORDER BY sid",
+      ),
+      initialSessions,
+      "a real user-defined sessions trigger must block cleanup without deleting any session",
+    );
+  } finally {
+    await pool.query("DROP TRIGGER session_cleanup_test_trigger ON public.sessions");
+    await pool.query("DROP FUNCTION public.session_cleanup_test_trigger()");
+  }
+
+  assert.deepEqual(await readPreservedState(), baseline);
 
   const stalePreview = await runCleanup(1);
   assert.notEqual(stalePreview.exitCode, 0, stalePreview.output);
