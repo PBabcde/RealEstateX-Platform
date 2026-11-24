@@ -221,7 +221,18 @@ function assertDownloadedPortfolio(archive, expectedProjects) {
   assert.ok(archive.exportedAt, 'The portfolio backup is missing its export timestamp.');
   assert.equal(archive.projects.length, expectedProjects.length, 'The downloaded portfolio does not contain every saved project.');
 
-  const archivesByName = new Map(archive.projects.map((entry) => [entry.project.projectName, entry]));
+  assertDownloadedEntries(archive.projects, expectedProjects);
+}
+
+function assertDownloadedProject(archive, expected) {
+  assert.equal(archive.format, 'realestatex-property-project', 'The download is not a RealEstateX project backup.');
+  assert.equal(archive.version, 1, 'The project backup version changed unexpectedly.');
+  assert.ok(archive.exportedAt, 'The project backup is missing its export timestamp.');
+  assertDownloadedEntries([archive], [expected]);
+}
+
+function assertDownloadedEntries(entries, expectedProjects) {
+  const archivesByName = new Map(entries.map((entry) => [entry.project.projectName, entry]));
   for (const expected of expectedProjects) {
     const downloaded = archivesByName.get(expected.project.projectName);
     assert.ok(downloaded, `The downloaded backup is missing ${expected.project.projectName}.`);
@@ -242,10 +253,10 @@ function assertDownloadedPortfolio(archive, expectedProjects) {
   }
 }
 
-function assertRestoredPortfolio(snapshot, expectedProjects) {
+function assertRestoredPortfolio(snapshot, expectedProjects, names = projectNames) {
   const restoredByName = new Map(
     snapshot
-      .filter(({ project }) => projectNames.includes(project.projectName))
+      .filter(({ project }) => names.includes(project.projectName))
       .map((entry) => [entry.project.projectName, entry]),
   );
   assert.equal(restoredByName.size, expectedProjects.length, 'Not every backed-up project appears in the fresh browser profile.');
@@ -456,6 +467,145 @@ async function runRestore(restoreDebugPort, restoreBrowser, restoreUrl, backupFi
   }
 }
 
+const recoveredProjectId = 'portfolio-transfer-river';
+
+async function runSingleProjectExport(sourceDebugPort, sourceBrowser, exportUrl, downloadDirectory) {
+  const page = await openTestPage(sourceDebugPort, exportUrl, sourceBrowser);
+  try {
+    const fixture = await page.waitFor(
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixture: Boolean(window.__portfolioTransferTest),
+        expected: window.__portfolioTransferTest?.expectedProjects ?? [],
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixture,
+      'the signed-in single-project export fixture to initialize',
+      60_000,
+    );
+    const expected = fixture.expected.find(({ project }) => project.id === recoveredProjectId);
+    assert.ok(expected, 'The recovered-JPEG project is missing from the single-project export fixture.');
+    await openProjectManager(page, fixture.expected.length, 'Single-project export');
+    await page.devTools.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+    await page.evaluate(`document.querySelector('[data-testid="button-export-project-${recoveredProjectId}"]')?.click()`);
+    const notice = await page.waitFor(
+      `document.querySelector('[data-testid="status-project-transfer-notice"]')?.textContent ?? ''`,
+      (text) => text.includes('Projectbestand met foto’s en concepten gedownload'),
+      'the single-project backup download to finish',
+    );
+    assert.ok(notice.includes('gedownload'), `Unexpected export notice: ${notice}`);
+    const { filePath, contents } = await waitForDownload(downloadDirectory, sourceBrowser);
+    assertDownloadedProject(JSON.parse(contents), expected);
+    assertNoServerUploads(page, 'Single-project export');
+    return { filePath, expected };
+  } finally {
+    page.close();
+  }
+}
+
+async function runSingleProjectRestore(restoreDebugPort, restoreBrowser, restoreUrl, backupFilePath, expected) {
+  const page = await openTestPage(restoreDebugPort, restoreUrl, restoreBrowser);
+  try {
+    const fixture = await page.waitFor(
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixture: Boolean(window.__portfolioTransferTest),
+        initialProjectIds: window.__portfolioTransferTest?.initialProjectIds ?? null,
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixture,
+      'the fresh single-project restore profile to initialize',
+      60_000,
+    );
+    assert.deepEqual(fixture.initialProjectIds, [], 'The destination browser profile was not empty before the single-project restore.');
+
+    await openProjectManager(page, 1, 'Single-project restore');
+    const documentResponse = await page.devTools.send('DOM.getDocument', { depth: -1 });
+    const input = await page.devTools.send('DOM.querySelector', {
+      nodeId: documentResponse.root.nodeId,
+      selector: '[data-testid="input-import-project"]',
+    });
+    assert.ok(input.nodeId, 'The single-project restore file input was not available.');
+    await page.devTools.send('DOM.setFileInputFiles', { files: [backupFilePath], nodeId: input.nodeId });
+
+    const restored = await page.waitFor(
+      `(async () => {
+        const snapshot = await window.__portfolioTransferTest.snapshotProjects();
+        const preview = document.querySelector('img[alt="Originele woningfoto"]');
+        const scenarioHeading = Array.from(document.querySelectorAll('h2'))
+          .find((heading) => heading.textContent?.includes('Virtual stage naast het origineel'));
+        return {
+          snapshot,
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+          previewWidth: preview?.naturalWidth ?? 0,
+          previewHeight: preview?.naturalHeight ?? 0,
+          scenarioVisible: Boolean(scenarioHeading),
+          managerOpen: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        };
+      })()`,
+      (value) => value?.snapshot?.some(({ project }) => project.projectName === expected.project.projectName)
+        && value.previewLoaded && value.scenarioVisible && !value.managerOpen,
+      'the single project to restore with its source preview',
+    );
+    assert.equal(restored.previewWidth, 2, 'The restored single-project JPEG preview has an unexpected width.');
+    assert.equal(restored.previewHeight, 3, 'The restored single-project JPEG preview is not upright portrait.');
+    assertRestoredPortfolio(restored.snapshot, [expected], [expected.project.projectName]);
+    const restoredCopies = restored.snapshot.filter(({ project }) => project.projectName === expected.project.projectName);
+    assert.equal(restoredCopies.length, 1, 'The single-project import did not create exactly one new project.');
+    assert.equal(restoredCopies[0].project.selectedResult, expected.project.selectedResult, 'The selected scenario changed during the single-project restore.');
+    assertNoServerUploads(page, 'Single-project restore');
+
+    await page.navigate(restoreUrl);
+    await page.waitFor(
+      `(() => ({
+        status: document.querySelector('#test-result')?.dataset.status,
+        fixture: Boolean(window.__portfolioTransferTest),
+      }))()`,
+      (value) => value?.status === 'app-started' && value.fixture,
+      'the destination studio to reload after the single-project restore',
+      60_000,
+    );
+    await openProjectManager(page, 2, 'Reloaded single-project restore');
+    await page.evaluate(`document.querySelector('[data-testid="button-open-project-${restoredCopies[0].project.id}"]')?.click()`);
+    const afterReload = await page.waitFor(
+      `(async () => {
+        const preview = document.querySelector('img[alt="Originele woningfoto"]');
+        return {
+          snapshot: await window.__portfolioTransferTest.snapshotProjects(),
+          previewLoaded: Boolean(preview?.complete && preview.naturalWidth > 0 && preview.naturalHeight > 0),
+          previewWidth: preview?.naturalWidth ?? 0,
+          previewHeight: preview?.naturalHeight ?? 0,
+          managerOpen: Boolean(document.querySelector('[data-testid="dialog-project-manager"]')),
+        };
+      })()`,
+      (value) => value?.snapshot?.some(({ project }) => project.projectName === expected.project.projectName) && value.previewLoaded && !value.managerOpen,
+      'the restored single-project source preview to load after reload',
+    );
+    assert.equal(afterReload.previewWidth, 2, 'The reloaded single-project JPEG preview has an unexpected width.');
+    assert.equal(afterReload.previewHeight, 3, 'The reloaded single-project JPEG preview is not upright portrait.');
+    assertRestoredPortfolio(afterReload.snapshot, [expected], [expected.project.projectName]);
+    assertNoServerUploads(page, 'Single-project restore after reload');
+  } finally {
+    page.close();
+  }
+}
+
+function launchBrowser(debugPort, profileDir) {
+  return spawn(chromiumPath, [
+    '--headless',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-background-networking',
+    '--disable-extensions',
+    '--disable-popup-blocking',
+    '--remote-allow-origins=*',
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${profileDir}`,
+    'about:blank',
+  ], { stdio: 'ignore' });
+}
+
 const port = await getFreePort();
 const sourceDebugPort = await getFreePort();
 const restoreDebugPort = await getFreePort();
@@ -473,6 +623,12 @@ const server = spawn('pnpm', ['exec', 'vite', '--config', 'tests/vite.authentica
 let serverOutput = '';
 server.stdout.setEncoding('utf8').on('data', (chunk) => { serverOutput += chunk; });
 server.stderr.setEncoding('utf8').on('data', (chunk) => { serverOutput += chunk; });
+const projectSourceProfileDir = await mkdtemp(path.join(tmpdir(), 'realestatex-project-export-profile-'));
+const projectRestoreProfileDir = await mkdtemp(path.join(tmpdir(), 'realestatex-project-restore-profile-'));
+const projectDownloadDirectory = path.join(projectSourceProfileDir, 'downloads');
+await mkdir(projectDownloadDirectory, { recursive: true });
+let projectSourceBrowser;
+let projectRestoreBrowser;
 let sourceBrowser;
 let restoreBrowser;
 let sourceTimeout;
@@ -520,6 +676,27 @@ try {
   ], { stdio: 'ignore' });
   restoreTimeout = setTimeout(() => restoreBrowser.kill('SIGKILL'), 120_000);
   await runRestore(restoreDebugPort, restoreBrowser, restoreUrl, backupFilePath, expectedProjects);
+  await stopProcess(restoreBrowser);
+  await stopProcess(sourceBrowser);
+
+  const projectSourceDebugPort = await getFreePort();
+  const projectRestoreDebugPort = await getFreePort();
+  projectSourceBrowser = launchBrowser(projectSourceDebugPort, projectSourceProfileDir);
+  const projectSourceTimeout = setTimeout(() => projectSourceBrowser.kill('SIGKILL'), 120_000);
+  let projectBackup;
+  try {
+    projectBackup = await runSingleProjectExport(projectSourceDebugPort, projectSourceBrowser, exportUrl, projectDownloadDirectory);
+  } finally {
+    clearTimeout(projectSourceTimeout);
+  }
+  projectRestoreBrowser = launchBrowser(projectRestoreDebugPort, projectRestoreProfileDir);
+  const projectRestoreTimeout = setTimeout(() => projectRestoreBrowser.kill('SIGKILL'), 120_000);
+  try {
+    await runSingleProjectRestore(projectRestoreDebugPort, projectRestoreBrowser, restoreUrl, projectBackup.filePath, projectBackup.expected);
+  } finally {
+    clearTimeout(projectRestoreTimeout);
+  }
+  console.log('Passed: exported the EXIF-recovered Canal House project on its own, imported it as a new project into a separate empty Chromium profile, and verified identical JPEG bytes, an upright 2x3 source preview before and after reload, unchanged assumptions and selected scenario, and no server uploads.');
   console.log('Passed: restored a missing source from an EXIF-rotated phone-camera JPEG, exported it, restored it as a new project in a separate empty Chromium profile, and verified its upright source preview, assumptions, selected scenario, other photos, and post-reload data without server uploads.');
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
@@ -533,4 +710,8 @@ try {
   await stopProcess(server);
   await rm(sourceProfileDir, { recursive: true, force: true });
   await rm(restoreProfileDir, { recursive: true, force: true });
+  await stopProcess(projectRestoreBrowser);
+  await stopProcess(projectSourceBrowser);
+  await rm(projectSourceProfileDir, { recursive: true, force: true });
+  await rm(projectRestoreProfileDir, { recursive: true, force: true });
 }
