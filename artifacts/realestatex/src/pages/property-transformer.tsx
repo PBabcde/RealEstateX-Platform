@@ -1597,6 +1597,43 @@ export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus
     return queryTerms.every((term) => searchableText.includes(term));
   }), sortOrder);
 
+  // After a delete, keep keyboard focus in the list: next row, else previous row, else the create button.
+  const pendingDeleteFocusRef = useRef<{ id: string; visibleIds: string[]; sawBusy: boolean } | null>(null);
+  const handleDelete = (item: PropertyProject) => {
+    pendingDeleteFocusRef.current = { id: item.id, visibleIds: matchingProjects.map((row) => row.id), sawBusy: false };
+    onDelete(item);
+  };
+  useEffect(() => {
+    const pending = pendingDeleteFocusRef.current;
+    const dialog = dialogRef.current;
+    if (!pending || !dialog) return;
+    if (busy) {
+      pending.sawBusy = true;
+      return;
+    }
+    if (!pending.sawBusy) return;
+    pendingDeleteFocusRef.current = null;
+    const present = new Set(projects.map((row) => row.id));
+    const index = pending.visibleIds.indexOf(pending.id);
+    const rowControl = (id: string) => dialog.querySelector<HTMLElement>(
+      `[data-testid="button-open-project-${id}"]:not(:disabled), [data-testid="button-export-project-${id}"]:not(:disabled)`,
+    );
+    let target: HTMLElement | null = null;
+    if (present.has(pending.id)) {
+      target = dialog.querySelector<HTMLElement>(`[data-testid="button-delete-project-${pending.id}"]:not(:disabled)`);
+    } else {
+      const after = pending.visibleIds.slice(index + 1).filter((id) => present.has(id));
+      const before = pending.visibleIds.slice(0, Math.max(index, 0)).filter((id) => present.has(id)).reverse();
+      for (const id of [...after, ...before]) {
+        target = rowControl(id);
+        if (target) break;
+      }
+    }
+    (target
+      ?? dialog.querySelector<HTMLElement>('[data-testid="button-create-project"]:not(:disabled)')
+      ?? dialog).focus();
+  }, [projects, busy]);
+
   return <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 overflow-y-auto bg-[#1c2739]/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="property-project-list-title" data-testid="dialog-project-manager">
     <div className="mx-auto my-6 max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
       <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-5 sm:px-7">
@@ -1646,7 +1683,7 @@ export function ProjectManager({ accountId, returnFocusTarget, legacyClaimStatus
              const photoLabel = health ? projectPhotoHealthLabel(health) : null;
              return <li key={item.id} className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.id === activeProjectId ? 'border-[#a95f39]/50 bg-[#fff8ef]' : 'border-border bg-background'}`} data-testid={`project-row-${item.id}`}>
              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-bold">{item.projectName || 'Transformatiescan'}</p>{item.id === activeProjectId && <span className="rounded bg-[#e4eee9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.1em] text-[#287b6a]">Actief</span>}</div><p className="mt-1 truncate text-xs text-muted-foreground">{item.address || 'Adres nog toevoegen'}{item.municipality ? ` · ${item.municipality}` : ''}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatProjectUpdatedAt(item.updatedAt)}</p><p className={`mt-1 text-[10px] font-semibold ${photoLabel?.missing ? 'text-[#9e4336]' : photoLabel?.notAdded ? 'text-[#76551c]' : 'text-[#287b6a]'}`} role="status" data-testid={`status-project-photo-health-${item.id}`}>{photoLabel?.label ?? 'Foto status nog niet beschikbaar'}</p></div>
-             <div className="flex shrink-0 flex-wrap gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onExport(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-export-project-${item.id}`}><Download size={13} /> Exporteren</button><button onClick={() => onDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
+             <div className="flex shrink-0 flex-wrap gap-2"><button onClick={() => onOpen(item.id)} disabled={busy || item.id === activeProjectId} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-open-project-${item.id}`}>{item.id === activeProjectId ? 'Geopend' : 'Openen'}</button><button onClick={() => onExport(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[10px] font-bold hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-export-project-${item.id}`}><Download size={13} /> Exporteren</button><button onClick={() => handleDelete(item)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-[#e7b4a8] px-3 py-2 text-[10px] font-bold text-[#9e4336] hover:bg-[#fff1ee] disabled:cursor-not-allowed disabled:opacity-45" aria-label={`Verwijder ${item.projectName || 'Transformatiescan'}`} data-testid={`button-delete-project-${item.id}`}><Trash2 size={13} /> Verwijderen</button></div>
            </li>;
            })}
         </ul>}

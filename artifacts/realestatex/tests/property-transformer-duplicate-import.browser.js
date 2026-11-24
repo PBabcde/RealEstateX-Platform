@@ -416,6 +416,63 @@ async function prepareFixture() {
     racePopup.close();
   }
 
+  // Deleting a row must keep keyboard focus inside the project-list dialog.
+  const leftoverDuplicateDialog = document.querySelector('[data-testid="dialog-duplicate-import"]');
+  if (leftoverDuplicateDialog) {
+    flushSync(() => leftoverDuplicateDialog.querySelector('[data-testid="button-cancel-duplicate-import"]').click());
+    await waitFor(() => !document.querySelector('[data-testid="dialog-duplicate-import"]'), 'the leftover duplicate dialog to close');
+  }
+  if (!document.querySelector('[data-testid="dialog-project-manager"]')) {
+    flushSync(() => document.querySelector('[data-testid="button-open-projects"]').click());
+    await waitFor(() => Boolean(document.querySelector('[data-testid="dialog-project-manager"]')), 'the project list to reopen');
+  }
+  await waitFor(() => projectIds().length >= 3, 'the project list to show several projects before deleting');
+  const originalConfirm = window.confirm;
+  window.confirm = () => true;
+  try {
+    const deleteFocusedRow = async (id, label) => {
+      const deleteButton = document.querySelector(`[data-testid="button-delete-project-${id}"]`);
+      assert(deleteButton instanceof HTMLButtonElement && !deleteButton.disabled, `The ${label} row had no enabled delete control.`);
+      const before = projectIds();
+      flushSync(() => {
+        deleteButton.focus();
+        deleteButton.click();
+      });
+      await waitFor(
+        () => !projectIds().includes(id) && projectIds().length === before.length - 1
+          && !document.querySelector(`[data-testid="button-delete-project-${before[0]}"]:disabled`),
+        `the ${label} project to be deleted`,
+      );
+      return before;
+    };
+    const dialogContainsFocus = () => document.querySelector('[data-testid="dialog-project-manager"]')?.contains(document.activeElement)
+      && document.activeElement !== document.body;
+    // First row: focus moves to the next row.
+    const firstId = projectIds()[0];
+    const beforeFirst = await deleteFocusedRow(firstId, 'first');
+    await waitFor(
+      () => document.activeElement?.closest?.('[data-testid^="project-row-"]')?.getAttribute('data-testid') === `project-row-${beforeFirst[1]}`,
+      'focus to move to the next project row after deleting the first row',
+    );
+    // Last row: focus moves to the previous row.
+    const lastId = projectIds()[projectIds().length - 1];
+    const beforeLast = await deleteFocusedRow(lastId, 'last');
+    await waitFor(
+      () => document.activeElement?.closest?.('[data-testid^="project-row-"]')?.getAttribute('data-testid') === `project-row-${beforeLast[beforeLast.length - 2]}`,
+      'focus to move to the previous project row after deleting the last row',
+    );
+    assert(dialogContainsFocus(), 'Focus left the project-list dialog after deleting a project.');
+    // Only row: focus stays inside the dialog on a list control.
+    while (projectIds().length > 1) await deleteFocusedRow(projectIds()[0], 'extra');
+    await deleteFocusedRow(projectIds()[0], 'only');
+    await waitFor(
+      () => dialogContainsFocus(),
+      'focus to stay inside the project-list dialog after deleting the last remaining row',
+    );
+  } finally {
+    window.confirm = originalConfirm;
+  }
+
   result.dataset.status = 'passed';
   result.textContent = 'Passed: the signed-in studio showed recoverable errors for unreadable JSON, unsupported export versions, incomplete backups, and checksum-damaged backups without changing saved projects; a valid import remained available; opening the saved project added no copy; importing an extra copy created and selected a distinct project; canceling left browser storage unchanged; simultaneous imports in two tabs saved only one copy and showed the duplicate choice in the other tab.';
 }
