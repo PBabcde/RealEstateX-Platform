@@ -3739,3 +3739,95 @@ export const GetAccountResponse = zod.object({
 })
 
 
+/**
+ * @summary Get the administrator control room status snapshot
+ */
+export const GetControlRoomResponse = zod.object({
+  "generatedAt": zod.coerce.date(),
+  "platform": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "environment": zod.string(),
+  "runtime": zod.string(),
+  "uptimeSeconds": zod.number(),
+  "build": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "tests": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "deployment": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "alerts": zod.array(zod.string())
+}),
+  "api": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "health": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "services": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "detail": zod.string()
+}))
+}),
+  "database": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "connection": zod.string(),
+  "accountCount": zod.number().int().nullable(),
+  "propertyCount": zod.number().int().nullable()
+}),
+  "authentication": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "provider": zod.string(),
+  "login": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "activeSessions": zod.number().int().nullable(),
+  "detail": zod.string()
+}),
+  "ai": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "assistant": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "rag": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "externalProvider": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "detail": zod.string()
+}),
+  "modules": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "detail": zod.string()
+})),
+  "events": zod.array(zod.object({
+  "id": zod.string(),
+  "level": zod.enum(['error', 'warning', 'info']),
+  "source": zod.string(),
+  "message": zod.string(),
+  "occurredAt": zod.coerce.date()
+})),
+  "accounts": zod.object({
+  "total": zod.number().int().nullable(),
+  "activeUsers": zod.number().int().nullable(),
+  "recent": zod.array(zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullable(),
+  "role": zod.string(),
+  "createdAt": zod.coerce.date()
+}))
+}),
+  "salesCrm": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "leads": zod.number().int().nullable(),
+  "deals": zod.number().int().nullable(),
+  "contacts": zod.number().int().nullable(),
+  "pageViews24h": zod.number().int().nullable(),
+  "sessions24h": zod.number().int().nullable()
+}),
+  "energyx": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "syncedProperties": zod.number().int().nullable(),
+  "detail": zod.string()
+}),
+  "realEstateX": zod.object({
+  "status": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "properties": zod.number().int().nullable(),
+  "reports": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "calculators": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown']),
+  "transformations": zod.enum(['active', 'available', 'unavailable', 'development', 'unknown'])
+})
+})
+
+

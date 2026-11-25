@@ -14,6 +14,7 @@ import { publishableKeyFromHost } from "@clerk/shared/keys";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware, getClerkProxyHost } from "./middlewares/clerkProxyMiddleware";
 import { resolveLocalUser } from "./middlewares/localUser";
 import { attachEnterpriseContext } from "./lib/enterprise-core-access";
+import { recordControlRoomError } from "./lib/control-room";
 import paymentHoldRouter from "./routes/payment-hold";
 import apiDocsRouter from "./routes/api-docs";
 
@@ -87,7 +88,7 @@ app.use("/api", router);
 app.use(
   (
     error: unknown,
-    _req: Request,
+    req: Request,
     res: Response,
     _next: NextFunction,
   ): void => {
@@ -108,7 +109,8 @@ app.use(
       res.status(403).json({ error: "Origin not allowed" });
       return;
     }
-    logger.error({ err: error }, "Unhandled API error");
+    recordControlRoomError();
+    req.log?.error({ err: error }, "Unhandled API error");
     res.status(500).json({ error: "Internal server error" });
   },
 );

@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X, CircleDot, LineChart } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X, CircleDot, LineChart, SlidersHorizontal } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/react';
@@ -17,6 +17,7 @@ const navItems = [
 ];
 const adminNavItems = [
   { href: '/sales', label: 'Sales & CRM', note: 'Leads & verkeer', icon: LineChart },
+  { href: '/control-room', label: 'Control Room', note: 'Platformstatus', icon: SlidersHorizontal },
 ];
 
 export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {

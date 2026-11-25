@@ -13,6 +13,7 @@ import { DealingRoom } from '@/pages/enterprise';
 import { TrainingRoom } from '@/pages/training-room';
 import { PropertyTransformer } from '@/pages/property-transformer';
 import { SalesEngine } from '@/pages/sales';
+import { ControlRoom } from '@/pages/control-room';
 import { Landing } from '@/pages/landing';
 import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
 import { CircleOne, CircleOnePreview } from '@/pages/circle-one';
@@ -154,6 +155,7 @@ function Router() {
     <Route path="/dealing-room"><ProtectedPage><DealingRoom /></ProtectedPage></Route>
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
     <Route path="/sales"><ProtectedPage><SalesEngine /></ProtectedPage></Route>
+    <Route path="/control-room"><ProtectedPage><ControlRoom /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route path="/cirkel-1/preview" component={CircleOnePreview} />
     <Route path="/cirkel-1"><ProtectedPage><CircleOne /></ProtectedPage></Route>

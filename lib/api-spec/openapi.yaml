@@ -1601,6 +1601,22 @@ paths:
                 $ref: "#/components/schemas/ApplicationAccount"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /admin/control-room:
+    get:
+      tags: [enterprise]
+      operationId: getControlRoom
+      summary: Get the administrator control room status snapshot
+      responses:
+        "200":
+          description: Current platform, module, account, and operational status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControlRoomSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   parameters:
     PropertyId:
@@ -2895,3 +2911,214 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessage"
       required: [status, module, sessionId, messages]
+    ControlRoomStatus:
+      type: string
+      enum: [active, available, unavailable, development, unknown]
+    ControlRoomService:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/ControlRoomStatus"
+        detail:
+          type: string
+      required: [id, name, status, detail]
+    ControlRoomModule:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        status:
+          $ref: "#/components/schemas/ControlRoomStatus"
+        detail:
+          type: string
+      required: [id, name, category, status, detail]
+    ControlRoomEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        level:
+          type: string
+          enum: [error, warning, info]
+        source:
+          type: string
+        message:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+      required: [id, level, source, message, occurredAt]
+    ControlRoomAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, role, createdAt]
+    ControlRoomSnapshot:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        platform:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            environment:
+              type: string
+            runtime:
+              type: string
+            uptimeSeconds:
+              type: number
+            build:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            tests:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            deployment:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            alerts:
+              type: array
+              items:
+                type: string
+          required: [status, environment, runtime, uptimeSeconds, build, tests, deployment, alerts]
+        api:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            health:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            services:
+              type: array
+              items:
+                $ref: "#/components/schemas/ControlRoomService"
+          required: [status, health, services]
+        database:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            connection:
+              type: string
+            accountCount:
+              type: ["integer", "null"]
+            propertyCount:
+              type: ["integer", "null"]
+          required: [status, connection, accountCount, propertyCount]
+        authentication:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            provider:
+              type: string
+            login:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            activeSessions:
+              type: ["integer", "null"]
+            detail:
+              type: string
+          required: [status, provider, login, activeSessions, detail]
+        ai:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            assistant:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            rag:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            externalProvider:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            detail:
+              type: string
+          required: [status, assistant, rag, externalProvider, detail]
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ControlRoomModule"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ControlRoomEvent"
+        accounts:
+          type: object
+          properties:
+            total:
+              type: ["integer", "null"]
+            activeUsers:
+              type: ["integer", "null"]
+            recent:
+              type: array
+              items:
+                $ref: "#/components/schemas/ControlRoomAccount"
+          required: [total, activeUsers, recent]
+        salesCrm:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            leads:
+              type: ["integer", "null"]
+            deals:
+              type: ["integer", "null"]
+            contacts:
+              type: ["integer", "null"]
+            pageViews24h:
+              type: ["integer", "null"]
+            sessions24h:
+              type: ["integer", "null"]
+          required: [status, leads, deals, contacts, pageViews24h, sessions24h]
+        energyx:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            syncedProperties:
+              type: ["integer", "null"]
+            detail:
+              type: string
+          required: [status, syncedProperties, detail]
+        realEstateX:
+          type: object
+          properties:
+            status:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            properties:
+              type: ["integer", "null"]
+            reports:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            calculators:
+              $ref: "#/components/schemas/ControlRoomStatus"
+            transformations:
+              $ref: "#/components/schemas/ControlRoomStatus"
+          required: [status, properties, reports, calculators, transformations]
+      required:
+        - generatedAt
+        - platform
+        - api
+        - database
+        - authentication
+        - ai
+        - modules
+        - events
+        - accounts
+        - salesCrm
+        - energyx
+        - realEstateX

@@ -1285,6 +1285,153 @@ export interface ChatHistoryResponse {
   messages: ChatMessage[];
 }
 
+export type ControlRoomStatus = typeof ControlRoomStatus[keyof typeof ControlRoomStatus];
+
+
+export const ControlRoomStatus = {
+  active: 'active',
+  available: 'available',
+  unavailable: 'unavailable',
+  development: 'development',
+  unknown: 'unknown',
+} as const;
+
+export interface ControlRoomService {
+  id: string;
+  name: string;
+  status: ControlRoomStatus;
+  detail: string;
+}
+
+export interface ControlRoomModule {
+  id: string;
+  name: string;
+  category: string;
+  status: ControlRoomStatus;
+  detail: string;
+}
+
+export type ControlRoomEventLevel = typeof ControlRoomEventLevel[keyof typeof ControlRoomEventLevel];
+
+
+export const ControlRoomEventLevel = {
+  error: 'error',
+  warning: 'warning',
+  info: 'info',
+} as const;
+
+export interface ControlRoomEvent {
+  id: string;
+  level: ControlRoomEventLevel;
+  source: string;
+  message: string;
+  occurredAt: string;
+}
+
+export interface ControlRoomAccount {
+  id: string;
+  /** @nullable */
+  email: string | null;
+  role: string;
+  createdAt: string;
+}
+
+export type ControlRoomSnapshotPlatform = {
+  status: ControlRoomStatus;
+  environment: string;
+  runtime: string;
+  uptimeSeconds: number;
+  build: ControlRoomStatus;
+  tests: ControlRoomStatus;
+  deployment: ControlRoomStatus;
+  alerts: string[];
+};
+
+export type ControlRoomSnapshotApi = {
+  status: ControlRoomStatus;
+  health: ControlRoomStatus;
+  services: ControlRoomService[];
+};
+
+export type ControlRoomSnapshotDatabase = {
+  status: ControlRoomStatus;
+  connection: string;
+  /** @nullable */
+  accountCount: number | null;
+  /** @nullable */
+  propertyCount: number | null;
+};
+
+export type ControlRoomSnapshotAuthentication = {
+  status: ControlRoomStatus;
+  provider: string;
+  login: ControlRoomStatus;
+  /** @nullable */
+  activeSessions: number | null;
+  detail: string;
+};
+
+export type ControlRoomSnapshotAi = {
+  status: ControlRoomStatus;
+  assistant: ControlRoomStatus;
+  rag: ControlRoomStatus;
+  externalProvider: ControlRoomStatus;
+  detail: string;
+};
+
+export type ControlRoomSnapshotAccounts = {
+  /** @nullable */
+  total: number | null;
+  /** @nullable */
+  activeUsers: number | null;
+  recent: ControlRoomAccount[];
+};
+
+export type ControlRoomSnapshotSalesCrm = {
+  status: ControlRoomStatus;
+  /** @nullable */
+  leads: number | null;
+  /** @nullable */
+  deals: number | null;
+  /** @nullable */
+  contacts: number | null;
+  /** @nullable */
+  pageViews24h: number | null;
+  /** @nullable */
+  sessions24h: number | null;
+};
+
+export type ControlRoomSnapshotEnergyx = {
+  status: ControlRoomStatus;
+  /** @nullable */
+  syncedProperties: number | null;
+  detail: string;
+};
+
+export type ControlRoomSnapshotRealEstateX = {
+  status: ControlRoomStatus;
+  /** @nullable */
+  properties: number | null;
+  reports: ControlRoomStatus;
+  calculators: ControlRoomStatus;
+  transformations: ControlRoomStatus;
+};
+
+export interface ControlRoomSnapshot {
+  generatedAt: string;
+  platform: ControlRoomSnapshotPlatform;
+  api: ControlRoomSnapshotApi;
+  database: ControlRoomSnapshotDatabase;
+  authentication: ControlRoomSnapshotAuthentication;
+  ai: ControlRoomSnapshotAi;
+  modules: ControlRoomModule[];
+  events: ControlRoomEvent[];
+  accounts: ControlRoomSnapshotAccounts;
+  salesCrm: ControlRoomSnapshotSalesCrm;
+  energyx: ControlRoomSnapshotEnergyx;
+  realEstateX: ControlRoomSnapshotRealEstateX;
+}
+
 /**
  * Invalid request
  */

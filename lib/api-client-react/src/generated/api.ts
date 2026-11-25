@@ -33,6 +33,7 @@ import type {
   ChatStartInput,
   CoInvestmentCommitmentInput,
   CoInvestmentSummary,
+  ControlRoomSnapshot,
   CrmActivityInput,
   CrmActivityRecord,
   CrmContactInput,
@@ -6208,6 +6209,83 @@ export function useGetAccount<TData = Awaited<ReturnType<typeof getAccount>>, TE
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAccountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetControlRoomUrl = () => {
+
+
+
+
+  return `/api/admin/control-room`
+}
+
+/**
+ * @summary Get the administrator control room status snapshot
+ */
+export const getControlRoom = async ( options?: Parameters<typeof customFetch>[1]): Promise<ControlRoomSnapshot> => {
+
+  return customFetch<ControlRoomSnapshot>(getGetControlRoomUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetControlRoomQueryKey = () => {
+    return [
+    `/api/admin/control-room`
+    ] as const;
+    }
+
+
+export const getGetControlRoomQueryOptions = <TData = Awaited<ReturnType<typeof getControlRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getControlRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetControlRoomQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getControlRoom>>> = ({ signal }) => getControlRoom({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getControlRoom>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetControlRoomQueryResult = NonNullable<Awaited<ReturnType<typeof getControlRoom>>>
+export type GetControlRoomQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>
+
+
+/**
+ * @summary Get the administrator control room status snapshot
+ */
+
+export function useGetControlRoom<TData = Awaited<ReturnType<typeof getControlRoom>>, TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getControlRoom>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetControlRoomQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
