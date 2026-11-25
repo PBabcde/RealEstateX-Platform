@@ -58,7 +58,7 @@ export function buildEnergyxReportHtml(
     ["Aanbevolen aircocapaciteit", `${data.specs.coolingKw} kW`],
     ["Aanbevolen zonnepanelen", `${data.metrics.solar.panels} panelen · ${data.metrics.solar.kwp} kWp`],
     ["Aanbevolen batterij", `${data.metrics.battery.kwh} kWh`],
-    ["Investering alleen verduurzaming (geen totale objectinvestering)", euro(data.metrics.investments.total)],
+    ["Investeringsindicatie — alleen verduurzaming (geen totale objectinvestering)", euro(data.metrics.investments.total)],
     ["Geschatte jaarlijkse energiebesparing", euro(data.metrics.annualSavings)],
     ["Terugverdientijd", valueOrDash(data.metrics.paybackYears, " jaar")],
     ["Huidige WWS-punten", valueOrDash(data.specs.wwsPoints)],
