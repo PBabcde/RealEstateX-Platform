@@ -87,8 +87,8 @@ export const CONTROL_ROOM_MODULE_REGISTRY: Array<{
   {
     id: "opportunity-engine",
     name: "Opportunity Engine",
-    category: "Toekomstige module",
-    detail: "Aanduiding voor toekomstige ontwikkeling; geen functionaliteit toegevoegd.",
+    category: "Analyse",
+    detail: "Bestaande object-, deal-, rapportage- en energiesignalen in één werkruimte.",
   },
   {
     id: "innovation-center",
@@ -318,8 +318,9 @@ export async function getControlRoomSnapshot(tenantId: string) {
       detail = databaseConnected
         ? "Inzendingen worden opgeslagen in het bestaande tenantgebonden CRM."
         : "De Innovation Center-pagina is beschikbaar, maar CRM-opslag is niet beschikbaar.";
-    } else if (module.id === "opportunity-engine") {
-      status = "development";
+    } else if (module.id === "opportunity-engine" && !databaseConnected) {
+      status = "unavailable";
+      detail = "De Opportunity Engine gebruikt bestaande vastgoed- en dealgegevens; databaseopslag is niet beschikbaar.";
     }
     return { ...module, status, detail };
   });

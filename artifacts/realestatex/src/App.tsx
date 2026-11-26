@@ -15,6 +15,7 @@ import { PropertyTransformer } from '@/pages/property-transformer';
 import { SalesEngine } from '@/pages/sales';
 import { ControlRoom } from '@/pages/control-room';
 import { InnovationCenter } from '@/pages/innovation-center';
+import { OpportunityEngine } from '@/pages/opportunity-engine';
 import { Landing } from '@/pages/landing';
 import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
 import { CircleOne, CircleOnePreview } from '@/pages/circle-one';
@@ -158,6 +159,7 @@ function Router() {
     <Route path="/sales"><ProtectedPage><SalesEngine /></ProtectedPage></Route>
     <Route path="/control-room"><ProtectedPage><ControlRoom /></ProtectedPage></Route>
     <Route path="/innovation-center"><ProtectedPage><InnovationCenter /></ProtectedPage></Route>
+    <Route path="/opportunity-engine"><ProtectedPage><OpportunityEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route path="/cirkel-1/preview" component={CircleOnePreview} />
     <Route path="/cirkel-1"><ProtectedPage><CircleOne /></ProtectedPage></Route>
