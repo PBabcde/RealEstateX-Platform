@@ -394,6 +394,7 @@ function PeopleWorkspace() {
   const createContactMutation = useCreateCrmContact();
   const createActivityMutation = useCreateCrmActivity();
   const [selectedContactId, setSelectedContactId] = useState("");
+  const selectedContact = (contacts.data ?? []).find((contact) => contact.contactId === selectedContactId);
   const [selectedInvestorId, setSelectedInvestorId] = useState("");
   const recommendations = useGetInvestorRecommendations(selectedInvestorId, { query: { enabled: Boolean(selectedInvestorId), queryKey: getGetInvestorRecommendationsQueryKey(selectedInvestorId) } });
   const activities = useListCrmActivities(selectedContactId, {
@@ -451,6 +452,7 @@ function PeopleWorkspace() {
         <SubmitButton pending={createContactMutation.isPending}>Relatie toevoegen</SubmitButton>
       </form>
       <div className="mt-5 space-y-2">{contacts.isLoading ? <LoadingBlock lines={3} /> : (contacts.data ?? []).map((contact) => <button key={contact.contactId} onClick={() => setSelectedContactId(contact.contactId)} className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs ${selectedContactId === contact.contactId ? "bg-primary/10 ring-1 ring-primary/20" : "bg-secondary"}`}><span><strong>{contact.name}</strong><br /><span className="text-muted-foreground">{contact.type} · {contact.company || "zonder bedrijf"}</span></span><Contact size={15} className="text-[#b56d19]" /></button>)}</div>
+      {selectedContact?.notes && <div className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-border bg-background p-3 text-xs leading-5" data-testid={`text-contact-notes-${selectedContact.contactId}`}><p className="mb-2 font-bold text-foreground">Contactnotitie</p><p className="text-muted-foreground">{selectedContact.notes}</p></div>}
       {selectedContactId && <div className="mt-5 border-t border-border pt-5">
         <div className="flex items-center justify-between"><p className="text-xs font-bold">Communicatiehistorie</p><span className="text-[10px] text-muted-foreground">{activities.data?.length ?? 0} items</span></div>
         <form onSubmit={submitActivity} className="mt-3 flex gap-2">

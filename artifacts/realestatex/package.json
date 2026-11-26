@@ -11,6 +11,7 @@
     "test:circle-one": "node --experimental-strip-types --test ./tests/circle-one.test.mjs",
     "test:property-storage": "node ./tests/property-transformer-storage.browser.test.mjs && node ./tests/property-transformer-portfolio-transfer.browser.test.mjs && node ./tests/property-transformer-pro-beta.browser.test.mjs",
     "test:energyx-ui": "node ./tests/energyx-module.browser.test.mjs",
+    "test:innovation-center-ui": "node ./tests/innovation-center.browser.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

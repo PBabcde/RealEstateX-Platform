@@ -1,4 +1,4 @@
-import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X, CircleDot, LineChart, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, LayoutDashboard, LogOut, Menu, Plus, Search, Sparkles, X, CircleDot, LineChart, SlidersHorizontal, Lightbulb } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/react';
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/dealing-room', label: 'Dealing Room', note: 'Deals & matching', icon: Handshake },
   { href: '/training-room', label: 'Training Room', note: 'Scenario simulator', icon: GraduationCap },
   { href: '/property-transformer', label: 'Property Transformer', note: 'Foto naar plan', icon: Sparkles },
+  { href: '/innovation-center', label: 'Innovation Center', note: 'Ideeën & feedback', icon: Lightbulb },
 ];
 const adminNavItems = [
   { href: '/sales', label: 'Sales & CRM', note: 'Leads & verkeer', icon: LineChart },

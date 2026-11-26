@@ -93,8 +93,8 @@ export const CONTROL_ROOM_MODULE_REGISTRY: Array<{
   {
     id: "innovation-center",
     name: "Innovation Center",
-    category: "Toekomstige module",
-    detail: "Aanduiding voor toekomstige ontwikkeling; geen functionaliteit toegevoegd.",
+    category: "Platformontwikkeling",
+    detail: "Ideeën, feedback, beta- en partnerinteresse via bestaande CRM-opslag.",
   },
 ];
 
@@ -313,10 +313,12 @@ export async function getControlRoomSnapshot(tenantId: string) {
       detail = databaseConnected
         ? "Bestaande EnergyX-routes zijn beschikbaar; deze module is hier niet aangepast."
         : "De EnergyX-routes bestaan, maar opslag is niet beschikbaar; deze module is hier niet aangepast.";
-    } else if (
-      module.id === "opportunity-engine" ||
-      module.id === "innovation-center"
-    ) {
+    } else if (module.id === "innovation-center") {
+      status = databaseConnected ? "active" : "unavailable";
+      detail = databaseConnected
+        ? "Inzendingen worden opgeslagen in het bestaande tenantgebonden CRM."
+        : "De Innovation Center-pagina is beschikbaar, maar CRM-opslag is niet beschikbaar.";
+    } else if (module.id === "opportunity-engine") {
       status = "development";
     }
     return { ...module, status, detail };
