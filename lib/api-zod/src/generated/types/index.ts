@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adminSessionInput';
+export * from './adminSessionStatus';
 export * from './analysisLimitResponse';
 export * from './applicationAccount';
 export * from './applicationAccountRole';
@@ -124,6 +126,8 @@ export * from './propertyReportProperty';
 export * from './propertyReportRecommendation';
 export * from './propertyUpdate';
 export * from './propertyUpdateKenmerken';
+export * from './publicLeadInput';
+export * from './publicLeadReceipt';
 export * from './recommendedDeal';
 export * from './rentalInput';
 export * from './rentalResult';

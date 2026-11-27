@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClerkProvider, SignIn, SignUp, Show, useAuth, useClerk, useUser } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { ApiError, getGetAccountQueryKey, useGetAccount } from '@workspace/api-client-react';
@@ -19,7 +19,7 @@ import { OpportunityEngine } from '@/pages/opportunity-engine';
 import { Landing } from '@/pages/landing';
 import { AdminAccessPage } from '@/pages/admin-access';
 import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
-import { CircleOne, CircleOnePreview } from '@/pages/circle-one';
+import { CircleOnePreview } from '@/pages/circle-one';
 import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
@@ -94,9 +94,7 @@ function Loading() {
 }
 
 function HomeRedirect() {
-  const { isLoaded } = useAuth();
-  if (!isLoaded) return <Loading />;
-  return <><Show when="signed-in"><Redirect to="/dashboard" /></Show><Show when="signed-out"><Landing /></Show></>;
+  return <Landing />;
 }
 
 function SignInPage() {
@@ -151,7 +149,8 @@ function AdminProtectedPage({ children }: { children: ReactNode }) {
     retry: false,
   });
 
-  if (!isLoaded || adminSession.isPending || (isSignedIn && account.isPending)) return <Loading />;
+  if (adminSession.data?.authenticated) return <>{children}</>;
+  if (adminSession.isPending || (isLoaded && isSignedIn && account.isPending)) return <Loading />;
   const clerkAdmin = isSignedIn && account.data?.role === 'admin';
   if (clerkAdmin || adminSession.data?.authenticated) return <>{children}</>;
   return <div className="grid min-h-[100dvh] place-items-center bg-background px-5 text-foreground">
@@ -197,7 +196,7 @@ function Router() {
     <Route path="/opportunity-engine"><ProtectedPage><OpportunityEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route path="/cirkel-1/preview" component={CircleOnePreview} />
-    <Route path="/cirkel-1"><ProtectedPage><CircleOne /></ProtectedPage></Route>
+    <Route path="/cirkel-1" component={CircleOnePreview} />
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }

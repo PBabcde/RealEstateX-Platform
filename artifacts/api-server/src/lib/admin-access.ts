@@ -1,6 +1,7 @@
 import { createHmac, createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { DEFAULT_TENANT_ID } from "@workspace/db";
+import { CreateAdminSessionBody } from "@workspace/api-zod";
 
 const SESSION_LIFETIME_SECONDS = 8 * 60 * 60;
 const COOKIE_NAME = "realestatex_admin_session";
@@ -27,14 +28,14 @@ function cookieHeader(req: Request): string | undefined {
 
 function signature(expiresAt: string, secret: string): string {
   return createHmac("sha256", secret)
-    .update(`realestatex-admin:${expiresAt}`)
+    .update(`realestatex-admin:${adminKey() ?? ""}:${expiresAt}`)
     .digest("hex");
 }
 
 export function isAdminAccessSession(req: Request): boolean {
   const secret = sessionSecret();
   const token = cookieHeader(req);
-  if (!secret || !token) return false;
+  if (!secret || !adminKey() || !token) return false;
 
   const [rawExpiry, suppliedSignature, extra] = token.split(".");
   if (extra !== undefined || !rawExpiry || !/^\d{10,13}$/u.test(rawExpiry) ||
@@ -93,14 +94,38 @@ export function adminAccessIdentity() {
   };
 }
 
+export function isIndependentAccessRequest(req: Request): boolean {
+  const path = req.path;
+  if (path === "/api/admin-access/session") return true;
+  if (req.method === "POST" && [
+    "/api/public/leads",
+    "/api/public/traffic",
+    "/api/valuations/calculate",
+    "/api/rentals/overview",
+    "/api/mortgages/calculate",
+  ].includes(path)) return true;
+  return isAdminAccessSession(req) && (
+    path === "/api/account" ||
+    path === "/api/admin/control-room" ||
+    path.startsWith("/api/sales/") ||
+    path === "/api/crm/contacts" ||
+    path.startsWith("/api/crm/contacts/") ||
+    (req.method === "GET" && path === "/api/visitor-intent/summary")
+  );
+}
+
 export async function createAdminAccessSession(
   req: Request,
   res: Response,
 ): Promise<void> {
   res.setHeader("Cache-Control", "no-store");
-  const forwarded = req.headers["x-forwarded-for"];
-  const firstForwarded = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  const address = firstForwarded || req.ip || req.socket.remoteAddress || "unknown";
+  if (req.get("sec-fetch-site") === "cross-site") {
+    res.status(403).json({ error: "Open admin-toegang vanaf deze website." });
+    return;
+  }
+  // Only Express's configured proxy policy may decide which address is trusted.
+  // Do not accept a caller-supplied X-Forwarded-For as a fresh login budget.
+  const address = req.ip || req.socket.remoteAddress || "unknown";
   if (!allowLoginAttempt(address)) {
     res.status(429).json({ error: "Te veel pogingen. Probeer het later opnieuw." });
     return;
@@ -108,15 +133,13 @@ export async function createAdminAccessSession(
 
   const expectedKey = adminKey();
   const secret = sessionSecret();
-  if (!expectedKey || !secret) {
+  if (!expectedKey || expectedKey.length < 32 || !secret) {
     res.status(503).json({ error: "Admin-toegang is niet geconfigureerd." });
     return;
   }
 
-  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
-    ? req.body as Record<string, unknown>
-    : {};
-  if (!suppliedKeyMatches(body.key, expectedKey)) {
+  const body = CreateAdminSessionBody.safeParse(req.body);
+  if (!body.success || !suppliedKeyMatches(body.data.key, expectedKey)) {
     res.status(401).json({ error: "De toegangssleutel is onjuist." });
     return;
   }

@@ -15,23 +15,10 @@ const oldAdminKey = process.env.ADMIN_ACCESS_KEY;
 const oldSessionSecret = process.env.SESSION_SECRET;
 
 before(async () => {
-  const { publicSalesRouter, salesRouter } = await import("../artifacts/api-server/src/routes/sales.ts");
-  const publicCalculatorsRouter = (await import("../artifacts/api-server/src/routes/public-calculators.ts")).default;
-  const adminAccessRouter = (await import("../artifacts/api-server/src/routes/admin-access.ts")).default;
-  const accountRouter = (await import("../artifacts/api-server/src/routes/account.ts")).default;
-  const crmRouter = (await import("../artifacts/api-server/src/routes/crm.ts")).default;
-  const intelligenceRouter = (await import("../artifacts/api-server/src/routes/intelligence.ts")).default;
-  const controlRoomRouter = (await import("../artifacts/api-server/src/routes/control-room.ts")).default;
+  const router = (await import("../artifacts/api-server/src/routes/index.ts")).default;
   const app = express();
   app.use(express.json());
-  app.use("/api", publicSalesRouter);
-  app.use("/api", adminAccessRouter);
-  app.use("/api", publicCalculatorsRouter);
-  app.use("/api", accountRouter);
-  app.use("/api", salesRouter);
-  app.use("/api", crmRouter);
-  app.use("/api", intelligenceRouter);
-  app.use("/api", controlRoomRouter);
+  app.use("/api", router);
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve);
   });
@@ -91,11 +78,16 @@ test("the anonymous calculator endpoints validate input and return results witho
   assert.equal(typeof result.valuation, "number");
   assert.equal(typeof result.pricePerSquareMeter, "number");
   assert.equal((await post("/valuations/calculate", { woonoppervlak: 0 })).status, 400);
+  const rental = await post("/rentals/overview", { huurprijs: 1850, kosten: 340 * 12, investering: 425000 });
+  assert.equal(rental.status, 200);
+  const rentalResult = await rental.json();
+  assert.equal(rentalResult.annualRendement, 18120);
+  assert.ok(Math.abs(rentalResult.netYield - 4.263529411764706) < 0.000001);
 });
 
 test("admin access key creates a restricted session for account, sales and CRM", async () => {
   process.env.ADMIN_ACCESS_KEY = "test-admin-key-with-at-least-32-characters";
-  delete process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = oldSessionSecret ?? "test-session-secret-for-public-lead-capture";
   assert.deepEqual(await (await fetch(`${base}/admin-access/session`)).json(), { authenticated: false });
 
   const invalid = await post("/admin-access/session", { key: "wrong-key" });
@@ -128,12 +120,54 @@ test("duplicate email updates the existing lead and retains all lead sources", a
   const second = await post("/public/leads", {
     email, name: "Bijgewerkte naam", interest: "Catch of the Day", source: "catch_of_the_day", consent: true,
   });
-  assert.equal(second.status, 200);
+  assert.equal(second.status, 201);
   const { rows } = await pool.query("SELECT * FROM leads WHERE email = $1", [email]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].name, "Bijgewerkte naam");
   assert.equal(rows[0].metadata.source, "catch_of_the_day");
   assert.deepEqual(rows[0].metadata.sources, ["public_report_unlock", "catch_of_the_day"]);
+});
+
+test("concurrent email captures keep one lead, follow-up status and submission history", async () => {
+  const email = `${marker}-parallel@example.com`;
+  const results = await Promise.all(["beta_community", "partner_interest"].map((source) => post("/public/leads", {
+    email, source, consent: true, details: `Bijdrage van ${source}`,
+  })));
+  assert.deepEqual(results.map((response) => response.status), [201, 201]);
+  const { rows } = await pool.query("SELECT * FROM leads WHERE email = $1", [email]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].metadata.sources.length, 2);
+  assert.equal((await pool.query("SELECT * FROM crm_interactions WHERE lead_id = $1", [rows[0].id])).rowCount, 2);
+  await pool.query("UPDATE leads SET status = 'qualified' WHERE id = $1", [rows[0].id]);
+  await post("/public/leads", { email, consent: true, source: "public_report_unlock" });
+  assert.equal((await pool.query("SELECT status FROM leads WHERE id = $1", [rows[0].id])).rows[0].status, "qualified");
+});
+
+test("admin sessions reject forged, expired, cross-site and disabled access", async () => {
+  const previous = process.env.ADMIN_ACCESS_KEY;
+  process.env.ADMIN_ACCESS_KEY = "test-admin-key-with-at-least-32-characters";
+  const { createHmac } = await import("node:crypto");
+  const secret = process.env.SESSION_SECRET || process.env.ADMIN_ACCESS_KEY;
+  const expiry = String(Math.floor(Date.now() / 1000) - 1);
+  const signature = createHmac("sha256", secret)
+    .update(`realestatex-admin:${process.env.ADMIN_ACCESS_KEY}:${expiry}`).digest("hex");
+  for (const token of [`${expiry}.${signature}`, `${Math.floor(Date.now() / 1000) + 100}.${"0".repeat(64)}`]) {
+    const cookie = `realestatex_admin_session=${token}`;
+    assert.deepEqual(await (await fetch(`${base}/admin-access/session`, { headers: { cookie } })).json(), { authenticated: false });
+    assert.equal((await fetch(`${base}/sales/leads`, { headers: { cookie } })).status, 401);
+  }
+  const crossSite = await fetch(`${base}/admin-access/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" },
+    body: JSON.stringify({ key: process.env.ADMIN_ACCESS_KEY }),
+  });
+  assert.equal(crossSite.status, 403);
+  const login = await post("/admin-access/session", { key: process.env.ADMIN_ACCESS_KEY });
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  assert.equal((await fetch(`${base}/properties`, { headers: { cookie } })).status, 401);
+  delete process.env.ADMIN_ACCESS_KEY;
+  assert.deepEqual(await (await fetch(`${base}/admin-access/session`, { headers: { cookie } })).json(), { authenticated: false });
+  if (previous !== undefined) process.env.ADMIN_ACCESS_KEY = previous;
 });
 
 test("the honeypot field stores nothing", async () => {
@@ -161,4 +195,14 @@ test("Sales & CRM endpoints reject signed-out requests", async () => {
     assert.equal((await fetch(`${base}${path}`)).status, 401, path);
   }
   assert.equal((await fetch(`${base}/sales/leads/00000000-0000-0000-0000-000000000000`, { method: "PATCH" })).status, 401);
+});
+
+test("admin login limit cannot be reset with caller-supplied forwarded addresses", async () => {
+  process.env.ADMIN_ACCESS_KEY = "test-admin-key-with-at-least-32-characters";
+  let lastStatus;
+  for (let attempt = 0; attempt < 11; attempt++) {
+    lastStatus = (await post("/admin-access/session", { key: "wrong" })).status;
+    assert.ok(lastStatus === 401 || lastStatus === 429);
+  }
+  assert.equal(lastStatus, 429);
 });

@@ -9,6 +9,78 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Validate the installation admin key and set an eight-hour HttpOnly cookie
+ */
+export const createAdminSessionBodyKeyMax = 1024;
+
+
+
+export const CreateAdminSessionBody = zod.object({
+  "key": zod.string().min(1).max(createAdminSessionBodyKeyMax)
+})
+
+export const CreateAdminSessionResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "expiresInSeconds": zod.number().int().optional()
+})
+
+
+/**
+ * @summary Check the installation admin session without exposing the key
+ */
+export const GetAdminSessionResponse = zod.object({
+  "authenticated": zod.boolean(),
+  "expiresInSeconds": zod.number().int().optional()
+})
+
+
+/**
+ * @summary Clear the browser's installation admin cookie
+ */
+export const DeleteAdminSessionResponse = zod.void()
+
+
+/**
+ * @summary Create or update an existing public-tenant lead by normalized email
+ */
+export const capturePublicLeadBodyEmailMax = 254;
+
+export const capturePublicLeadBodyNameMax = 200;
+
+export const capturePublicLeadBodyInterestMax = 120;
+
+export const capturePublicLeadBodySourceMax = 80;
+
+export const capturePublicLeadBodyDetailsMax = 6000;
+
+export const capturePublicLeadBodyPhoneMax = 40;
+
+export const capturePublicLeadBodyCompanyMax = 200;
+
+export const capturePublicLeadBodyPropertyCountMin = 0;
+export const capturePublicLeadBodyPropertyCountMax = 1000;
+
+
+
+export const CapturePublicLeadBody = zod.object({
+  "email": zod.string().email().max(capturePublicLeadBodyEmailMax),
+  "name": zod.string().max(capturePublicLeadBodyNameMax).optional(),
+  "interest": zod.string().max(capturePublicLeadBodyInterestMax).optional(),
+  "source": zod.string().max(capturePublicLeadBodySourceMax).optional(),
+  "consent": zod.literal(true),
+  "website": zod.string().optional().describe('Honeypot field; legitimate submissions leave this empty'),
+  "details": zod.string().max(capturePublicLeadBodyDetailsMax).optional(),
+  "phone": zod.string().max(capturePublicLeadBodyPhoneMax).optional(),
+  "company": zod.string().max(capturePublicLeadBodyCompanyMax).optional(),
+  "propertyCount": zod.number().int().min(capturePublicLeadBodyPropertyCountMin).max(capturePublicLeadBodyPropertyCountMax).optional()
+})
+
+export const CapturePublicLeadResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
  * @summary List saved EnergyX renovation result summaries for a project
  */
 export const listEnergyXRenovationScenariosQueryProjectIdMax = 100;
@@ -622,8 +694,8 @@ export const calculateRentalOverviewBodyInvesteringMin = 0;
 
 
 export const CalculateRentalOverviewBody = zod.object({
-  "huurprijs": zod.number().min(calculateRentalOverviewBodyHuurprijsMin),
-  "kosten": zod.number().min(calculateRentalOverviewBodyKostenMin),
+  "huurprijs": zod.number().min(calculateRentalOverviewBodyHuurprijsMin).describe('Monthly gross rent in euros'),
+  "kosten": zod.number().min(calculateRentalOverviewBodyKostenMin).describe('Annual operating costs in euros; clients collecting monthly costs must multiply by twelve'),
   "investering": zod.number().min(calculateRentalOverviewBodyInvesteringMin).optional()
 })
 

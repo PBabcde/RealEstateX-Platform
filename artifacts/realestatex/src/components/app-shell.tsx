@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetAccountQueryKey, useGetAccount } from '@workspace/api-client-react';
+import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
   { href: '/dashboard', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
@@ -28,6 +29,7 @@ export function AppShell({ children, onAddProperty, publicMode = false }: { chil
   const { user } = useUser();
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const isPublicPage = publicMode || location === '/calculators' || location === '/innovation-center';
   const { data: account } = useGetAccount({ query: {
     queryKey: getGetAccountQueryKey(),
@@ -35,13 +37,19 @@ export function AppShell({ children, onAddProperty, publicMode = false }: { chil
   } });
   const email = user?.primaryEmailAddress?.emailAddress;
   const logout = async () => {
-    if (user) {
-      await signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
-      return;
+    try {
+      const response = await fetch('/api/admin-access/session', { method: 'DELETE', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Afmelden is niet gelukt.');
+      queryClient.clear();
+      queryClient.setQueryData(['admin-access', 'session'], { authenticated: false });
+      if (user) {
+        await signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
+        return;
+      }
+      setLocation('/admin-access');
+    } catch {
+      toast({ variant: 'destructive', title: 'Afmelden niet gelukt', description: 'Controleer je verbinding en probeer het opnieuw.' });
     }
-    await fetch('/api/admin-access/session', { method: 'DELETE', credentials: 'same-origin' });
-    queryClient.setQueryData(['admin-access', 'session'], { authenticated: false });
-    setLocation('/admin-access');
   };
   const [mobileOpen, setMobileOpen] = useState(false);
   if (isPublicPage) {

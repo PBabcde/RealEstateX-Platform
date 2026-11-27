@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "../lib/enterprise-core";
 import { adminAccessIdentity, isAdminAccessSession } from "../lib/admin-access";
+import { CapturePublicLeadBody } from "@workspace/api-zod";
 
 export const LEAD_CONSENT_VERSION = "realestatex-lead-v1";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/u;
@@ -112,6 +113,14 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Toestemming (AVG) is verplicht om je aanvraag te verwerken." });
       return;
     }
+    const parsed = CapturePublicLeadBody.safeParse({
+      ...body,
+      email: typeof body.email === "string" ? body.email.trim().toLowerCase() : body.email,
+    });
+    if (!parsed.success) {
+      res.status(400).json({ error: "Controleer je e-mailadres en de lengte van de ingevulde gegevens." });
+      return;
+    }
     const name = text(body.name, 200);
     const email = text(body.email, 254)?.toLowerCase();
     if (!email || !EMAIL_PATTERN.test(email)) {
@@ -122,7 +131,7 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
     const phone = text(body.phone, 40);
     const company = text(body.company, 200);
     const interest = text(body.interest, 120);
-    const contribution = text(body.details, 4000);
+    const contribution = text(body.details, 6000);
     const propertyCount = Number.isFinite(Number(body.propertyCount))
       ? Math.max(0, Math.min(1000, Math.floor(Number(body.propertyCount))))
       : undefined;
@@ -176,6 +185,12 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
           .set(values)
           .where(eq(leadsTable.id, existing.id))
           .returning({ id: leadsTable.id });
+        if (contribution) await tx.insert(crmInteractionsTable).values({
+          tenantId: DEFAULT_TENANT_ID,
+          leadId: updated!.id,
+          actionType: "note",
+          notes: `Bron: ${source}\n\n${contribution}`,
+        });
         return { id: updated!.id, created: false };
       }
 
@@ -187,6 +202,12 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
           ...values,
         })
         .returning({ id: leadsTable.id });
+      if (contribution) await tx.insert(crmInteractionsTable).values({
+        tenantId: DEFAULT_TENANT_ID,
+        leadId: created!.id,
+        actionType: "note",
+        notes: `Bron: ${source}\n\n${contribution}`,
+      });
       return { id: created!.id, created: true };
     });
     await recordAuditEvent({
@@ -197,7 +218,8 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
       actorId: "public-visitor",
       metadata: { source, consentVersion: LEAD_CONSENT_VERSION },
     });
-    res.status(captured.created ? 201 : 200).json({ ok: true, created: captured.created });
+    // Do not disclose whether this address already exists in the CRM.
+    res.status(201).json({ ok: true });
   } catch (error) {
     req.log?.error({ err: error }, "Could not save the lead");
     res.status(503).json({ error: "Je aanvraag kon niet worden opgeslagen. Probeer het later opnieuw." });

@@ -11,6 +11,8 @@ export class ApiError extends Error {
 
 type TestAccount = { id: string; role: "admin" | "member"; tenantId: string };
 
+export const getGetAccountQueryKey = () => ["/api/account"] as const;
+
 declare global {
   interface Window {
     __salesTestRole?: "admin" | "member";

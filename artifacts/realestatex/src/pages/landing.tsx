@@ -4,8 +4,8 @@ import { Calculator, Globe2, Leaf, Sparkles, TrendingUp, Zap } from 'lucide-reac
 import { LeadCaptureDialog } from '@/components/lead-capture-dialog';
 
 const SITE_URL = 'https://realestatex.nl';
-const TITLE = 'RealEstateX — vastgoedanalyse, WWS-rendement en transformatie';
-const DESCRIPTION = 'Analyseer vastgoed met WWS-puntentelling, rendement en transformatiescenario’s. Privé en beschermd, met een Property Transformer voor foto-naar-plan concepten.';
+const TITLE = 'RealEstateX — vastgoedanalyse, rendement en transformatie';
+const DESCRIPTION = 'Beoordeel vastgoedinvesteringen met transparante aannames: rendement, handmatige WWS-indicaties en transformatiescenario’s. Privé en beschermd, met een Property Transformer voor foto-naar-plan concepten.';
 
 export function useCanonical() {
   useEffect(() => {
@@ -22,7 +22,7 @@ export function useCanonical() {
 }
 
 const features = [
-  { icon: Calculator, title: 'WWS & rendement', text: 'Bereken punten, maximale huur en rendement op je objecten.' },
+  { icon: Calculator, title: 'Rendement & WWS-indicatie', text: 'Reken rendement door en leg zelf een WWS-indicatie vast. Geen officiële of geverifieerde WWS-berekening.' },
   { icon: Sparkles, title: 'Property Transformer', text: 'Van foto naar renovatieconcept, met je data lokaal in je browser.' },
   { icon: Leaf, title: 'Energie & verduurzaming', text: 'Zie wat energielabel en verduurzaming doen voor de waarde van je pand.' },
 ];
@@ -48,11 +48,18 @@ export function Landing() {
     <div className="min-h-[100dvh] bg-background text-foreground">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
         <span className="flex items-center gap-3 font-bold tracking-[-0.04em]"><img src={`${import.meta.env.BASE_URL}logo.svg`} alt="RealEstateX" className="h-8" /></span>
-        <nav className="flex items-center gap-4 text-sm font-semibold">
+        <nav className="flex items-center gap-4 text-sm font-semibold" aria-label="Account">
           <Link href="/sign-in" data-testid="button-login">Aanmelden</Link>
           <Link href="/sign-up" className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground" data-testid="link-signup">Account aanmaken</Link>
         </nav>
       </header>
+      <nav aria-label="Publieke tools" className="mx-auto max-w-5xl px-5" data-testid="nav-public">
+        <ul className="flex gap-2 overflow-x-auto pb-1 text-xs font-semibold text-muted-foreground">
+          <li><Link href="/calculators" className="block whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 hover:text-foreground" data-testid="nav-link-calculators">Rekentools</Link></li>
+          <li><Link href="/cirkel-1/preview" className="block whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 hover:text-foreground" data-testid="nav-link-circle-one-preview">Cirkel 1 preview</Link></li>
+          <li><Link href="/innovation-center" className="block whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 hover:text-foreground" data-testid="nav-link-innovation-center">Innovation Center</Link></li>
+        </ul>
+      </nav>
       <main className="mx-auto max-w-5xl px-5 pb-16">
         <section className="py-14 sm:py-20">
           <h1 className="display max-w-3xl text-4xl font-bold tracking-[-0.06em] sm:text-5xl">Vastgoedbeslissingen op basis van cijfers, privé en beschermd.</h1>
@@ -80,9 +87,9 @@ export function Landing() {
               <div className="grid gap-3 blur-[5px] select-none sm:grid-cols-3" aria-hidden="true">
                 <div className="rounded-lg bg-white p-3"><p className="text-[10px] text-muted-foreground">Huurreturn</p><p className="mono mt-2 text-2xl font-bold">7,8%</p></div>
                 <div className="rounded-lg bg-white p-3"><p className="text-[10px] text-muted-foreground">Energiebeeld</p><p className="mono mt-2 text-lg font-bold">Scenario</p></div>
-                <div className="rounded-lg bg-white p-3"><p className="text-[10px] text-muted-foreground">WWS</p><p className="mono mt-2 text-lg font-bold">Indicatie</p></div>
+                <div className="rounded-lg bg-white p-3"><p className="text-[10px] text-muted-foreground">WWS (handmatig)</p><p className="mono mt-2 text-lg font-bold">Indicatie</p></div>
               </div>
-              <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Illustratief voorbeeld; geen taxatie, offerte of officiële WWS-uitkomst.</p>
+              <p className="mt-3 text-[10px] leading-4 text-muted-foreground">Illustratief voorbeeld; geen taxatie, offerte of officiële WWS-uitkomst. WWS-punten worden nu handmatig ingevoerd; er is nog geen geverifieerde WWS-formule.</p>
             </div>
             <button onClick={(event) => openLead(event, 'public_report_unlock', 'Ontvang het volledige vastgoedrapport', 'Je ontvangt bericht over de beschikbare rapportage. Je e-mailadres is voldoende.', 'Rapportontgrendeling')} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground" data-testid="button-report-unlock"><Zap size={14} /> Ontvang meer informatie</button>
             <p className="mt-3 text-[10px] leading-5 text-muted-foreground">Vrijwillige bijdrage? Met de Innovation Button kun je RealEstateX helpen verbeteren. Dit is vrijblijvend en verwerkt geen betaling.</p>
@@ -97,7 +104,7 @@ export function Landing() {
         </section>
         <section className="mt-5 rounded-2xl border border-[#d8e3dc] bg-[#f2f6f1] p-5 sm:p-7" aria-labelledby="international-opportunities-title" data-testid="section-international-opportunities">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#58745f]">Try-out · voorbeelddata</p><h2 id="international-opportunities-title" className="display mt-2 text-2xl font-bold tracking-[-0.04em]">International Opportunities (Try-out — English)</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">Illustratieve voorbeelden, geen live aanbiedingen. De vier pijlers vragen altijd om lokale verificatie van locatie, gevel, vergunningen, rendement en energie.</p></div>
+            <div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#58745f]">Try-out · demo data</p><h2 id="international-opportunities-title" className="display mt-2 text-2xl font-bold tracking-[-0.04em]">International Opportunities (Try-out — English)</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">Three illustrative demo examples, not live offers. Each is scored on four pillars: Location, Facade/Curb Appeal, Permit Greenlight and Yield & Energy ROI. Always verify locally.</p></div>
             <Globe2 size={20} className="text-[#58745f]" />
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -110,7 +117,14 @@ export function Landing() {
               <ul className="mt-3 space-y-1.5 text-[10px] leading-4 text-[#58695d]">{item.scores.map((score) => <li key={score}>{score}</li>)}</ul>
             </article>)}
           </div>
-          <button onClick={(event) => openLead(event, 'international_opportunities', 'Ontvang bericht bij internationale kansen', 'Laat je e-mailadres achter om een bericht te ontvangen wanneer er geverifieerde internationale kansen zijn.', 'International Opportunities')} className="mt-4 rounded-xl bg-[#315c45] px-4 py-3 text-xs font-bold text-white hover:bg-[#264b39]" data-testid="button-international-interest">Notify me about new international opportunities</button>
+          <button onClick={(event) => openLead(event, 'international_opportunities', 'Get notified about international opportunities', 'Leave your email to hear when verified international opportunities become available. Name and interest are optional.', 'International Opportunities')} className="mt-4 rounded-xl bg-[#315c45] px-4 py-3 text-xs font-bold text-white hover:bg-[#264b39]" data-testid="button-international-interest">Notify me about new international opportunities</button>
+        </section>
+        <section className="mt-5 grid gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-[1fr_auto] sm:items-center sm:p-7" aria-labelledby="community-title" data-testid="section-community-partner">
+          <div><p className="mono text-[10px] uppercase tracking-[0.16em] text-[#287b6a]">Innovation Center</p><h2 id="community-title" className="display mt-2 text-xl font-bold">Denk mee of werk samen</h2><p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Doe mee aan de bètacommunity, of laat weten dat je als makelaar, adviseur of financier wilt samenwerken. Alleen je e-mailadres is nodig. <Link href="/innovation-center" className="font-semibold text-[#287b6a] underline underline-offset-4" data-testid="link-community-innovation-center">Bekijk het Innovation Center</Link></p></div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={(event) => openLead(event, 'beta_community', 'Doe mee aan de bètacommunity', 'Test nieuwe onderdelen en geef feedback. Je e-mailadres is voldoende.', 'Bètacommunity')} className="rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground" data-testid="button-beta-community">Bètacommunity</button>
+            <button onClick={(event) => openLead(event, 'partner_interest', 'Interesse in samenwerking', 'Laat je e-mailadres achter; we nemen contact op over mogelijke samenwerking.', 'Partnerschap')} className="rounded-xl border border-border px-4 py-3 text-xs font-bold hover:bg-secondary" data-testid="button-partner-interest">Partner worden</button>
+          </div>
         </section>
       </main>
       {leadOpen && <LeadCaptureDialog source={leadSource} title={leadTitle} intro={leadIntro} defaultInterest={leadInterest} returnFocusTarget={lastOpener.current ?? opener.current} onClose={() => setLeadOpen(false)} />}

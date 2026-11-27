@@ -41,6 +41,7 @@ export function AdminAccessPage() {
         setError("De sessie kon niet worden bevestigd. Probeer het opnieuw.");
         return;
       }
+      queryClient.clear();
       queryClient.setQueryData(["admin-access", "session"], { authenticated: true });
       setKey("");
       setLocation(safeDestination());

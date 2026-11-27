@@ -37,6 +37,74 @@ tags:
   - name: property-transformations
     description: Authenticated, non-persistent AI image transformations for RealEstateX
 paths:
+  /admin-access/session:
+    post:
+      operationId: createAdminSession
+      tags: [Auth]
+      summary: Validate the installation admin key and set an eight-hour HttpOnly cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSessionInput"
+      responses:
+        "201":
+          description: Admin session established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSessionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Cross-site login denied
+        "429":
+          description: Too many login attempts
+        "503":
+          description: Admin key not configured
+    get:
+      operationId: getAdminSession
+      tags: [Auth]
+      summary: Check the installation admin session without exposing the key
+      responses:
+        "200":
+          description: Current session status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSessionStatus"
+    delete:
+      operationId: deleteAdminSession
+      tags: [Auth]
+      summary: Clear the browser's installation admin cookie
+      responses:
+        "204":
+          description: Cookie cleared
+  /public/leads:
+    post:
+      operationId: capturePublicLead
+      tags: [enterprise]
+      summary: Create or update an existing public-tenant lead by normalized email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicLeadInput"
+      responses:
+        "201":
+          description: Lead accepted; the response does not reveal whether the address already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicLeadReceipt"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          description: Too many capture attempts
+        "503":
+          description: Registration temporarily unavailable
   /energyx/renovation-scenarios:
     get:
       operationId: listEnergyXRenovationScenarios
@@ -1681,6 +1749,65 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
   schemas:
+    AdminSessionInput:
+      type: object
+      required: [key]
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          writeOnly: true
+    AdminSessionStatus:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+        expiresInSeconds:
+          type: integer
+    PublicLeadInput:
+      type: object
+      required: [email, consent]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        name:
+          type: string
+          maxLength: 200
+        interest:
+          type: string
+          maxLength: 120
+        source:
+          type: string
+          maxLength: 80
+        consent:
+          type: boolean
+          enum: [true]
+        website:
+          type: string
+          description: Honeypot field; legitimate submissions leave this empty
+        details:
+          type: string
+          maxLength: 6000
+        phone:
+          type: string
+          maxLength: 40
+        company:
+          type: string
+          maxLength: 200
+        propertyCount:
+          type: integer
+          minimum: 0
+          maximum: 1000
+    PublicLeadReceipt:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
     ApplicationAccount:
       type: object
       required: [id, role, tenantId]
@@ -2576,9 +2703,11 @@ components:
         huurprijs:
           type: number
           minimum: 0
+          description: Monthly gross rent in euros
         kosten:
           type: number
           minimum: 0
+          description: Annual operating costs in euros; clients collecting monthly costs must multiply by twelve
         investering:
           type: number
           minimum: 0

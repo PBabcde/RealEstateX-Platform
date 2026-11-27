@@ -4,13 +4,13 @@ import { X } from 'lucide-react';
 
 export function LeadCaptureDialog({ source, returnFocusTarget, onClose, title = 'Ontvang het volledige vastgoed- en energierapport', intro = 'Laat je e-mailadres achter om meer informatie over RealEstateX te ontvangen.', defaultInterest = '' }: { source: string; returnFocusTarget: HTMLElement | null; onClose: () => void; title?: string; intro?: string; defaultInterest?: string }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    nameRef.current?.focus();
+    emailRef.current?.focus();
     return () => {
       if (returnFocusTarget?.isConnected) returnFocusTarget.focus();
     };
@@ -45,7 +45,6 @@ export function LeadCaptureDialog({ source, returnFocusTarget, onClose, title = 
           email: form.get('email'),
           interest: form.get('interest'),
           website: form.get('website'),
-          details: form.get('details'),
           consent: form.get('consent') === 'on',
           source,
         }),
@@ -62,8 +61,8 @@ export function LeadCaptureDialog({ source, returnFocusTarget, onClose, title = 
 
   const field = 'mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary';
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-[#1c2739]/65 p-4 backdrop-blur-sm" data-testid="dialog-lead-capture">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="lead-capture-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto sm:items-center bg-[#1c2739]/65 p-4 backdrop-blur-sm" data-testid="dialog-lead-capture">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="lead-capture-title" className="my-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-5 shadow-2xl sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="lead-capture-title" className="display text-xl font-bold tracking-[-0.04em]">{title}</h2>
@@ -73,17 +72,16 @@ export function LeadCaptureDialog({ source, returnFocusTarget, onClose, title = 
         </div>
         {done ? (
           <div className="mt-6" role="status" data-testid="status-lead-saved">
-            <p className="text-sm font-bold text-[#287b6a]">Bedankt! Je aanvraag is ontvangen.</p>
+            <p className="text-sm font-bold text-[#287b6a]">Bedankt. Je aanvraag is ontvangen.</p>
             <button onClick={onClose} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground">Sluiten</button>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-5 space-y-3">
-            <label className="block text-xs font-semibold">E-mailadres *<input ref={nameRef} name="email" type="email" required maxLength={254} autoComplete="email" className={field} data-testid="input-lead-email" /></label>
+            <label className="block text-xs font-semibold">E-mailadres *<input ref={emailRef} name="email" type="email" required maxLength={254} autoComplete="email" className={field} data-testid="input-lead-email" /></label>
             <label className="block text-xs font-semibold">Naam (optioneel)<input name="name" maxLength={200} autoComplete="name" className={field} data-testid="input-lead-name" /></label>
             <label className="block text-xs font-semibold">Interessegebied (optioneel)<input name="interest" defaultValue={defaultInterest} maxLength={120} className={field} data-testid="input-lead-interest" /></label>
-            <label className="block text-xs font-semibold">Toelichting (optioneel)<textarea name="details" maxLength={4000} rows={3} className={field} data-testid="input-lead-details" /></label>
             <input name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
-            <label className="flex items-start gap-3 text-xs leading-5"><input name="consent" type="checkbox" required className="mt-1 h-4 w-4 accent-[#243b53]" data-testid="checkbox-lead-consent" /><span>Ik geef toestemming dat RealEstateX mijn gegevens opslaat om contact met mij op te nemen over dit rapport (AVG). Je kunt deze toestemming altijd laten intrekken.</span></label>
+            <label className="flex items-start gap-3 text-xs leading-5"><input name="consent" type="checkbox" required className="mt-1 h-4 w-4 accent-[#243b53]" data-testid="checkbox-lead-consent" /><span>Ik geef toestemming dat RealEstateX mijn gegevens opslaat om contact met mij op te nemen over mijn aanvraag (AVG). Je kunt deze toestemming altijd laten intrekken.</span></label>
             {error && <p className="text-xs font-semibold text-[#a4443b]" role="alert" data-testid="text-lead-error">{error}</p>}
             <button disabled={pending} className="w-full rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground disabled:opacity-60" data-testid="button-lead-submit">{pending ? 'Versturen…' : 'Aanvraag versturen'}</button>
           </form>

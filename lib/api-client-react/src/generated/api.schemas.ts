@@ -5,6 +5,48 @@
  * RealEstateX property intelligence API
  * OpenAPI spec version: 0.1.0
  */
+export interface AdminSessionInput {
+  /**
+     * @minLength 1
+     * @maxLength 1024
+     */
+  key: string;
+}
+
+export interface AdminSessionStatus {
+  authenticated: boolean;
+  expiresInSeconds?: number;
+}
+
+export interface PublicLeadInput {
+  /** @maxLength 254 */
+  email: string;
+  /** @maxLength 200 */
+  name?: string;
+  /** @maxLength 120 */
+  interest?: string;
+  /** @maxLength 80 */
+  source?: string;
+  consent: true;
+  /** Honeypot field; legitimate submissions leave this empty */
+  website?: string;
+  /** @maxLength 6000 */
+  details?: string;
+  /** @maxLength 40 */
+  phone?: string;
+  /** @maxLength 200 */
+  company?: string;
+  /**
+     * @minimum 0
+     * @maximum 1000
+     */
+  propertyCount?: number;
+}
+
+export interface PublicLeadReceipt {
+  ok: boolean;
+}
+
 export type ApplicationAccountRole = typeof ApplicationAccountRole[keyof typeof ApplicationAccountRole];
 
 
@@ -1092,9 +1134,15 @@ export interface ValuationResult {
 }
 
 export interface RentalInput {
-  /** @minimum 0 */
+  /**
+     * Monthly gross rent in euros
+     * @minimum 0
+     */
   huurprijs: number;
-  /** @minimum 0 */
+  /**
+     * Annual operating costs in euros; clients collecting monthly costs must multiply by twelve
+     * @minimum 0
+     */
   kosten: number;
   /** @minimum 0 */
   investering?: number;

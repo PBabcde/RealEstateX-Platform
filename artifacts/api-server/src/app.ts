@@ -17,6 +17,7 @@ import { attachEnterpriseContext } from "./lib/enterprise-core-access";
 import { recordControlRoomError } from "./lib/control-room";
 import paymentHoldRouter from "./routes/payment-hold";
 import apiDocsRouter from "./routes/api-docs";
+import { isIndependentAccessRequest } from "./lib/admin-access";
 
 const app: Express = express();
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
@@ -52,11 +53,16 @@ app.use((_req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   next();
 });
-app.use(
+app.use((req, res, next) => {
+  // Browser POSTs may carry Origin even when frontend and API share a host.
+  // Allow that host without requiring a redundant CORS_ORIGINS entry in Coolify.
+  const host = (req.get("x-forwarded-host") ?? req.get("host") ?? "").split(",")[0]!.trim();
+  const protocol = (req.get("x-forwarded-proto") ?? req.protocol).split(",")[0]!.trim();
+  const sameOrigin = `${protocol}://${host}`;
   cors({
     credentials: true,
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || origin === sameOrigin || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
       }
@@ -66,21 +72,26 @@ app.use(
       }
       callback(new Error("Origin not allowed"));
     },
-  }),
-);
+  })(req, res, next);
+});
 app.use("/api", paymentHoldRouter);
 app.use("/api", apiDocsRouter);
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT ?? "1mb" }));
-app.use(
-  clerkMiddleware((req) => ({
+const authenticateWithClerk = clerkMiddleware((req) => ({
     publishableKey: publishableKeyFromHost(
       getClerkProxyHost(req) ?? "",
       process.env.CLERK_PUBLISHABLE_KEY,
     ),
-  })),
-);
-app.use(resolveLocalUser);
+  }));
+app.use((req, res, next) => {
+  if (isIndependentAccessRequest(req)) { next(); return; }
+  authenticateWithClerk(req, res, next);
+});
+app.use((req, res, next) => {
+  if (isIndependentAccessRequest(req)) { next(); return; }
+  void resolveLocalUser(req, res, next);
+});
 app.use("/api/core", attachEnterpriseContext, enterpriseRecoveryGuard);
 
 app.use("/api", router);

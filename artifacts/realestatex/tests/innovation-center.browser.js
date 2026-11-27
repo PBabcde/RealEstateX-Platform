@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InnovationCenter } from '../src/pages/innovation-center';
 import { Landing } from '../src/pages/landing';
+import { Calculators } from '../src/pages/pages';
 import '../src/index.css';
 
 const result = document.querySelector('#test-result');
@@ -74,6 +75,8 @@ try {
   assert(byId('section-public-report-preview') && byId('section-catch-of-the-day-teaser'), 'De publieke rapportpreview of Catch of the Day teaser ontbreekt.');
   assert(byId('card-international-spain') && byId('card-international-portugal') && byId('card-international-panama'), 'De drie illustratieve internationale voorbeelden ontbreken.');
   byId('button-open-lead').click();
+  await waitFor(() => byId('input-lead-email'), 'Het publieke e-mailformulier opent niet.');
+  window.__innovationShouldFail = false;
   setValue(byId('input-lead-email'), 'public-entry@example.invalid');
   byId('checkbox-lead-consent').click();
   byId('button-lead-submit').click();
@@ -81,6 +84,25 @@ try {
   const publicLead = window.__innovationSubmissions.at(-1);
   assert(publicLead.email === 'public-entry@example.invalid' && publicLead.consent === true, 'De publieke capture heeft het e-mailadres of de toestemming niet opgeslagen.');
   assert(publicLead.source === 'public_report_unlock', 'De publieke leadbron is niet vastgelegd.');
+
+  let rentalPayload;
+  const originalFetch = window.fetch;
+  window.fetch = async (input, options) => {
+    if (String(input).endsWith('/api/rentals/overview')) {
+      rentalPayload = JSON.parse(options.body);
+      return new Response(JSON.stringify({ status: 'ok', annualRendement: 18120, grossYield: 5.223529411764706, netYield: 4.263529411764706, barEligible: false }), { headers: { 'Content-Type': 'application/json' } });
+    }
+    return originalFetch(input, options);
+  };
+  root.render(React.createElement(QueryClientProvider, { client }, React.createElement(Calculators)));
+  await waitFor(() => byId('button-calculator-rental'), 'De publieke rendementsberekening ontbreekt.');
+  byId('button-calculator-rental').click();
+  await waitFor(() => [...document.querySelectorAll('label')].some((label) => label.textContent.includes('Kosten per maand')), 'Het huurreturnformulier opent niet.');
+  [...document.querySelectorAll('button')].find((button) => button.textContent === 'Bereken scenario').click();
+  await waitFor(() => rentalPayload, 'Het rendementsformulier verstuurt geen aanvraag.');
+  assert(rentalPayload.kosten === 4080, 'Maandkosten van 340 zijn niet naar jaarkosten van 4080 omgerekend.');
+  await waitFor(() => document.body.textContent.includes('18.120'), 'Het gecorrigeerde netto jaarinkomen wordt niet getoond.');
+  window.fetch = originalFetch;
 
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert(document.documentElement.scrollWidth <= window.innerWidth, 'De pagina veroorzaakt horizontaal scrollen op mobiel.');

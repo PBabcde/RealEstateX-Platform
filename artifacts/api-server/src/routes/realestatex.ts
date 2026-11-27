@@ -1,12 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomUUID } from "node:crypto";
 import {
-  CalculateMortgageBody,
-  CalculateMortgageResponse,
-  CalculateRentalOverviewBody,
-  CalculateRentalOverviewResponse,
-  CalculateValuationBody,
-  CalculateValuationResponse,
   CreatePropertyBody,
   CreatePropertyResponse,
   DeletePropertyParams,
@@ -29,9 +23,6 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { energyxRenovationScenariosTable, requireDb } from "@workspace/db";
 import {
   buildDashboardSummary,
-  calculateMortgage,
-  calculateRental,
-  calculateValuation,
 } from "../lib/realestatex-modules";
 import {
   createProperty,
@@ -41,7 +32,6 @@ import {
   loadProperties,
   readModuleData,
   updateProperty,
-  writeModuleData,
   type PropertyRecord,
 } from "../lib/realestatex-storage";
 import {
@@ -373,51 +363,6 @@ router.delete("/properties/:propertyId", async (req, res): Promise<void> => {
     return;
   }
   res.sendStatus(204);
-});
-
-router.post("/valuations/calculate", async (req, res): Promise<void> => {
-  const body = CalculateValuationBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const result = calculateValuation(body.data);
-  await writeModuleData(
-    "valuations.json",
-    { last: { input: body.data, result } },
-    req.enterpriseContext!.tenantId,
-  );
-  res.json(CalculateValuationResponse.parse(result));
-});
-
-router.post("/rentals/overview", async (req, res): Promise<void> => {
-  const body = CalculateRentalOverviewBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const result = calculateRental(body.data);
-  await writeModuleData(
-    "rentals.json",
-    { last: { input: body.data, result } },
-    req.enterpriseContext!.tenantId,
-  );
-  res.json(CalculateRentalOverviewResponse.parse(result));
-});
-
-router.post("/mortgages/calculate", async (req, res): Promise<void> => {
-  const body = CalculateMortgageBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const result = calculateMortgage(body.data);
-  await writeModuleData(
-    "mortgages.json",
-    { last: { input: body.data, result } },
-    req.enterpriseContext!.tenantId,
-  );
-  res.json(CalculateMortgageResponse.parse(result));
 });
 
 router.get("/market/trends", async (req, res): Promise<void> => {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { calculateRentalOverview } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { useCalculateMortgage, useCalculateRentalOverview, useCalculateValuation, useCreateProperty, useDeleteProperty, useGetDailyMarketPulse, useGetDashboardSummary, useGetMarketTrends, useGetProperty, useGetSuiteOverview, useListProperties, useUpdateProperty, getGetDailyMarketPulseQueryKey, getGetDashboardSummaryQueryKey, getGetMarketTrendsQueryKey, getGetPropertyQueryKey, getGetSuiteOverviewQueryKey, getListPropertiesQueryKey } from '@workspace/api-client-react';
 import type { DailyMarketPulse } from '@workspace/api-client-react';
@@ -126,7 +127,12 @@ function Properties() {
 
 function Calculators() {
   const [active, setActive] = useState<'value' | 'rental' | 'mortgage'>('value');
-  const valuation = useCalculateValuation(); const rental = useCalculateRentalOverview(); const mortgage = useCalculateMortgage();
+  const valuation = useCalculateValuation();
+  // The form collects monthly costs; the shared API contract uses annual costs.
+  const rental = useCalculateRentalOverview({ mutation: {
+    mutationFn: ({ data }) => calculateRentalOverview({ ...data, kosten: data.kosten * 12 }),
+  } });
+  const mortgage = useCalculateMortgage();
   const [valueForm, setValueForm] = useState({ woonoppervlak: '82', energielabel: 'A', locatieFactor: '1' });
   const [rentalForm, setRentalForm] = useState({ huurprijs: '1850', kosten: '340', investering: '425000' });
   const [mortgageForm, setMortgageForm] = useState({ principal: '350000', interest: '3.8', years: '30' });

@@ -7,9 +7,15 @@
  */
 
 export interface RentalInput {
-  /** @minimum 0 */
+  /**
+     * Monthly gross rent in euros
+     * @minimum 0
+     */
   huurprijs: number;
-  /** @minimum 0 */
+  /**
+     * Annual operating costs in euros; clients collecting monthly costs must multiply by twelve
+     * @minimum 0
+     */
   kosten: number;
   /** @minimum 0 */
   investering?: number;
