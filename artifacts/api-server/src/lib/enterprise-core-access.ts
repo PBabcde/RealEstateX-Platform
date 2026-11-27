@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
+import { adminAccessIdentity, isAdminAccessSession, newAdminAccessCorrelationId } from "./admin-access";
 
 export type EnterpriseRequestContext = {
   actorId: string;
@@ -39,6 +40,18 @@ export async function attachEnterpriseContext(
   next: NextFunction,
 ): Promise<void> {
   if (!req.dbUser) {
+    if (isAdminAccessSession(req)) {
+      const identity = adminAccessIdentity();
+      req.enterpriseContext = {
+        tenantId: identity.tenantId,
+        actorId: identity.actorId,
+        roles: ["Admin"],
+        permissions: [],
+        correlationId: req.headers["x-correlation-id"]?.toString() || newAdminAccessCorrelationId(),
+      };
+      next();
+      return;
+    }
     res.status(401).json({
       error: "Unauthorized",
       message: "Geen geldige authenticatie gevonden.",

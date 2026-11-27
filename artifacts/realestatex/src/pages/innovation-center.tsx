@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUser } from '@clerk/react';
-import { useCreateCrmContact, getListCrmContactsQueryKey } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { customFetch } from '@workspace/api-client-react';
+import { useMutation } from '@tanstack/react-query';
 import { ArrowRight, Check, CircleHelp, Lightbulb, LoaderCircle, MessageSquareText, Network, ShieldCheck, UsersRound } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
@@ -40,8 +40,8 @@ const priorities = [
 ] as const;
 
 const innovationSchema = z.object({
-  name: z.string().trim().min(2, 'Vul je naam in.').max(120, 'Gebruik maximaal 120 tekens.'),
-  email: z.union([z.literal(''), z.string().trim().email('Vul een geldig e-mailadres in.')]),
+  name: z.string().trim().max(120, 'Gebruik maximaal 120 tekens.'),
+  email: z.string().trim().email('Vul een geldig e-mailadres in.').max(254),
   contributionType: z.enum(['Idee', 'Suggestie', 'Probleem melden', 'Verbeteringsvoorstel']),
   category: z.enum(categories, { required_error: 'Kies een categorie.' }),
   priority: z.enum(['Laag', 'Normaal', 'Hoog']),
@@ -73,8 +73,6 @@ function FieldShell({ children, className = '' }: { children: ReactNode; classNa
 
 export function InnovationCenter() {
   const { isLoaded, user } = useUser();
-  const queryClient = useQueryClient();
-  const createContact = useCreateCrmContact();
   const [submitted, setSubmitted] = useState(false);
   const [requestError, setRequestError] = useState(false);
 
@@ -82,6 +80,19 @@ export function InnovationCenter() {
     resolver: zodResolver(innovationSchema),
     defaultValues: initialFormValues,
     mode: 'onTouched',
+  });
+  const createContact = useMutation({
+    mutationFn: async (payload: { name?: string; email: string; interest: string; details: string }) =>
+      customFetch('/api/public/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, consent: true, source: 'innovation_center' }),
+      }),
+    onSuccess: () => {
+      form.reset({ ...initialFormValues, name: '', email: '' });
+      setSubmitted(true);
+    },
+    onError: () => setRequestError(true),
   });
 
   useEffect(() => {
@@ -111,30 +122,16 @@ export function InnovationCenter() {
       `Toestemming vastgelegd op: ${consentedAt}`,
     ].join('\n\n');
 
-    createContact.mutate(
-      {
-        data: {
-          type: 'PARTNER',
-          name: values.name.trim(),
-          ...(values.email.trim() ? { email: values.email.trim() } : {}),
-          company: 'Innovation Center',
-          status: 'ACTIVE',
-          notes,
-        },
-      },
-      {
-        onSuccess: () => {
-          void queryClient.invalidateQueries({ queryKey: getListCrmContactsQueryKey() });
-          form.reset({ ...initialFormValues, name: '', email: '' });
-          setSubmitted(true);
-        },
-        onError: () => setRequestError(true),
-      },
-    );
+    createContact.mutate({
+      ...(values.name.trim() ? { name: values.name.trim() } : {}),
+      email: values.email.trim(),
+      interest: `${values.category}: ${values.title.trim()}`.slice(0, 120),
+      details: notes,
+    });
   };
 
   return (
-    <AppShell>
+    <AppShell publicMode>
     <div className="animate-rise space-y-7 pb-10">
       <section className="relative overflow-hidden rounded-[28px] border border-[#d8e4e2] bg-[#eaf2ef] px-6 py-8 sm:px-9 sm:py-10 lg:px-12">
         <div className="pointer-events-none absolute -right-14 -top-24 h-72 w-72 rounded-full border border-[#bdd2cb]/70" />
@@ -300,7 +297,7 @@ export function InnovationCenter() {
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
                     <FieldShell>
-                      <FormLabel className="text-xs font-bold text-foreground">Naam</FormLabel>
+                  <FormLabel className="text-xs font-bold text-foreground">Naam <span className="font-normal text-muted-foreground">(optioneel)</span></FormLabel>
                       <FormControl><input {...field} data-testid="input-name" autoComplete="name" placeholder="Je naam" className="mt-2 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70" /></FormControl>
                     </FieldShell>
                     <FormMessage />
@@ -309,7 +306,7 @@ export function InnovationCenter() {
                 <FormField control={form.control} name="email" render={({ field }) => (
                   <FormItem>
                     <FieldShell>
-                      <FormLabel className="text-xs font-bold text-foreground">E-mailadres <span className="font-normal text-muted-foreground">(optioneel)</span></FormLabel>
+                      <FormLabel className="text-xs font-bold text-foreground">E-mailadres *</FormLabel>
                       <FormControl><input {...field} type="email" data-testid="input-email" autoComplete="email" placeholder="naam@voorbeeld.nl" className="mt-2 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70" /></FormControl>
                     </FieldShell>
                     <FormMessage />
@@ -366,7 +363,7 @@ export function InnovationCenter() {
 
           <div className="flex items-start gap-3 rounded-2xl border border-border/70 bg-secondary/60 p-4">
             <CircleHelp size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
-            <p className="text-xs leading-5 text-muted-foreground" data-testid="text-contact-optional">Een e-mailadres is niet verplicht. Zonder e-mailadres kunnen we je bijdrage wel bewaren, maar niet persoonlijk opvolgen.</p>
+            <p className="text-xs leading-5 text-muted-foreground" data-testid="text-contact-optional">Je e-mailadres wordt gebruikt om deze bijdrage op te volgen. Naam en interesse in beta of partnerschap zijn optioneel.</p>
           </div>
         </aside>
       </div>

@@ -38,10 +38,32 @@ import {
 } from "../lib/visitor-intelligence";
 import { matchInvestors } from "../lib/investor-matching";
 import { attachEnterpriseContext } from "../lib/enterprise-core-access";
+import { adminAccessIdentity, isAdminAccessSession, newAdminAccessCorrelationId } from "../lib/admin-access";
 import { requireAuthentication } from "../middlewares/authorization";
 
 const router: IRouter = Router();
-router.use(requireAuthentication, attachEnterpriseContext);
+router.use((request, response, next): void => {
+  const limitedAdminSession = request.method === "GET"
+    && request.path === "/visitor-intent/summary"
+    && isAdminAccessSession(request);
+  if (limitedAdminSession) {
+    const identity = adminAccessIdentity();
+    request.enterpriseContext = {
+      actorId: identity.actorId,
+      tenantId: identity.tenantId,
+      roles: ["Admin"],
+      permissions: [],
+      correlationId: newAdminAccessCorrelationId(),
+    };
+    next();
+    return;
+  }
+  if (!request.dbUser) {
+    requireAuthentication(request, response, next);
+    return;
+  }
+  void attachEnterpriseContext(request, response, next);
+});
 
 const requestWindows = new Map<string, { startedAt: number; count: number }>();
 const retentionPrunedAt = new Map<string, number>();

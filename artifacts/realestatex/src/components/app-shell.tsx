@@ -2,7 +2,8 @@ import { BarChart3, Boxes, Calculator, ChevronRight, GraduationCap, Handshake, L
 import { Link, useLocation } from 'wouter';
 import { useState, type ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/react';
-import { useGetAccount } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getGetAccountQueryKey, useGetAccount } from '@workspace/api-client-react';
 
 const navItems = [
   { href: '/dashboard', label: 'Overzicht', note: 'Portfolio cockpit', icon: LayoutDashboard },
@@ -22,14 +23,39 @@ const adminNavItems = [
   { href: '/control-room', label: 'Control Room', note: 'Platformstatus', icon: SlidersHorizontal },
 ];
 
-export function AppShell({ children, onAddProperty }: { children: ReactNode; onAddProperty?: () => void }) {
+export function AppShell({ children, onAddProperty, publicMode = false }: { children: ReactNode; onAddProperty?: () => void; publicMode?: boolean }) {
+  const [location, setLocation] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const { data: account } = useGetAccount();
+  const queryClient = useQueryClient();
+  const isPublicPage = publicMode || location === '/calculators' || location === '/innovation-center';
+  const { data: account } = useGetAccount({ query: {
+    queryKey: getGetAccountQueryKey(),
+    enabled: !isPublicPage && (Boolean(user) || location === '/sales' || location === '/control-room'),
+  } });
   const email = user?.primaryEmailAddress?.emailAddress;
-  const logout = () => signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
-  const [location] = useLocation();
+  const logout = async () => {
+    if (user) {
+      await signOut({ redirectUrl: import.meta.env.BASE_URL.replace(/\/$/, '') || "/" });
+      return;
+    }
+    await fetch('/api/admin-access/session', { method: 'DELETE', credentials: 'same-origin' });
+    queryClient.setQueryData(['admin-access', 'session'], { authenticated: false });
+    setLocation('/admin-access');
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
+  if (isPublicPage) {
+    return <div className="min-h-[100dvh] bg-background text-foreground">
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <Link href="/" className="flex items-center gap-3" data-testid="link-public-brand">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground"><span className="display text-lg font-bold">R</span></span>
+          <span><span className="block font-bold tracking-[-0.04em]">RealEstate<span className="text-[#c17b21]">X</span></span><span className="mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">Vastgoedinzicht</span></span>
+        </Link>
+        <Link href="/sign-in" className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold hover:bg-secondary" data-testid="link-public-sign-in">Aanmelden</Link>
+      </header>
+      <main className="mx-auto max-w-6xl px-5 pb-12 sm:px-8">{children}</main>
+    </div>;
+  }
   const visibleNavItems = account?.role === 'admin' ? [...navItems, ...adminNavItems] : navItems;
   const current = visibleNavItems.find((item) => item.href === location) ?? navItems[0];
 
@@ -84,10 +110,10 @@ export function AppShell({ children, onAddProperty }: { children: ReactNode; onA
           </div>
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-white">
-              {user?.firstName || email || 'Gebruiker'}
+              {user?.firstName || email || (account?.role === 'admin' ? 'Beheerder' : 'Gebruiker')}
             </p>
             <p className="truncate text-[10px] text-sidebar-foreground/45">
-              {account?.role === 'admin' ? 'Beheerder' : account?.role === 'member' ? 'Lid' : 'Eigenaar'}
+              {account?.role === 'admin' ? (user ? 'Beheerder' : 'Admin-sleutel') : account?.role === 'member' ? 'Lid' : 'Eigenaar'}
             </p>
           </div>
           <button

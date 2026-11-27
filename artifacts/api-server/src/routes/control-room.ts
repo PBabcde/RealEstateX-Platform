@@ -6,19 +6,25 @@ import {
   isAdministrator,
   requireAuthentication,
 } from "../middlewares/authorization";
+import { adminAccessIdentity, isAdminAccessSession } from "../lib/admin-access";
 
 const router: IRouter = Router();
 
 router.get(
   "/admin/control-room",
-  requireAuthentication,
   async (req, res): Promise<void> => {
-    if (!isAdministrator(req)) {
+    const sessionAdmin = isAdminAccessSession(req);
+    if (!req.dbUser && !sessionAdmin) {
+      requireAuthentication(req, res, () => undefined);
+      return;
+    }
+    if (!sessionAdmin && !isAdministrator(req)) {
       forbidden(res);
       return;
     }
 
-    const response = await getControlRoomSnapshot(req.dbUser!.tenantId);
+    const tenantId = sessionAdmin ? adminAccessIdentity().tenantId : req.dbUser!.tenantId;
+    const response = await getControlRoomSnapshot(tenantId);
     res.json(GetControlRoomResponse.parse(response));
   },
 );

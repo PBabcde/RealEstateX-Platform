@@ -71,6 +71,13 @@ try {
     await sleep(200);
   }
   if (state?.status !== 'passed') throw new Error(`Browser test timed out: ${JSON.stringify(state)}`);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  const desktop = await send('Runtime.evaluate', { expression: 'document.documentElement.scrollWidth <= window.innerWidth', returnByValue: true });
+  if (!desktop.result?.value) throw new Error('De publieke en Innovation Center-pagina lopen op desktop horizontaal over.');
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  const mobile = await send('Runtime.evaluate', { expression: 'document.documentElement.scrollWidth <= window.innerWidth', returnByValue: true });
+  if (!mobile.result?.value) throw new Error('De publieke en Innovation Center-pagina lopen op mobiel horizontaal over.');
+  console.log('Desktop en mobiel: geen horizontale overflow.');
 } finally {
   socket?.close();
   browser?.kill('SIGTERM');

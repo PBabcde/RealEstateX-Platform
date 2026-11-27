@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import adminAccessRouter from "./admin-access";
+import publicCalculatorsRouter from "./public-calculators";
 import realEstateRouter from "./realestatex";
 import phase2Router from "./phase2";
 import assistantChatRouter from "./assistant-chat";
@@ -20,6 +22,8 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(publicSalesRouter);
+router.use(adminAccessRouter);
+router.use(publicCalculatorsRouter);
 router.use(accountRouter);
 router.use(realEstateRouter);
 router.use(phase2Router);

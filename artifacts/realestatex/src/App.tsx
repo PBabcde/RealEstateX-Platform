@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp, Show, useAuth, useClerk, useUser } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
@@ -17,9 +17,10 @@ import { ControlRoom } from '@/pages/control-room';
 import { InnovationCenter } from '@/pages/innovation-center';
 import { OpportunityEngine } from '@/pages/opportunity-engine';
 import { Landing } from '@/pages/landing';
+import { AdminAccessPage } from '@/pages/admin-access';
 import { MeasurementConsentBanner, TrafficTracker } from '@/components/measurement-consent';
 import { CircleOne, CircleOnePreview } from '@/pages/circle-one';
-import { Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { Link, Redirect, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
 const clerkPubKey = publishableKeyFromHost(
@@ -132,6 +133,39 @@ function ProtectedPage({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminProtectedPage({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const account = useGetAccount({ query: {
+    queryKey: getGetAccountQueryKey(),
+    enabled: isLoaded && Boolean(isSignedIn),
+    retry: false,
+  } });
+  const adminSession = useQuery({
+    queryKey: ['admin-access', 'session'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin-access/session', { credentials: 'same-origin' });
+      if (!response.ok) throw new Error('Adminstatus kon niet worden gecontroleerd.');
+      return response.json() as Promise<{ authenticated: boolean }>;
+    },
+    staleTime: 0,
+    retry: false,
+  });
+
+  if (!isLoaded || adminSession.isPending || (isSignedIn && account.isPending)) return <Loading />;
+  const clerkAdmin = isSignedIn && account.data?.role === 'admin';
+  if (clerkAdmin || adminSession.data?.authenticated) return <>{children}</>;
+  return <div className="grid min-h-[100dvh] place-items-center bg-background px-5 text-foreground">
+    <div className="max-w-md rounded-2xl border border-border bg-card p-7 text-center">
+      <h1 className="display text-2xl font-bold">Beheerdersrechten vereist</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">Meld je aan met een Clerk-beheeraccount of gebruik de veilige admin-toegangssleutel.</p>
+      <div className="mt-5 flex flex-wrap justify-center gap-3">
+        <Link href={`/admin-access?next=${encodeURIComponent(window.location.pathname)}`} className="rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground">Admin-toegang</Link>
+        <Link href="/sign-in" className="rounded-xl border border-border px-4 py-3 text-xs font-bold">Aanmelden</Link>
+      </div>
+    </div>
+  </div>;
+}
+
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
@@ -149,16 +183,17 @@ function Router() {
     <Route path="/" component={HomeRedirect} />
     <Route path="/sign-in/*?" component={SignInPage} />
     <Route path="/sign-up/*?" component={SignUpPage} />
+    <Route path="/admin-access" component={AdminAccessPage} />
     <Route path="/dashboard"><ProtectedPage><Dashboard /></ProtectedPage></Route>
     <Route path="/properties"><ProtectedPage><Properties /></ProtectedPage></Route>
-    <Route path="/calculators"><ProtectedPage><Calculators /></ProtectedPage></Route>
+    <Route path="/calculators"><Calculators /></Route>
     <Route path="/market"><ProtectedPage><Market /></ProtectedPage></Route>
     <Route path="/suite"><ProtectedPage><Suite /></ProtectedPage></Route>
     <Route path="/dealing-room"><ProtectedPage><DealingRoom /></ProtectedPage></Route>
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
-    <Route path="/sales"><ProtectedPage><SalesEngine /></ProtectedPage></Route>
-    <Route path="/control-room"><ProtectedPage><ControlRoom /></ProtectedPage></Route>
-    <Route path="/innovation-center"><ProtectedPage><InnovationCenter /></ProtectedPage></Route>
+    <Route path="/sales"><AdminProtectedPage><SalesEngine /></AdminProtectedPage></Route>
+    <Route path="/control-room"><AdminProtectedPage><ControlRoom /></AdminProtectedPage></Route>
+    <Route path="/innovation-center"><InnovationCenter /></Route>
     <Route path="/opportunity-engine"><ProtectedPage><OpportunityEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>
     <Route path="/cirkel-1/preview" component={CircleOnePreview} />

@@ -10,9 +10,32 @@ import {
   type CrmContactRecord,
 } from "../lib/enterprise-modules";
 import { requireAuthentication } from "../middlewares/authorization";
+import {
+  adminAccessIdentity,
+  isAdminAccessSession,
+  newAdminAccessCorrelationId,
+} from "../lib/admin-access";
 
 const router: IRouter = Router();
-router.use(requireAuthentication, attachEnterpriseContext);
+router.use((req, res, next): void => {
+  if (isAdminAccessSession(req)) {
+    const identity = adminAccessIdentity();
+    req.enterpriseContext = {
+      actorId: identity.actorId,
+      tenantId: identity.tenantId,
+      roles: ["Admin"],
+      permissions: [],
+      correlationId: newAdminAccessCorrelationId(),
+    };
+    next();
+    return;
+  }
+  if (!req.dbUser) {
+    requireAuthentication(req, res, next);
+    return;
+  }
+  void attachEnterpriseContext(req, res, next);
+});
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${field} is required.`);

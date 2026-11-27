@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InnovationCenter } from '../src/pages/innovation-center';
+import { Landing } from '../src/pages/landing';
 import '../src/index.css';
 
 const result = document.querySelector('#test-result');
@@ -50,21 +51,36 @@ try {
   await waitFor(() => byId('status-submission-success'), 'Succesbevestiging ontbreekt na opslaan.');
   assert(window.__innovationSubmissions.length === 1, 'De CRM-inzending is niet precies eenmaal verstuurd.');
   const saved = window.__innovationSubmissions[0];
-  assert(saved.type === 'PARTNER' && saved.company === 'Innovation Center', 'De bijdrage is niet aan de bestaande CRM-structuur gekoppeld.');
-  assert(saved.name === 'Studio Test' && saved.email === 'photo-recovery@example.invalid', 'Naam of optioneel e-mailadres ontbreekt.');
-  assert(saved.notes.includes('Categorie: Energie') && saved.notes.includes('Prioriteit: Normaal'), 'Categorie of prioriteit ontbreekt in de opgeslagen CRM-notitie.');
-  assert(saved.notes.includes('Idee/titel: Snellere energieanalyse') && saved.notes.includes('Toelichting: Ik wil voor meerdere woningen'), 'Inhoud ontbreekt in de CRM-notitie.');
-  assert(saved.notes.includes('Beta-tester / early-adopter interesse: Ja') && saved.notes.includes('Partnerinteresse: Ja'), 'Beta- of partnerinteresse ontbreekt.');
-  assert(saved.notes.includes('Toestemming vastgelegd op:'), 'Toestemmingstijdstip ontbreekt.');
+  assert(saved.source === 'innovation_center' && saved.consent === true, 'De publieke aanmelding mist bron of toestemming.');
+  assert(saved.name === 'Studio Test' && saved.email === 'photo-recovery@example.invalid', 'Naam of e-mailadres ontbreekt.');
+  assert(saved.interest === 'Energie: Snellere energieanalyse', 'Interessegebied ontbreekt.');
+  assert(saved.details.includes('Categorie: Energie') && saved.details.includes('Prioriteit: Normaal'), 'Categorie of prioriteit ontbreekt.');
+  assert(saved.details.includes('Idee/titel: Snellere energieanalyse') && saved.details.includes('Toelichting: Ik wil voor meerdere woningen'), 'Inhoud ontbreekt.');
+  assert(saved.details.includes('Beta-tester / early-adopter interesse: Ja') && saved.details.includes('Partnerinteresse: Ja'), 'Beta- of partnerinteresse ontbreekt.');
+  assert(saved.details.includes('Toestemming vastgelegd op:'), 'Toestemmingstijdstip ontbreekt.');
 
   window.__innovationShouldFail = true;
   setValue(byId('input-name'), 'Studio Test');
+  setValue(byId('input-email'), 'photo-recovery@example.invalid');
   setValue(byId('input-idea-title'), 'Probleem bij opslaan');
   setValue(byId('textarea-idea-details'), 'Bij een tijdelijke storing wil ik mijn ingevulde tekst kunnen behouden.');
   byId('checkbox-consent').click();
   byId('button-submit-innovation').click();
   await waitFor(() => byId('status-submission-error'), 'Foutmelding ontbreekt bij een CRM-storing.');
   assert(byId('input-idea-title').value === 'Probleem bij opslaan', 'Ingevulde waarden zijn gewist na een fout.');
+
+  root.render(React.createElement(Landing));
+  await waitFor(() => byId('section-international-opportunities'), 'De publieke verkenningspagina met internationale try-out ontbreekt.');
+  assert(byId('section-public-report-preview') && byId('section-catch-of-the-day-teaser'), 'De publieke rapportpreview of Catch of the Day teaser ontbreekt.');
+  assert(byId('card-international-spain') && byId('card-international-portugal') && byId('card-international-panama'), 'De drie illustratieve internationale voorbeelden ontbreken.');
+  byId('button-open-lead').click();
+  setValue(byId('input-lead-email'), 'public-entry@example.invalid');
+  byId('checkbox-lead-consent').click();
+  byId('button-lead-submit').click();
+  await waitFor(() => byId('status-lead-saved'), 'De publieke e-mailcapture gaf geen bevestiging.');
+  const publicLead = window.__innovationSubmissions.at(-1);
+  assert(publicLead.email === 'public-entry@example.invalid' && publicLead.consent === true, 'De publieke capture heeft het e-mailadres of de toestemming niet opgeslagen.');
+  assert(publicLead.source === 'public_report_unlock', 'De publieke leadbron is niet vastgelegd.');
 
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert(document.documentElement.scrollWidth <= window.innerWidth, 'De pagina veroorzaakt horizontaal scrollen op mobiel.');

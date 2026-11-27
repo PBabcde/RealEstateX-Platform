@@ -11,6 +11,7 @@ import {
   type LeadStatus,
 } from "@workspace/db";
 import { recordAuditEvent } from "../lib/enterprise-core";
+import { adminAccessIdentity, isAdminAccessSession } from "../lib/admin-access";
 
 export const LEAD_CONSENT_VERSION = "realestatex-lead-v1";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/u;
@@ -113,17 +114,15 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
     }
     const name = text(body.name, 200);
     const email = text(body.email, 254)?.toLowerCase();
-    if (!name) {
-      res.status(400).json({ error: "Naam is verplicht." });
-      return;
-    }
     if (!email || !EMAIL_PATTERN.test(email)) {
       res.status(400).json({ error: "Een geldig e-mailadres is verplicht." });
       return;
     }
+    const displayName = name ?? "Website-aanmelding";
     const phone = text(body.phone, 40);
     const company = text(body.company, 200);
     const interest = text(body.interest, 120);
+    const contribution = text(body.details, 4000);
     const propertyCount = Number.isFinite(Number(body.propertyCount))
       ? Math.max(0, Math.min(1000, Math.floor(Number(body.propertyCount))))
       : undefined;
@@ -131,30 +130,74 @@ publicSalesRouter.post("/public/leads", async (req, res): Promise<void> => {
     const now = new Date();
 
     const { db } = requireDb();
-    const [lead] = await db
-      .insert(leadsTable)
-      .values({
-        tenantId: DEFAULT_TENANT_ID,
-        name,
-        email,
-        phone,
-        company,
-        leadScore: computeLeadScore({ phone, company, interest, propertyCount }),
+    const captured = await db.transaction(async (tx) => {
+      // Serialize same-address captures without requiring a new database index or table.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${DEFAULT_TENANT_ID}:${email}`}))`);
+      const [existing] = await tx
+        .select()
+        .from(leadsTable)
+        .where(and(eq(leadsTable.tenantId, DEFAULT_TENANT_ID), eq(leadsTable.email, email)))
+        .orderBy(desc(leadsTable.createdAt))
+        .limit(1);
+
+      const oldMetadata = existing?.metadata ?? {};
+      const previousSources = Array.isArray(oldMetadata.sources)
+        ? oldMetadata.sources.filter((value): value is string => typeof value === "string")
+        : typeof oldMetadata.source === "string" ? [oldMetadata.source] : [];
+      const sources = [...new Set([...previousSources, source])].slice(-12);
+      const metadata = {
+        ...oldMetadata,
+        source,
+        sources,
+        ...(interest ? { interest } : {}),
+        ...(propertyCount !== undefined ? { propertyCount } : {}),
+        ...(contribution ? { contribution } : {}),
+      };
+      const values = {
+        name: name ?? existing?.name ?? displayName,
+        phone: phone ?? existing?.phone ?? null,
+        company: company ?? existing?.company ?? null,
+        leadScore: computeLeadScore({
+          phone: phone ?? existing?.phone ?? undefined,
+          company: company ?? existing?.company ?? undefined,
+          interest: interest ?? (typeof oldMetadata.interest === "string" ? oldMetadata.interest : undefined),
+          propertyCount: propertyCount ?? (typeof oldMetadata.propertyCount === "number" ? oldMetadata.propertyCount : undefined),
+        }),
         consent: true,
         consentVersion: LEAD_CONSENT_VERSION,
         consentedAt: now,
-        metadata: { source, ...(interest ? { interest } : {}), ...(propertyCount !== undefined ? { propertyCount } : {}) },
-      })
-      .returning({ id: leadsTable.id });
+        metadata,
+        updatedAt: now,
+      };
+
+      if (existing) {
+        const [updated] = await tx
+          .update(leadsTable)
+          .set(values)
+          .where(eq(leadsTable.id, existing.id))
+          .returning({ id: leadsTable.id });
+        return { id: updated!.id, created: false };
+      }
+
+      const [created] = await tx
+        .insert(leadsTable)
+        .values({
+          tenantId: DEFAULT_TENANT_ID,
+          email,
+          ...values,
+        })
+        .returning({ id: leadsTable.id });
+      return { id: created!.id, created: true };
+    });
     await recordAuditEvent({
       tenantId: DEFAULT_TENANT_ID,
-      action: "sales.lead.captured",
+      action: captured.created ? "sales.lead.captured" : "sales.lead.updated_from_public_capture",
       entityType: "lead",
-      entityId: lead!.id,
+      entityId: captured.id,
       actorId: "public-visitor",
       metadata: { source, consentVersion: LEAD_CONSENT_VERSION },
     });
-    res.status(201).json({ ok: true });
+    res.status(captured.created ? 201 : 200).json({ ok: true, created: captured.created });
   } catch (error) {
     req.log?.error({ err: error }, "Could not save the lead");
     res.status(503).json({ error: "Je aanvraag kon niet worden opgeslagen. Probeer het later opnieuw." });
@@ -202,6 +245,9 @@ publicSalesRouter.post("/public/traffic", async (req, res): Promise<void> => {
 export const salesRouter: IRouter = Router();
 
 function requireSalesAdmin(req: Request, res: Response): { tenantId: string; actorId: string } | undefined {
+  if (isAdminAccessSession(req)) {
+    return adminAccessIdentity();
+  }
   if (!req.dbUser) {
     res.status(401).json({ error: "Authentication required" });
     return undefined;
