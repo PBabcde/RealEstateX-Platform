@@ -13,6 +13,7 @@
     "test:energyx-ui": "node ./tests/energyx-module.browser.test.mjs",
     "test:innovation-center-ui": "node ./tests/innovation-center.browser.test.mjs",
     "test:opportunity-engine-ui": "node ./tests/opportunity-engine.browser.test.mjs",
+    "test:sales-engine-ui": "node ./tests/sales-engine.browser.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

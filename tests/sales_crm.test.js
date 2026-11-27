@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { createRequire } from "node:module";
 import { DEFAULT_TENANT_ID } from "@workspace/db/schema";
 import { requireDb } from "@workspace/db";
 
+const apiRequire = createRequire(new URL("../artifacts/api-server/package.json", import.meta.url));
+const express = apiRequire("express");
 const { pool } = requireDb();
 let server;
 let base;
 const marker = `sales-test-${Date.now()}`;
 
 before(async () => {
-  const { default: app } = await import("../artifacts/api-server/src/app.ts");
+  const { publicSalesRouter, salesRouter } = await import("../artifacts/api-server/src/routes/sales.ts");
+  const app = express();
+  app.use(express.json());
+  app.use("/api", publicSalesRouter);
+  app.use("/api", salesRouter);
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve);
   });
