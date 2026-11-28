@@ -5,9 +5,10 @@ import { KeyRound, ShieldCheck } from "lucide-react";
 
 const ADMIN_SESSION_URL = "/api/admin-access/session";
 
-function safeDestination(): "/sales" | "/control-room" {
+function safeDestination(): "/sales" | "/control-room" | "/control-room/content-autopilot" {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next === "/sales" ? "/sales" : "/control-room";
+  if (next === "/sales" || next === "/control-room/content-autopilot") return next;
+  return "/control-room";
 }
 
 export function AdminAccessPage() {

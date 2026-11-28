@@ -56,23 +56,27 @@ function parseContact(
     throw new Error("status must be ACTIVE or INACTIVE.");
   }
   const now = new Date().toISOString();
+  const partnerCategory = body.partnerCategory ?? existing?.partnerCategory;
+  const validPartnerCategories = ["warmtepompen", "airco", "buy_to_let", "makelaar", "adviseur", "vve", "investeerder", "overig"];
+  if (partnerCategory !== undefined && !validPartnerCategories.includes(String(partnerCategory))) {
+    throw new Error("partnerCategory is ongeldig.");
+  }
+  function optionalText(key: "email" | "phone" | "company", previous?: string) {
+    const value = Object.prototype.hasOwnProperty.call(body, key) ? body[key] : previous;
+    return typeof value === "string" && value.trim() ? { [key]: value.trim() } : {};
+  }
   return {
     contactId: existing?.contactId ?? createId(),
     type,
     name: requiredString(body.name ?? existing?.name, "name"),
-    ...(typeof (body.email ?? existing?.email) === "string"
-      ? { email: String(body.email ?? existing?.email).trim() }
-      : {}),
-    ...(typeof (body.phone ?? existing?.phone) === "string"
-      ? { phone: String(body.phone ?? existing?.phone).trim() }
-      : {}),
-    ...(typeof (body.company ?? existing?.company) === "string"
-      ? { company: String(body.company ?? existing?.company).trim() }
-      : {}),
+    ...optionalText("email", existing?.email),
+    ...optionalText("phone", existing?.phone),
+    ...optionalText("company", existing?.company),
     status,
     ...(typeof (body.notes ?? existing?.notes) === "string"
       ? { notes: String(body.notes ?? existing?.notes).trim() }
       : {}),
+    ...(partnerCategory ? { partnerCategory: partnerCategory as CrmContactRecord["partnerCategory"] } : {}),
     ownerId: existing?.ownerId ?? actorId,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,

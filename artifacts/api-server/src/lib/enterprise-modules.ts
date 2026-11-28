@@ -111,6 +111,7 @@ export type CrmContactRecord = {
   company?: string;
   status: "ACTIVE" | "INACTIVE";
   notes?: string;
+  partnerCategory?: "warmtepompen" | "airco" | "buy_to_let" | "makelaar" | "adviseur" | "vve" | "investeerder" | "overig";
   ownerId: string;
   createdAt: string;
   updatedAt: string;

@@ -1501,6 +1501,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CrmContactRecord"
+  /sales/content-options:
+    get:
+      operationId: salesGetContentOptions
+      tags: [enterprise]
+      summary: List separate partner contacts and promotable Deal Room properties for draft generation
+      responses:
+        "200":
+          description: Active partners and GO-stage property summaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesContentOptions"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /sales/leads/{leadId}/content-draft:
+    post:
+      operationId: salesGenerateContentDraft
+      tags: [enterprise]
+      summary: Generate an editable, non-persistent Dutch sales content draft
+      parameters:
+        - $ref: "#/components/parameters/SalesLeadId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SalesContentDraftInput"
+      responses:
+        "200":
+          description: Generated draft returned for in-memory review; nothing is sent or saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesContentDraft"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          description: AI request rate limit reached
+        "502":
+          description: AI provider failed
   /crm/contacts/{contactId}:
     get:
       operationId: getCrmContact
@@ -1687,6 +1731,11 @@ paths:
           $ref: "#/components/responses/Forbidden"
 components:
   parameters:
+    SalesLeadId:
+      name: leadId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     PropertyId:
       name: propertyId
       in: path
@@ -2184,6 +2233,8 @@ components:
         company: { type: string }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
         notes: { type: string }
+        partnerCategory:
+          $ref: "#/components/schemas/SalesPartnerCategory"
     CrmContactRecord:
       allOf:
         - $ref: "#/components/schemas/CrmContactInput"
@@ -2195,6 +2246,61 @@ components:
             ownerId: { type: string }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
+    SalesPartnerCategory:
+      type: string
+      enum: [warmtepompen, airco, buy_to_let, makelaar, adviseur, vve, investeerder, overig]
+    SalesContentType:
+      type: string
+      enum: [homeowner_energy, vve_collective, realtor_linkedin, rental_income]
+    SalesContentDraftInput:
+      type: object
+      required: [contentType]
+      properties:
+        contentType:
+          $ref: "#/components/schemas/SalesContentType"
+        partnerContactId:
+          type: string
+          maxLength: 100
+        dealId:
+          type: string
+          maxLength: 100
+    SalesContentDraft:
+      type: object
+      required: [contentType, draft, partnerCategory]
+      properties:
+        contentType:
+          $ref: "#/components/schemas/SalesContentType"
+        draft: { type: string, minLength: 1, maxLength: 6000 }
+        partnerCategory:
+          $ref: "#/components/schemas/SalesPartnerCategory"
+        partnerName: { type: ["string", "null"] }
+        dealTitle: { type: ["string", "null"] }
+    SalesContentOptions:
+      type: object
+      required: [partners, deals]
+      properties:
+        partners:
+          type: array
+          items:
+            type: object
+            required: [contactId, name, category]
+            properties:
+              contactId: { type: string }
+              name: { type: string }
+              company: { type: ["string", "null"] }
+              category: { $ref: "#/components/schemas/SalesPartnerCategory" }
+        deals:
+          type: array
+          items:
+            type: object
+            required: [dealId, title, region, propertyType, energyLabel, woonoppervlak]
+            properties:
+              dealId: { type: string }
+              title: { type: string }
+              region: { type: string }
+              propertyType: { type: string }
+              energyLabel: { type: string }
+              woonoppervlak: { type: number }
     CrmActivityInput:
       type: object
       required: [kind, summary]

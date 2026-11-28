@@ -170,6 +170,102 @@ test("admin sessions reject forged, expired, cross-site and disabled access", as
   if (previous !== undefined) process.env.ADMIN_ACCESS_KEY = previous;
 });
 
+test("content drafting keeps partners separate, omits lead identifiers, and never writes generated text", async () => {
+  const previousAdminKey = process.env.ADMIN_ACCESS_KEY;
+  const previousOpenAiUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const previousOpenAiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  process.env.ADMIN_ACCESS_KEY = "test-admin-key-with-at-least-32-characters";
+  process.env.SESSION_SECRET ||= "test-session-secret-for-content-drafts";
+  process.env.AI_INTEGRATIONS_OPENAI_BASE_URL = "http://openai.mock/v1";
+  process.env.AI_INTEGRATIONS_OPENAI_API_KEY = "test-openai-key";
+  const login = await post("/admin-access/session", { key: process.env.ADMIN_ACCESS_KEY });
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const leadEmail = `${marker}-content@example.com`;
+  const leadResponse = await post("/public/leads", {
+    email: leadEmail, name: "Private Lead Name", company: "Private Company",
+    phone: "0611223344", interest: "private-interest-field", source: "public_report_unlock",
+    consent: true, energyLabel: "B",
+  });
+  assert.equal(leadResponse.status, 201);
+  const { rows: leadRows } = await pool.query("SELECT id FROM leads WHERE email = $1", [leadEmail]);
+  const leadId = leadRows[0].id;
+  const interactionsBefore = Number((await pool.query(
+    "SELECT count(*)::int AS count FROM crm_interactions WHERE lead_id = $1", [leadId],
+  )).rows[0].count);
+  const contactResponse = await fetch(`${base}/crm/contacts`, {
+    method: "POST",
+    headers: { cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "PARTNER", name: "Partner Name Private", email: "partner@example.invalid", company: "Partner Company Private", phone: "0699999999", partnerCategory: "warmtepompen", status: "ACTIVE" }),
+  });
+  assert.equal(contactResponse.status, 201);
+  const partner = await contactResponse.json();
+  try {
+    const optionsResponse = await fetch(`${base}/sales/content-options`, { headers: { cookie } });
+    assert.equal(optionsResponse.status, 200);
+    const options = await optionsResponse.json();
+    assert.ok(options.partners.some((item) => item.contactId === partner.contactId && item.category === "warmtepompen"));
+    assert.ok(!JSON.stringify(options.partners).includes(leadId));
+
+    const invalid = await fetch(`${base}/sales/leads/${leadId}/content-draft`, {
+      method: "POST", headers: { cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: "not-a-content-type" }),
+    });
+    assert.equal(invalid.status, 400);
+    const missingDeal = await fetch(`${base}/sales/leads/${leadId}/content-draft`, {
+      method: "POST", headers: { cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: "realtor_linkedin" }),
+    });
+    assert.equal(missingDeal.status, 400);
+
+    const nativeFetch = globalThis.fetch;
+    let capturedAiRequest;
+    globalThis.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.startsWith("http://openai.mock/")) {
+        capturedAiRequest = JSON.parse(String(init?.body ?? "{}"));
+        return new Response(JSON.stringify({
+          id: "chatcmpl-test",
+          object: "chat.completion",
+          created: 1,
+          model: "gpt-5.6-luna",
+          choices: [{ index: 0, message: { role: "assistant", content: "Een persoonlijk verduurzamingsplan begint met een vrijblijvende verkenning." }, finish_reason: "stop" }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return nativeFetch(input, init);
+    };
+    try {
+      const before = interactionsBefore;
+      const generated = await fetch(`${base}/sales/leads/${leadId}/content-draft`, {
+        method: "POST", headers: { cookie, "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: "homeowner_energy", partnerContactId: partner.contactId }),
+      });
+      assert.equal(generated.status, 200);
+      const payload = await generated.json();
+      assert.equal(payload.draft, "Een persoonlijk verduurzamingsplan begint met een vrijblijvende verkenning.");
+      assert.equal(payload.partnerName, "Partner Name Private");
+      const serializedPrompt = JSON.stringify(capturedAiRequest.messages);
+      for (const privateValue of [leadEmail, "Private Lead Name", "Private Company", "0611223344", "private-interest-field", "Partner Name Private", "partner@example.invalid", "Partner Company Private", "0699999999"]) {
+        assert.ok(!serializedPrompt.includes(privateValue), `Sensitive value leaked into the AI prompt: ${privateValue}`);
+      }
+      assert.ok(serializedPrompt.includes("B2C huiseigenaar"));
+      const after = Number((await pool.query(
+        "SELECT count(*)::int AS count FROM crm_interactions WHERE lead_id = $1", [leadId],
+      )).rows[0].count);
+      assert.equal(after, before, "Generated content must not be stored against a lead.");
+    } finally {
+      globalThis.fetch = nativeFetch;
+    }
+  } finally {
+    await fetch(`${base}/crm/contacts/${encodeURIComponent(partner.contactId)}`, { method: "DELETE", headers: { cookie } });
+    if (previousAdminKey === undefined) delete process.env.ADMIN_ACCESS_KEY;
+    else process.env.ADMIN_ACCESS_KEY = previousAdminKey;
+    if (previousOpenAiUrl === undefined) delete process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    else process.env.AI_INTEGRATIONS_OPENAI_BASE_URL = previousOpenAiUrl;
+    if (previousOpenAiKey === undefined) delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+    else process.env.AI_INTEGRATIONS_OPENAI_API_KEY = previousOpenAiKey;
+  }
+});
+
 test("the honeypot field stores nothing", async () => {
   const email = `${marker}-bot@example.com`;
   assert.equal((await post("/public/leads", { name: "Bot", email, consent: true, website: "http://spam" })).status, 201);

@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SalesEngine } from "../src/pages/sales";
+import { ContentAutopilot } from "../src/pages/content-autopilot";
 import "../src/index.css";
 
 const result = document.querySelector("#test-result");
@@ -31,6 +32,11 @@ const activateTab = (element) => {
 
 const root = createRoot(document.querySelector("#root"));
 const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+window.__copiedContentDrafts = [];
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: { writeText: async (value) => { window.__copiedContentDrafts.push(value); } },
+});
 root.render(createElement(QueryClientProvider, { client }, createElement(SalesEngine)));
 
 try {
@@ -72,6 +78,53 @@ try {
   assert(byId("community-early-adopters").textContent.includes("1"), "Bestaande early-adopterinteresse is niet afgeleid uit CRM-inzendingen.");
   assert(byId("community-premium-gebruikers").textContent.includes("Niet geactiveerd"), "Premium wordt ten onrechte als actief getoond.");
   assert(document.body.textContent.includes("geen Stripe-wijzigingen"), "De pagina maakt onvoldoende duidelijk dat betalingen niet zijn gewijzigd.");
+
+  root.render(createElement(QueryClientProvider, { client }, createElement(ContentAutopilot)));
+  await waitFor(() => byId("content-lead-00000000-0000-0000-0000-000000000101"), "De contentassistent toont geen recente leads.");
+  const leadIds = [...document.querySelectorAll('[data-testid^="content-lead-"]')].map((node) => node.dataset.testid);
+  assert(leadIds[0]?.endsWith("000000000101") && leadIds[1]?.endsWith("000000000102"), "De leads zijn niet nieuwste eerst gesorteerd.");
+  activateTab(byId("tab-content-partners"));
+  await waitFor(() => byId("select-content-partner-category"), "Het partnerregister is niet geopend.");
+  const category = byId("select-content-partner-category");
+  setValue(category, "warmtepompen");
+  setValue(byId("input-content-partner-name"), "Nieuwe Partner");
+  setValue(byId("input-content-partner-company"), "Nieuwe Organisatie");
+  byId("button-save-content-partner").click();
+  await waitFor(() => byId("content-partner-content-contact-created"), "De partner is niet aan het losse partnerregister toegevoegd.");
+  assert(byId("content-partner-content-contact-created").textContent.includes("Actief voor aanbevelingen"), "Een actieve partner is niet als selecteerbaar gemarkeerd.");
+  byId("button-edit-content-partner-content-contact-created").click();
+  setValue(byId("select-content-partner-status"), "INACTIVE");
+  byId("button-save-content-partner").click();
+  await waitFor(() => byId("content-partner-content-contact-created").textContent.includes("Inactief"), `De partnerstatus kon niet worden aangepast. form=${byId("select-content-partner-status")?.value}, rij=${byId("content-partner-content-contact-created")?.textContent ?? "ontbreekt"}, alert=${document.querySelector('[role="alert"]')?.textContent ?? "geen"}`);
+
+  activateTab(byId("tab-content-drafts"));
+  await waitFor(() => byId("button-open-content-draft-00000000-0000-0000-0000-000000000101"), "De berichtlijst is niet geopend.");
+  byId("button-open-content-draft-00000000-0000-0000-0000-000000000101").click();
+  await waitFor(() => byId("select-content-type"), "Het berichtdialoogvenster is niet geopend.");
+  assert([...byId("select-content-type").options].length === 4, "Niet alle vier de berichttypes zijn beschikbaar.");
+  setValue(byId("select-content-type"), "homeowner_energy");
+  setValue(byId("select-content-partner"), "contact-early-adopter");
+  byId("button-generate-content-00000000-0000-0000-0000-000000000101").click();
+  await waitFor(() => byId("textarea-content-draft"), "Het conceptbericht is niet getoond.");
+  assert(window.__contentDraftRequests?.at(-1).leadId === "00000000-0000-0000-0000-000000000101", "De leadreferentie ontbreekt in de generatie-aanvraag.");
+  assert(!JSON.stringify(window.__contentDraftRequests?.at(-1)).includes("lead@example.invalid"), "De e-mail van de lead is meegestuurd vanuit de browser.");
+  setValue(byId("textarea-content-draft"), "Bewerkt concept voor de controle.");
+  byId("button-copy-content-draft").click();
+  await waitFor(() => byId("button-copy-content-draft").textContent.includes("Goedgekeurd"), "Het bewerkte concept is niet gekopieerd.");
+  assert(window.__copiedContentDrafts.includes("Bewerkt concept voor de controle."), "De knop heeft niet de bewerkte tekst gekopieerd.");
+
+  const dialogButtons = document.querySelectorAll('[role="dialog"] button');
+  dialogButtons[0]?.click();
+  await waitFor(() => !document.querySelector('[role="dialog"]'), "Het berichtvenster sluit niet.");
+  byId("button-open-content-draft-00000000-0000-0000-0000-000000000101").click();
+  await waitFor(() => byId("select-content-type"), "Het berichtvenster opent niet opnieuw.");
+  setValue(byId("select-content-type"), "realtor_linkedin");
+  setValue(byId("select-content-deal"), "deal-approved");
+  setValue(byId("select-content-partner"), "contact-realtor");
+  byId("button-generate-content-00000000-0000-0000-0000-000000000101").click();
+  await waitFor(() => window.__contentDraftRequests?.some((request) => request.contentType === "realtor_linkedin"), "Het LinkedIn-concept voor een GO-object is niet aangevraagd.");
+  assert(window.__contentDraftRequests.at(-1).dealId === "deal-approved", "Het geselecteerde Deal Room-object ontbreekt in de aanvraag.");
+
   assert(document.documentElement.scrollWidth <= window.innerWidth, "De Sales Engine veroorzaakt horizontaal scrollen op mobiel.");
   window.__salesTestRole = "member";
   await client.invalidateQueries({ queryKey: ["/api/account"] });

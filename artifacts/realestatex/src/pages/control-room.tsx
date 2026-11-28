@@ -10,6 +10,7 @@ import {
   Layers3,
   RefreshCw,
   Server,
+  Sparkles,
   ShieldCheck,
   Users,
   Zap,
@@ -488,7 +489,10 @@ export function ControlRoom() {
                   <div className="mt-2"><StatusPill status={realEstate?.transformations} testId="status-realestatex-transformations" /></div>
                 </div>
               </div>
-              <Link href="/sales" className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe6e9] bg-[#fafcfc] px-3 text-xs font-semibold text-[#29475b] transition-colors hover:bg-[#f4f7f8]" data-testid="link-control-room-sales">Open Sales Engine <Activity size={14} /></Link>
+              <div className="mt-4 grid gap-2">
+                <Link href="/sales" className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe6e9] bg-[#fafcfc] px-3 text-xs font-semibold text-[#29475b] transition-colors hover:bg-[#f4f7f8]" data-testid="link-control-room-sales">Open Sales Engine <Activity size={14} /></Link>
+                <Link href="/control-room/content-autopilot" className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe6e9] bg-[#fafcfc] px-3 text-xs font-semibold text-[#29475b] transition-colors hover:bg-[#f4f7f8]" data-testid="link-control-room-content-autopilot">Open contentassistent <Sparkles size={14} /></Link>
+              </div>
             </article>
             <article className="rounded-xl border border-[#e6ebed] p-4" data-testid="card-energyx-status">
               <div className="flex items-start justify-between gap-3">

@@ -3549,7 +3549,8 @@ export const ListCrmContactsResponseItem = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 }).and(zod.object({
   "contactId": zod.string(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
@@ -3573,7 +3574,8 @@ export const CreateCrmContactBody = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']).optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 })
 
 
@@ -3586,7 +3588,8 @@ export const CreateCrmContactResponse = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 }).and(zod.object({
   "contactId": zod.string(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
@@ -3594,6 +3597,59 @@ export const CreateCrmContactResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }))
+
+
+/**
+ * @summary List separate partner contacts and promotable Deal Room properties for draft generation
+ */
+export const SalesGetContentOptionsResponse = zod.object({
+  "partners": zod.array(zod.object({
+  "contactId": zod.string(),
+  "name": zod.string(),
+  "company": zod.string().nullish(),
+  "category": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig'])
+})),
+  "deals": zod.array(zod.object({
+  "dealId": zod.string(),
+  "title": zod.string(),
+  "region": zod.string(),
+  "propertyType": zod.string(),
+  "energyLabel": zod.string(),
+  "woonoppervlak": zod.number()
+}))
+})
+
+
+/**
+ * @summary Generate an editable, non-persistent Dutch sales content draft
+ */
+export const SalesGenerateContentDraftParams = zod.object({
+  "leadId": zod.coerce.string().uuid()
+})
+
+export const salesGenerateContentDraftBodyPartnerContactIdMax = 100;
+
+export const salesGenerateContentDraftBodyDealIdMax = 100;
+
+
+
+export const SalesGenerateContentDraftBody = zod.object({
+  "contentType": zod.enum(['homeowner_energy', 'vve_collective', 'realtor_linkedin', 'rental_income']),
+  "partnerContactId": zod.string().max(salesGenerateContentDraftBodyPartnerContactIdMax).optional(),
+  "dealId": zod.string().max(salesGenerateContentDraftBodyDealIdMax).optional()
+})
+
+export const salesGenerateContentDraftResponseDraftMax = 6000;
+
+
+
+export const SalesGenerateContentDraftResponse = zod.object({
+  "contentType": zod.enum(['homeowner_energy', 'vve_collective', 'realtor_linkedin', 'rental_income']),
+  "draft": zod.string().min(1).max(salesGenerateContentDraftResponseDraftMax),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']),
+  "partnerName": zod.string().nullish(),
+  "dealTitle": zod.string().nullish()
+})
 
 
 /**
@@ -3616,7 +3672,8 @@ export const GetCrmContactResponse = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 }).and(zod.object({
   "contactId": zod.string(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
@@ -3708,7 +3765,8 @@ export const UpdateCrmContactBody = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']).optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 })
 
 
@@ -3721,7 +3779,8 @@ export const UpdateCrmContactResponse = zod.object({
   "phone": zod.string().optional(),
   "company": zod.string().optional(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "partnerCategory": zod.enum(['warmtepompen', 'airco', 'buy_to_let', 'makelaar', 'adviseur', 'vve', 'investeerder', 'overig']).optional()
 }).and(zod.object({
   "contactId": zod.string(),
   "status": zod.enum(['ACTIVE', 'INACTIVE']),

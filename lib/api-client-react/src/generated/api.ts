@@ -91,6 +91,9 @@ import type {
   RetrievalInput,
   RetrievalResponse,
   SaasEntitlements,
+  SalesContentDraft,
+  SalesContentDraftInput,
+  SalesContentOptions,
   SuiteOverview,
   TrainingPromotionResponse,
   TrainingScenario,
@@ -5681,6 +5684,172 @@ export const useCreateCrmContact = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateCrmContactMutationOptions(options));
+    }
+
+export const getSalesGetContentOptionsUrl = () => {
+
+
+
+
+  return `/api/sales/content-options`
+}
+
+/**
+ * @summary List separate partner contacts and promotable Deal Room properties for draft generation
+ */
+export const salesGetContentOptions = async ( options?: Parameters<typeof customFetch>[1]): Promise<SalesContentOptions> => {
+
+  return customFetch<SalesContentOptions>(getSalesGetContentOptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSalesGetContentOptionsQueryKey = () => {
+    return [
+    `/api/sales/content-options`
+    ] as const;
+    }
+
+
+export const getSalesGetContentOptionsQueryOptions = <TData = Awaited<ReturnType<typeof salesGetContentOptions>>, TError = ErrorType<UnauthorizedResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof salesGetContentOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSalesGetContentOptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof salesGetContentOptions>>> = ({ signal }) => salesGetContentOptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof salesGetContentOptions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SalesGetContentOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof salesGetContentOptions>>>
+export type SalesGetContentOptionsQueryError = ErrorType<UnauthorizedResponse>
+
+
+/**
+ * @summary List separate partner contacts and promotable Deal Room properties for draft generation
+ */
+
+export function useSalesGetContentOptions<TData = Awaited<ReturnType<typeof salesGetContentOptions>>, TError = ErrorType<UnauthorizedResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof salesGetContentOptions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSalesGetContentOptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSalesGenerateContentDraftUrl = (leadId: string,) => {
+
+
+
+
+  return `/api/sales/leads/${leadId}/content-draft`
+}
+
+/**
+ * @summary Generate an editable, non-persistent Dutch sales content draft
+ */
+export const salesGenerateContentDraft = async (leadId: string,
+    salesContentDraftInput: SalesContentDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<SalesContentDraft> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<SalesContentDraft>(getSalesGenerateContentDraftUrl(leadId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(salesContentDraftInput)
+  }
+);}
+
+
+
+
+
+export const getSalesGenerateContentDraftMutationKey = () => ['salesGenerateContentDraft'] as const;
+
+export const getSalesGenerateContentDraftMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext> => {
+
+const mutationKey = getSalesGenerateContentDraftMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof salesGenerateContentDraft>>, SalesGenerateContentDraftMutationVariables> = (props) => {
+          const {leadId,data} = props ?? {};
+
+          return  salesGenerateContentDraft(leadId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SalesGenerateContentDraftMutationResult = NonNullable<Awaited<ReturnType<typeof salesGenerateContentDraft>>>
+    export type SalesGenerateContentDraftMutationBody = BodyType<SalesContentDraftInput>
+    export type SalesGenerateContentDraftMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>
+    export type SalesGenerateContentDraftMutationVariables = {leadId: string;data: BodyType<SalesContentDraftInput>}
+
+    /**
+ * @summary Generate an editable, non-persistent Dutch sales content draft
+ */
+export const useSalesGenerateContentDraft = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof salesGenerateContentDraft>>,
+        TError,
+        SalesGenerateContentDraftMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSalesGenerateContentDraftMutationOptions(options));
     }
 
 export const getGetCrmContactUrl = (contactId: string,) => {

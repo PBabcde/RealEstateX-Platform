@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiError, customFetch, useGetAccount, type CrmContactRecord, type VisitorIntentSummary } from '@workspace/api-client-react';
+import { ApiError, customFetch, useGetAccount, type CrmContactRecord, type SalesPartnerCategory, type VisitorIntentSummary } from '@workspace/api-client-react';
 import { Activity, ArrowRight, BookOpen, CheckCircle2, Handshake, Mail, Megaphone, MousePointerClick, PenLine, Search, Share2, Sparkles, Users, UsersRound, type LucideIcon } from 'lucide-react';
 import { Link } from 'wouter';
 import { AppShell } from '@/components/app-shell';
@@ -23,8 +23,11 @@ type Analytics = {
   tools: Array<{ tool: string; views: number }>;
   recent: Array<{ page: string; eventType: string; referrer: string | null; timestamp: string }>;
 };
-type Feed = { id: string; leadId: string; leadName: string; actionType: string; notes: string | null; aiGeneratedSummary: string | null; createdAt: string };
 type PartnerRole = 'makelaar' | 'adviseur' | 'investeerder' | 'installateur' | 'partner';
+const PARTNER_CATEGORY_LABELS: Record<SalesPartnerCategory, string> = {
+  warmtepompen: 'Warmtepompen', airco: 'Airco', buy_to_let: 'Buy-to-Let', makelaar: 'Makelaar',
+  adviseur: 'Adviseur', vve: 'VvE-beheerder of adviseur', investeerder: 'Investeerder', overig: 'Overig',
+};
 
 const get = <T,>(url: string) => customFetch<T>(url, { method: 'GET' });
 const when = (value: string) => new Date(value).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' });
@@ -181,10 +184,11 @@ function PartnersTab() {
   const queryClient = useQueryClient();
   const contacts = useQuery({ queryKey: ['sales', 'crm-contacts'], queryFn: () => get<CrmContactRecord[]>('/api/crm/contacts') });
   const [formVersion, setFormVersion] = useState(0);
+  const [partnerCategory, setPartnerCategory] = useState<SalesPartnerCategory>('overig');
   const create = useMutation({
     mutationFn: (input: { role: PartnerRole; name: string; email: string; phone: string; company: string }) => {
       const type = input.role === 'investeerder' ? 'INVESTOR' : input.role === 'makelaar' ? 'MAKELAAR' : 'PARTNER';
-      return customFetch<CrmContactRecord>('/api/crm/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name: input.name, ...(input.email ? { email: input.email } : {}), ...(input.phone ? { phone: input.phone } : {}), ...(input.company ? { company: input.company } : {}), status: 'ACTIVE', notes: `Sales Engine rol: ${roleLabels[input.role]}` }) });
+      return customFetch<CrmContactRecord>('/api/crm/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type, name: input.name, ...(input.email ? { email: input.email } : {}), ...(input.phone ? { phone: input.phone } : {}), ...(input.company ? { company: input.company } : {}), partnerCategory, status: 'ACTIVE', notes: `Sales Engine rol: ${roleLabels[input.role]}` }) });
     },
     onSuccess: () => { setFormVersion((version) => version + 1); void queryClient.invalidateQueries({ queryKey: ['sales', 'crm-contacts'] }); void queryClient.invalidateQueries({ queryKey: ['listCrmContacts'] }); },
   });
@@ -197,6 +201,9 @@ function PartnersTab() {
       <form key={formVersion} className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); create.mutate({ role, name: String(form.get('name') ?? '').trim(), email: String(form.get('email') ?? '').trim(), phone: String(form.get('phone') ?? '').trim(), company: String(form.get('company') ?? '').trim() }); }}>
         <label className="block text-[10px] font-semibold">Rol
           <select value={role} onChange={(event) => setRole(event.target.value as PartnerRole)} className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-xs" data-testid="select-partner-role">{Object.entries(roleLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        </label>
+        <label className="block text-[10px] font-semibold">Expertisegebied voor AI-aanbevelingen
+          <select value={partnerCategory} onChange={(event) => setPartnerCategory(event.target.value as SalesPartnerCategory)} className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-xs" data-testid="select-sales-partner-category">{Object.entries(PARTNER_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
         </label>
         <label className="block text-[10px] font-semibold">Naam *
           <input name="name" required maxLength={200} className="mt-1 min-h-10 w-full rounded-lg border border-border bg-background px-3 text-xs" data-testid="input-partner-name" />
@@ -261,27 +268,10 @@ function CommunityCard({ label, value, detail }: { label: string; value: string 
 }
 
 function AssistantTab() {
-  const queryClient = useQueryClient();
-  const leads = useQuery({ queryKey: ['sales', 'leads'], queryFn: () => get<Lead[]>('/api/sales/leads') });
-  const feed = useQuery({ queryKey: ['sales', 'assistant'], queryFn: () => get<Feed[]>('/api/sales/assistant') });
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const recommend = useMutation({
-    mutationFn: (id: string) => customFetch(`/api/sales/leads/${id}/ai-recommendation`, { method: 'POST' }),
-    onMutate: (id) => setBusyId(id),
-    onSettled: () => { setBusyId(null); void queryClient.invalidateQueries({ queryKey: ['sales', 'assistant'] }); },
-  });
-  if (feed.isPending || leads.isPending) return <LoadingBlock />;
-  if (feed.isError || leads.isError) return <ErrorBlock message={errorText(feed.error ?? leads.error)} onRetry={() => { void feed.refetch(); void leads.refetch(); }} />;
-  const open = leads.data.filter((lead) => lead.status === 'new' || lead.status === 'contacted' || lead.status === 'qualified');
-  return <div className="grid gap-6 lg:grid-cols-2">
-    <section className="rounded-2xl border border-border bg-card p-5"><h3 className="text-sm font-bold">Aanbeveling opvragen</h3>
-      <p className="mt-1 text-xs text-muted-foreground">De AI krijgt geen e-mailadres of telefoonnummer te zien.</p>
-      {recommend.isError && <p className="mt-3 text-xs font-semibold text-[#a4443b]" role="alert" data-testid="text-ai-error">De AI-aanbeveling kon niet worden opgehaald.</p>}
-      {open.length ? <ul className="mt-4 space-y-2">{open.map((lead) => <li key={lead.id} className="flex items-center justify-between gap-3 text-sm"><span className="truncate">{lead.name} <ScoreBadge score={lead.leadScore} /></span>
-        <button onClick={() => recommend.mutate(lead.id)} disabled={busyId !== null} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-primary-foreground disabled:opacity-60" data-testid={`button-ai-${lead.id}`}><Sparkles size={12} />{busyId === lead.id ? 'Bezig…' : 'Advies'}</button></li>)}</ul> : <p className="mt-4 text-xs text-muted-foreground">Geen open leads.</p>}</section>
-    <section className="rounded-2xl border border-border bg-card p-5"><h3 className="text-sm font-bold">Aanbevelingen en activiteit</h3>
-      {feed.data.length ? <ul className="mt-4 space-y-3" data-testid="assistant-feed">{feed.data.map((item) => <li key={item.id} className="rounded-xl bg-secondary/50 p-3 text-xs"><div className="flex justify-between gap-3"><span className="font-bold">{item.leadName}{item.aiGeneratedSummary ? ' · AI-advies' : ''}</span><span className="shrink-0 text-muted-foreground">{when(item.createdAt)}</span></div><p className="mt-1 leading-5">{item.aiGeneratedSummary ?? item.notes}</p></li>)}</ul> : <p className="mt-4 text-xs text-muted-foreground">Nog geen activiteit.</p>}</section>
-  </div>;
+  return <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+    <div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9eee6] text-[#607765]"><Sparkles size={18} /></span><div><h3 className="text-base font-bold">Berichtvoorstellen op verzoek</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">Maak een bewerkbaar concept voor een huiseigenaar, VvE, makelaar of belegger. Concepten worden niet aan leads opgeslagen en er wordt niets verzonden.</p></div></div>
+    <Link href="/control-room/content-autopilot" className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground" data-testid="link-sales-content-autopilot"><Sparkles size={14} /> Open contentassistent <ArrowRight size={14} /></Link>
+  </section>;
 }
 
 export function SalesEngine() {
@@ -299,7 +289,7 @@ export function SalesEngine() {
           <TabsTrigger value="pipeline" data-testid="tab-pipeline"><Users size={14} className="mr-1.5" />Lead pipeline</TabsTrigger>
           <TabsTrigger value="partners" data-testid="tab-partners"><Handshake size={14} className="mr-1.5" />CRM &amp; partners</TabsTrigger>
           <TabsTrigger value="growth" data-testid="tab-growth"><Megaphone size={14} className="mr-1.5" />Groei voorbereiden</TabsTrigger>
-          <TabsTrigger value="assistant" data-testid="tab-assistant"><Sparkles size={14} className="mr-1.5" />AI Sales Assistant</TabsTrigger>
+          <TabsTrigger value="assistant" data-testid="tab-assistant"><Sparkles size={14} className="mr-1.5" />Contentassistent</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6"><OverviewTab /></TabsContent>
         <TabsContent value="traffic" className="mt-6"><TrafficTab /></TabsContent>

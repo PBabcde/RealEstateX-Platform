@@ -7,6 +7,7 @@
  */
 import type { CrmContactInputStatus } from './crmContactInputStatus';
 import type { CrmContactInputType } from './crmContactInputType';
+import type { SalesPartnerCategory } from './salesPartnerCategory';
 
 export interface CrmContactInput {
   type: CrmContactInputType;
@@ -17,4 +18,5 @@ export interface CrmContactInput {
   company?: string;
   status?: CrmContactInputStatus;
   notes?: string;
+  partnerCategory?: SalesPartnerCategory;
 }

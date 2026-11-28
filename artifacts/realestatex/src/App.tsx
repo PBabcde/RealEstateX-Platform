@@ -13,6 +13,7 @@ import { DealingRoom } from '@/pages/enterprise';
 import { TrainingRoom } from '@/pages/training-room';
 import { PropertyTransformer } from '@/pages/property-transformer';
 import { SalesEngine } from '@/pages/sales';
+import { ContentAutopilot } from '@/pages/content-autopilot';
 import { ControlRoom } from '@/pages/control-room';
 import { InnovationCenter } from '@/pages/innovation-center';
 import { OpportunityEngine } from '@/pages/opportunity-engine';
@@ -192,6 +193,7 @@ function Router() {
     <Route path="/training-room"><ProtectedPage><TrainingRoom /></ProtectedPage></Route>
     <Route path="/sales"><AdminProtectedPage><SalesEngine /></AdminProtectedPage></Route>
     <Route path="/control-room"><AdminProtectedPage><ControlRoom /></AdminProtectedPage></Route>
+    <Route path="/control-room/content-autopilot"><AdminProtectedPage><ContentAutopilot /></AdminProtectedPage></Route>
     <Route path="/innovation-center"><InnovationCenter /></Route>
     <Route path="/opportunity-engine"><ProtectedPage><OpportunityEngine /></ProtectedPage></Route>
     <Route path="/property-transformer"><ProtectedPage><AccountScopedPropertyTransformer /></ProtectedPage></Route>

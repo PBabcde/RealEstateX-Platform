@@ -492,6 +492,20 @@ export const CrmContactInputStatus = {
   INACTIVE: 'INACTIVE',
 } as const;
 
+export type SalesPartnerCategory = typeof SalesPartnerCategory[keyof typeof SalesPartnerCategory];
+
+
+export const SalesPartnerCategory = {
+  warmtepompen: 'warmtepompen',
+  airco: 'airco',
+  buy_to_let: 'buy_to_let',
+  makelaar: 'makelaar',
+  adviseur: 'adviseur',
+  vve: 'vve',
+  investeerder: 'investeerder',
+  overig: 'overig',
+} as const;
+
 export interface CrmContactInput {
   type: CrmContactInputType;
   /** @minLength 1 */
@@ -501,6 +515,7 @@ export interface CrmContactInput {
   company?: string;
   status?: CrmContactInputStatus;
   notes?: string;
+  partnerCategory?: SalesPartnerCategory;
 }
 
 export type CrmContactRecordStatus = typeof CrmContactRecordStatus[keyof typeof CrmContactRecordStatus];
@@ -518,6 +533,60 @@ export type CrmContactRecord = CrmContactInput & {
   createdAt: string;
   updatedAt: string;
 };
+
+export type SalesContentType = typeof SalesContentType[keyof typeof SalesContentType];
+
+
+export const SalesContentType = {
+  homeowner_energy: 'homeowner_energy',
+  vve_collective: 'vve_collective',
+  realtor_linkedin: 'realtor_linkedin',
+  rental_income: 'rental_income',
+} as const;
+
+export interface SalesContentDraftInput {
+  contentType: SalesContentType;
+  /** @maxLength 100 */
+  partnerContactId?: string;
+  /** @maxLength 100 */
+  dealId?: string;
+}
+
+export interface SalesContentDraft {
+  contentType: SalesContentType;
+  /**
+     * @minLength 1
+     * @maxLength 6000
+     */
+  draft: string;
+  partnerCategory: SalesPartnerCategory;
+  /** @nullable */
+  partnerName?: string | null;
+  /** @nullable */
+  dealTitle?: string | null;
+}
+
+export type SalesContentOptionsPartnersItem = {
+  contactId: string;
+  name: string;
+  /** @nullable */
+  company?: string | null;
+  category: SalesPartnerCategory;
+};
+
+export type SalesContentOptionsDealsItem = {
+  dealId: string;
+  title: string;
+  region: string;
+  propertyType: string;
+  energyLabel: string;
+  woonoppervlak: number;
+};
+
+export interface SalesContentOptions {
+  partners: SalesContentOptionsPartnersItem[];
+  deals: SalesContentOptionsDealsItem[];
+}
 
 export type CrmActivityInputKind = typeof CrmActivityInputKind[keyof typeof CrmActivityInputKind];
 
