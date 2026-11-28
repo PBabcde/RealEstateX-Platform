@@ -1544,7 +1544,9 @@ paths:
         "429":
           description: AI request rate limit reached
         "502":
-          description: AI provider failed
+          $ref: "#/components/responses/BadGateway"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /crm/contacts/{contactId}:
     get:
       operationId: getCrmContact
@@ -1773,6 +1775,12 @@ components:
         type: string
         minLength: 1
   responses:
+    BadGateway:
+      description: An upstream AI provider did not return a valid draft
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     BadRequest:
       description: Invalid request
       content:
@@ -1793,6 +1801,12 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
     Forbidden:
       description: Authenticated user lacks access
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: A required service is not configured or temporarily unavailable
       content:
         application/json:
           schema:

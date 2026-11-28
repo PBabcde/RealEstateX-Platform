@@ -297,6 +297,17 @@ const PARTNER_CATEGORY_LABELS: Record<PartnerCategory, string> = {
   investeerder: "vastgoedinvesteerder",
   overig: "netwerkpartner",
 };
+const APPROVED_DEAL_PROPERTY_TYPES = new Map([
+  "appartement",
+  "woning",
+  "eengezinswoning",
+  "tussenwoning",
+  "hoekwoning",
+  "vrijstaande woning",
+  "bedrijfsruimte",
+  "kamer",
+  "studio",
+].map((label) => [label, label]));
 
 function requireSalesAdmin(req: Request, res: Response): { tenantId: string; actorId: string } | undefined {
   if (isAdminAccessSession(req)) {
@@ -611,21 +622,31 @@ salesRouter.post("/sales/leads/:leadId/content-draft", async (req, res): Promise
         : "onbekend",
       userType: userType ?? "niet vastgelegd",
       energyLabel: energyLabel?.trim().toUpperCase() ?? "niet vastgelegd",
-      ...(roiPercent !== undefined ? { verifiedRoiPercent: roiPercent } : {}),
+      ...(roiPercent !== undefined ? { reportedRoiPercent: roiPercent } : {}),
       campaignGoal: CONTENT_TYPE_LABELS[contentType],
       partnerExpertise: PARTNER_CATEGORY_LABELS[selectedPartner?.partnerCategory ?? partnerCategory],
       ...(selectedDeal ? {
         approvedDeal: {
-          propertyType: selectedDeal.propertyType.slice(0, 80),
-          energyLabel: selectedDeal.energyLabel.slice(0, 20),
-          woonoppervlak: selectedDeal.woonoppervlak,
-          ...(Number.isFinite(selectedDeal.score.grossYield) ? { grossYieldPercent: selectedDeal.score.grossYield } : {}),
+          propertyType: APPROVED_DEAL_PROPERTY_TYPES.get(selectedDeal.propertyType.trim().toLocaleLowerCase("nl-NL")) ?? "object",
+          energyLabel: /^(?:A(?:\+{1,4})?|B|C|D|E|F|G)$/iu.test(selectedDeal.energyLabel.trim())
+            ? selectedDeal.energyLabel.trim().toUpperCase()
+            : "niet vastgelegd",
+          ...(Number.isFinite(selectedDeal.woonoppervlak) && selectedDeal.woonoppervlak > 0 && selectedDeal.woonoppervlak <= 100_000
+            ? { woonoppervlak: selectedDeal.woonoppervlak }
+            : {}),
+          ...(Number.isFinite(selectedDeal.score.grossYield) && selectedDeal.score.grossYield >= -100 && selectedDeal.score.grossYield <= 1000
+            ? { grossYieldPercent: selectedDeal.score.grossYield }
+            : {}),
           ...(Number.isFinite(selectedDeal.score.assessment?.netYieldPercent)
             ? { netYieldPercent: selectedDeal.score.assessment!.netYieldPercent }
             : {}),
         },
       } : {}),
     };
+    if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || !process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+      res.status(503).json({ error: "De AI-provider is niet geconfigureerd voor deze omgeving." });
+      return;
+    }
     const { openai } = await import("@workspace/integrations-openai-ai-server");
     const completion = await openai.chat.completions.create({
       model: "gpt-5.6-luna",
@@ -651,7 +672,7 @@ Noem de partner alleen als expertisegebied (${PARTNER_CATEGORY_LABELS[selectedPa
     res.json(SalesGenerateContentDraftResponse.parse({
       contentType,
       draft: draft.slice(0, 6000),
-      partnerCategory,
+      partnerCategory: selectedPartner?.partnerCategory ?? partnerCategory,
       partnerName: selectedPartner?.name ?? null,
       dealTitle: selectedDeal?.title ?? null,
     }));

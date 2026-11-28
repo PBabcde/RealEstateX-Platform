@@ -87,6 +87,15 @@ const contacts: CrmContactRecord[] = [
     createdAt: "2026-11-18T10:00:00.000Z",
     updatedAt: "2026-11-18T10:00:00.000Z",
   },
+  {
+    contactId: "contact-legacy-partner",
+    type: "PARTNER",
+    name: "Bestaande CRM-partner",
+    status: "ACTIVE",
+    ownerId: "sales-engine-test-admin",
+    createdAt: "2026-11-18T10:00:00.000Z",
+    updatedAt: "2026-11-18T10:00:00.000Z",
+  },
 ];
 
 const analytics = {
@@ -159,7 +168,7 @@ export async function customFetch<T = unknown>(url: string, options: RequestInit
   }
   if (method === "POST" && url === "/api/crm/contacts") {
     window.__crmRequests ??= [];
-    window.__crmRequests.push({ method, url, status: body.status, name: body.name });
+    window.__crmRequests.push({ method, url, status: body.status, name: body.name, partnerCategory: body.partnerCategory });
     const contact: CrmContactRecord = {
       contactId: contacts.some((item) => item.contactId === "contact-created") ? "content-contact-created" : "contact-created",
       type: body.type as CrmContactRecord["type"],
@@ -180,7 +189,7 @@ export async function customFetch<T = unknown>(url: string, options: RequestInit
   const contactMatch = url.match(/^\/api\/crm\/contacts\/([^/]+)$/u);
   if (method === "PATCH" && contactMatch) {
     window.__crmRequests ??= [];
-    window.__crmRequests.push({ method, url, status: body.status, name: body.name });
+    window.__crmRequests.push({ method, url, status: body.status, name: body.name, partnerCategory: body.partnerCategory });
     const contact = contacts.find((item) => item.contactId === decodeURIComponent(contactMatch[1]));
     if (!contact) throw new ApiError("Contact not found", 404);
     Object.assign(contact, body, { updatedAt: new Date().toISOString() });

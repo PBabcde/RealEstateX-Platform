@@ -1550,6 +1550,11 @@ export interface ControlRoomSnapshot {
 }
 
 /**
+ * An upstream AI provider did not return a valid draft
+ */
+export type BadGatewayResponse = ErrorResponse;
+
+/**
  * Invalid request
  */
 export type BadRequestResponse = ErrorResponse;
@@ -1568,6 +1573,11 @@ export type UnauthorizedResponse = ErrorResponse;
  * Authenticated user lacks access
  */
 export type ForbiddenResponse = ErrorResponse;
+
+/**
+ * A required service is not configured or temporarily unavailable
+ */
+export type ServiceUnavailableResponse = ErrorResponse;
 
 export type ListEnergyXRenovationScenariosParams = {
 /**

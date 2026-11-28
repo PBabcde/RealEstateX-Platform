@@ -218,6 +218,15 @@ test("content drafting keeps partners separate, omits lead identifiers, and neve
     assert.equal(missingDeal.status, 400);
 
     const nativeFetch = globalThis.fetch;
+    delete process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+    delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+    const unconfigured = await fetch(`${base}/sales/leads/${leadId}/content-draft`, {
+      method: "POST", headers: { cookie, "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: "homeowner_energy" }),
+    });
+    assert.equal(unconfigured.status, 503);
+    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL = "http://openai.mock/v1";
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY = "test-openai-key";
     let capturedAiRequest;
     globalThis.fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -243,6 +252,7 @@ test("content drafting keeps partners separate, omits lead identifiers, and neve
       const payload = await generated.json();
       assert.equal(payload.draft, "Een persoonlijk verduurzamingsplan begint met een vrijblijvende verkenning.");
       assert.equal(payload.partnerName, "Partner Name Private");
+      assert.equal(payload.partnerCategory, "warmtepompen");
       const serializedPrompt = JSON.stringify(capturedAiRequest.messages);
       for (const privateValue of [leadEmail, "Private Lead Name", "Private Company", "0611223344", "private-interest-field", "Partner Name Private", "partner@example.invalid", "Partner Company Private", "0699999999"]) {
         assert.ok(!serializedPrompt.includes(privateValue), `Sensitive value leaked into the AI prompt: ${privateValue}`);
@@ -287,10 +297,11 @@ test("traffic events need consent, store only the path and a hashed address", as
 });
 
 test("Sales & CRM endpoints reject signed-out requests", async () => {
-  for (const path of ["/sales/leads", "/sales/analytics", "/sales/assistant"]) {
+  for (const path of ["/sales/leads", "/sales/analytics", "/sales/assistant", "/sales/content-options"]) {
     assert.equal((await fetch(`${base}${path}`)).status, 401, path);
   }
   assert.equal((await fetch(`${base}/sales/leads/00000000-0000-0000-0000-000000000000`, { method: "PATCH" })).status, 401);
+  assert.equal((await fetch(`${base}/sales/leads/00000000-0000-0000-0000-000000000000/content-draft`, { method: "POST" })).status, 401);
 });
 
 test("admin login limit cannot be reset with caller-supplied forwarded addresses", async () => {

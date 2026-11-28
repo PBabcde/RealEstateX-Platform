@@ -78,6 +78,12 @@ try {
   assert(byId("community-early-adopters").textContent.includes("1"), "Bestaande early-adopterinteresse is niet afgeleid uit CRM-inzendingen.");
   assert(byId("community-premium-gebruikers").textContent.includes("Niet geactiveerd"), "Premium wordt ten onrechte als actief getoond.");
   assert(document.body.textContent.includes("geen Stripe-wijzigingen"), "De pagina maakt onvoldoende duidelijk dat betalingen niet zijn gewijzigd.");
+  window.__salesTestRole = "member";
+  await client.invalidateQueries({ queryKey: ["/api/account"] });
+  await waitFor(() => document.body.textContent.includes("Alleen voor beheerders"), "De Sales Engine werd niet voor een gewone gebruiker afgeschermd.");
+  assert(!byId("tab-pipeline") && !byId("tab-partners"), "Een gewone gebruiker kon Sales & CRM-tabbladen openen.");
+  window.__salesTestRole = "admin";
+  await client.invalidateQueries({ queryKey: ["/api/account"] });
 
   root.render(createElement(QueryClientProvider, { client }, createElement(ContentAutopilot)));
   await waitFor(() => byId("content-lead-00000000-0000-0000-0000-000000000101"), "De contentassistent toont geen recente leads.");
@@ -87,6 +93,7 @@ try {
   await waitFor(() => byId("select-content-partner-category"), "Het partnerregister is niet geopend.");
   const category = byId("select-content-partner-category");
   setValue(category, "warmtepompen");
+  assert(byId("content-partner-contact-legacy-partner").textContent.includes("Nog niet ingedeeld"), "Een bestaand, nog niet gecategoriseerd CRM-partnercontact werd niet hergebruikt.");
   setValue(byId("input-content-partner-name"), "Nieuwe Partner");
   setValue(byId("input-content-partner-company"), "Nieuwe Organisatie");
   byId("button-save-content-partner").click();
@@ -115,7 +122,7 @@ try {
   assert(window.__copiedContentDrafts.includes("Bewerkt concept voor de controle."), "De knop heeft niet de bewerkte tekst gekopieerd.");
 
   const dialogButtons = document.querySelectorAll('[role="dialog"] button');
-  dialogButtons[0]?.click();
+  dialogButtons[dialogButtons.length - 1]?.click();
   await waitFor(() => !document.querySelector('[role="dialog"]'), "Het berichtvenster sluit niet.");
   byId("button-open-content-draft-00000000-0000-0000-0000-000000000101").click();
   await waitFor(() => byId("select-content-type"), "Het berichtvenster opent niet opnieuw.");
@@ -127,13 +134,9 @@ try {
   assert(window.__contentDraftRequests.at(-1).dealId === "deal-approved", "Het geselecteerde Deal Room-object ontbreekt in de aanvraag.");
 
   assert(document.documentElement.scrollWidth <= window.innerWidth, "De Sales Engine veroorzaakt horizontaal scrollen op mobiel.");
-  window.__salesTestRole = "member";
-  await client.invalidateQueries({ queryKey: ["/api/account"] });
-  await waitFor(() => document.body.textContent.includes("Alleen voor beheerders"), "De Sales Engine werd niet voor een gewone gebruiker afgeschermd.");
-  assert(!byId("tab-pipeline") && !byId("tab-partners"), "Een gewone gebruiker kon Sales & CRM-tabbladen openen.");
   assert(errors.length === 0, `Browserfouten: ${errors.join(" | ")}`);
   result.dataset.status = "passed";
-  result.textContent = "Dashboard, bron/interesse/status, CRM-opvolging, partneraanmaak, groeivoorbereiding en mobiele breedte gecontroleerd.";
+  result.textContent = "Sales Engine, sortering, geïsoleerde partneradministratie, vier berichttypes, bewerken/kopiëren, beveiliging en mobiele breedte gecontroleerd.";
 } catch (error) {
   result.dataset.status = "failed";
   result.textContent = error instanceof Error ? error.stack ?? error.message : String(error);

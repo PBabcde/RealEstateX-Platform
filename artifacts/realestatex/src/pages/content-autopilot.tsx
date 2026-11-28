@@ -26,7 +26,7 @@ type DraftResult = {
   partnerName?: string | null;
   dealTitle?: string | null;
 };
-type EditablePartner = CrmContactRecord & { partnerCategory: SalesPartnerCategory };
+type EditablePartner = CrmContactRecord;
 type PartnerFormValue = {
   contactId?: string;
   partnerCategory: SalesPartnerCategory;
@@ -71,6 +71,8 @@ const emptyPartner = (): PartnerFormValue => ({
   phone: "",
   status: "ACTIVE",
 });
+const inferredPartnerCategory = (contact: CrmContactRecord): SalesPartnerCategory =>
+  contact.partnerCategory ?? (contact.type === "INVESTOR" ? "investeerder" : contact.type === "MAKELAAR" ? "makelaar" : "overig");
 const dateLabel = (value: string) => new Date(value).toLocaleDateString("nl-NL", { dateStyle: "medium" });
 const get = <T,>(url: string) => customFetch<T>(url, { method: "GET" });
 const friendlyError = (error: unknown) =>
@@ -109,13 +111,13 @@ function PartnerAdministration() {
   });
   const contacts = partners.data ?? [];
   const roster = contacts
-    .filter((contact): contact is EditablePartner => Boolean(contact.partnerCategory))
+    .filter((contact) => Boolean(contact.partnerCategory) || ["PARTNER", "MAKELAAR", "INVESTOR"].includes(contact.type))
     .sort((a, b) => a.name.localeCompare(b.name, "nl"));
 
   function edit(contact: EditablePartner) {
     setForm({
       contactId: contact.contactId,
-      partnerCategory: contact.partnerCategory,
+      partnerCategory: inferredPartnerCategory(contact),
       name: contact.name,
       company: contact.company ?? "",
       email: contact.email ?? "",
@@ -159,7 +161,7 @@ function PartnerAdministration() {
     <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="mono text-[9px] uppercase tracking-[0.15em] text-[#68816f]">Los van leads</p><h2 className="mt-1 text-base font-bold">Netwerkpartners</h2></div><span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold">{roster.length} partners</span></div>
       {roster.length ? <div className="mt-4 space-y-2">{roster.map((contact) => <article key={contact.contactId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3" data-testid={`content-partner-${contact.contactId}`}>
-        <div className="min-w-0"><p className="truncate text-xs font-bold">{contact.name}</p><p className="mt-1 truncate text-[10px] text-muted-foreground">{PARTNER_CATEGORIES.find((category) => category.value === contact.partnerCategory)?.label} · {contact.company || contact.email || "Geen organisatiegegevens"}</p><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[9px] font-semibold ${contact.status === "ACTIVE" ? "bg-[#e3f3ee] text-[#207464]" : "bg-secondary text-muted-foreground"}`}>{contact.status === "ACTIVE" ? "Actief voor aanbevelingen" : "Inactief"}</span></div>
+        <div className="min-w-0"><p className="truncate text-xs font-bold">{contact.name}</p><p className="mt-1 truncate text-[10px] text-muted-foreground">{contact.partnerCategory ? PARTNER_CATEGORIES.find((category) => category.value === contact.partnerCategory)?.label : "Nog niet ingedeeld"} · {contact.company || contact.email || "Geen organisatiegegevens"}</p><span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[9px] font-semibold ${contact.status === "ACTIVE" ? "bg-[#e3f3ee] text-[#207464]" : "bg-secondary text-muted-foreground"}`}>{contact.status === "ACTIVE" && contact.partnerCategory ? "Actief voor aanbevelingen" : contact.status === "ACTIVE" ? "Nog niet ingedeeld" : "Inactief"}</span></div>
         <button type="button" onClick={() => edit(contact)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-semibold hover:bg-secondary/50" data-testid={`button-edit-content-partner-${contact.contactId}`}><Pencil size={12} /> Bewerken</button>
       </article>)}</div> : <EmptyBlock title="Nog geen partners geregistreerd" description="Voeg een partner toe en wijs een expertisegebied toe om deze voor passende concepten te kunnen selecteren." />}
     </section>
@@ -177,6 +179,7 @@ function DraftDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void
   const [dealId, setDealId] = useState("");
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const generate = useMutation({
     mutationFn: (input: { leadId: string; contentType: SalesContentType; partnerContactId?: string; dealId?: string }) =>
       customFetch<DraftResult>(`/api/sales/leads/${encodeURIComponent(input.leadId)}/content-draft`, {
@@ -188,7 +191,7 @@ function DraftDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void
           ...(input.dealId ? { dealId: input.dealId } : {}),
         }),
       }),
-    onSuccess: (result) => { setDraft(result.draft); setCopied(false); },
+    onSuccess: (result) => { setDraft(result.draft); setCopied(false); setCopyError(""); },
   });
   const matchingPartners = useMemo(() => {
     const categoryMap: Record<SalesContentType, SalesPartnerCategory[]> = {
@@ -205,6 +208,7 @@ function DraftDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void
     setPartnerContactId("");
     setDealId("");
     setDraft("");
+    setCopyError("");
     generate.reset();
   }
 
@@ -212,8 +216,10 @@ function DraftDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void
     try {
       await navigator.clipboard.writeText(draft);
       setCopied(true);
+      setCopyError("");
     } catch {
       setCopied(false);
+      setCopyError("Kopiëren is geblokkeerd. Selecteer en kopieer de tekst handmatig.");
     }
   }
 
@@ -242,9 +248,10 @@ function DraftDialog({ lead, onClose }: { lead: Lead | null; onClose: () => void
         {draft && <section className="space-y-2 rounded-xl border border-border p-3" aria-label="Bewerkbaar berichtvoorstel">
           {generate.data?.partnerName && <p className="inline-flex items-center gap-1.5 rounded-full bg-[#e3f3ee] px-2.5 py-1 text-[10px] font-semibold text-[#207464]"><Handshake size={11} /> Partneradvies: {generate.data.partnerName}</p>}
           {generate.data?.dealTitle && <p className="text-[10px] text-muted-foreground">Deal Room-object: {generate.data.dealTitle}</p>}
-          <Textarea value={draft} onChange={(event) => { setDraft(event.target.value); setCopied(false); }} maxLength={6000} rows={8} className="resize-y text-sm leading-6" aria-label="Bewerk het AI-berichtvoorstel" data-testid="textarea-content-draft" />
+          <Textarea value={draft} onChange={(event) => { setDraft(event.target.value); setCopied(false); setCopyError(""); }} maxLength={6000} rows={8} className="resize-y text-sm leading-6" aria-label="Bewerk het AI-berichtvoorstel" data-testid="textarea-content-draft" />
           <p className="text-[10px] text-muted-foreground">Controleer en bewerk de inhoud voordat je deze gebruikt. Kopiëren verstuurt niets.</p>
-          <button type="button" disabled={!draft.trim()} onClick={() => void copyDraft()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border px-4 text-xs font-bold hover:bg-secondary/50 disabled:opacity-50" data-testid="button-copy-content-draft">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? "Goedgekeurd en gekopieerd" : "Goedkeuren en kopiëren"}</button>
+          <button type="button" disabled={!draft.trim() || !navigator.clipboard} onClick={() => void copyDraft()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border px-4 text-xs font-bold hover:bg-secondary/50 disabled:opacity-50" data-testid="button-copy-content-draft">{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? "Goedgekeurd en gekopieerd" : "Goedkeuren en Kopiëren"}</button>
+          {copyError && <p className="text-xs text-destructive" role="alert">{copyError}</p>}
           {!copied && <p className="text-[10px] text-muted-foreground">{navigator.clipboard ? "Kopiëren staat klaar na controle." : "Kopiëren is niet beschikbaar in deze browser."}</p>}
         </section>}
       </div>}
@@ -266,7 +273,7 @@ function ContentDrafts() {
         <button type="button" onClick={() => setSelectedLead(lead)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-3.5 text-[11px] font-bold text-primary-foreground" data-testid={`button-open-content-draft-${lead.id}`}><Sparkles size={13} /> Genereer AI-berichtvoorstel</button>
       </article>)}</div> : <EmptyBlock title="Nog geen leads" description="Nieuwe aanvragen verschijnen hier zodra ze via bestaande formulieren zijn ontvangen." />}
     </section>
-    <DraftDialog lead={selectedLead} onClose={() => setSelectedLead(null)} />
+    <DraftDialog key={selectedLead?.id ?? "none"} lead={selectedLead} onClose={() => setSelectedLead(null)} />
   </>;
 }
 

@@ -26,6 +26,7 @@ import type {
   ApplicationAccount,
   AssistantInput,
   AssistantResponse,
+  BadGatewayResponse,
   BadRequestResponse,
   BillingReadiness,
   ChatHistoryResponse,
@@ -94,6 +95,7 @@ import type {
   SalesContentDraft,
   SalesContentDraftInput,
   SalesContentOptions,
+  ServiceUnavailableResponse,
   SuiteOverview,
   TrainingPromotionResponse,
   TrainingScenario,
@@ -5806,7 +5808,7 @@ return customFetch<SalesContentDraft>(getSalesGenerateContentDraftUrl(leadId),
 
 export const getSalesGenerateContentDraftMutationKey = () => ['salesGenerateContentDraft'] as const;
 
-export const getSalesGenerateContentDraftMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>,
+export const getSalesGenerateContentDraftMutationOptions = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void | BadGatewayResponse | ServiceUnavailableResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext> => {
 
@@ -5835,13 +5837,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SalesGenerateContentDraftMutationResult = NonNullable<Awaited<ReturnType<typeof salesGenerateContentDraft>>>
     export type SalesGenerateContentDraftMutationBody = BodyType<SalesContentDraftInput>
-    export type SalesGenerateContentDraftMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>
+    export type SalesGenerateContentDraftMutationError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void | BadGatewayResponse | ServiceUnavailableResponse>
     export type SalesGenerateContentDraftMutationVariables = {leadId: string;data: BodyType<SalesContentDraftInput>}
 
     /**
  * @summary Generate an editable, non-persistent Dutch sales content draft
  */
-export const useSalesGenerateContentDraft = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void>,
+export const useSalesGenerateContentDraft = <TError = ErrorType<BadRequestResponse | UnauthorizedResponse | NotFoundResponse | void | BadGatewayResponse | ServiceUnavailableResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof salesGenerateContentDraft>>, TError,SalesGenerateContentDraftMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof salesGenerateContentDraft>>,
