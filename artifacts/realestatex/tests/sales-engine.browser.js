@@ -93,9 +93,10 @@ try {
   await waitFor(() => byId("content-partner-content-contact-created"), "De partner is niet aan het losse partnerregister toegevoegd.");
   assert(byId("content-partner-content-contact-created").textContent.includes("Actief voor aanbevelingen"), "Een actieve partner is niet als selecteerbaar gemarkeerd.");
   byId("button-edit-content-partner-content-contact-created").click();
+  await waitFor(() => byId("button-save-content-partner").textContent.includes("Wijzigingen opslaan"), "De partnergegevens worden niet in het formulier geladen.");
   setValue(byId("select-content-partner-status"), "INACTIVE");
-  byId("button-save-content-partner").click();
-  await waitFor(() => byId("content-partner-content-contact-created").textContent.includes("Inactief"), `De partnerstatus kon niet worden aangepast. form=${byId("select-content-partner-status")?.value}, rij=${byId("content-partner-content-contact-created")?.textContent ?? "ontbreekt"}, alert=${document.querySelector('[role="alert"]')?.textContent ?? "geen"}`);
+  byId("button-save-content-partner").closest("form").requestSubmit();
+  await waitFor(() => byId("content-partner-content-contact-created").textContent.includes("Inactief"), `De partnerstatus kon niet worden aangepast. form=${byId("select-content-partner-status")?.value}, rij=${byId("content-partner-content-contact-created")?.textContent ?? "ontbreekt"}, alert=${document.querySelector('[role="alert"]')?.textContent ?? "geen"}, knop=${byId("button-save-content-partner")?.textContent}, disabled=${byId("button-save-content-partner")?.disabled}, valid=${byId("button-save-content-partner")?.closest("form")?.checkValidity()}, requests=${JSON.stringify(window.__crmRequests)}`);
 
   activateTab(byId("tab-content-drafts"));
   await waitFor(() => byId("button-open-content-draft-00000000-0000-0000-0000-000000000101"), "De berichtlijst is niet geopend.");

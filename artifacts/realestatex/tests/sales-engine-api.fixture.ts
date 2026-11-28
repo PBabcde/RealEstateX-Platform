@@ -34,6 +34,7 @@ declare global {
     __salesTestStatuses?: string[];
     __contentDraftRequests?: Array<{ leadId: string; contentType: SalesContentType; partnerContactId?: string; dealId?: string }>;
     __copiedContentDrafts?: string[];
+    __crmRequests?: Array<{ method: string; url: string; status?: unknown; name?: unknown }>;
   }
 }
 
@@ -157,6 +158,8 @@ export async function customFetch<T = unknown>(url: string, options: RequestInit
     } as T;
   }
   if (method === "POST" && url === "/api/crm/contacts") {
+    window.__crmRequests ??= [];
+    window.__crmRequests.push({ method, url, status: body.status, name: body.name });
     const contact: CrmContactRecord = {
       contactId: contacts.some((item) => item.contactId === "contact-created") ? "content-contact-created" : "contact-created",
       type: body.type as CrmContactRecord["type"],
@@ -176,6 +179,8 @@ export async function customFetch<T = unknown>(url: string, options: RequestInit
   }
   const contactMatch = url.match(/^\/api\/crm\/contacts\/([^/]+)$/u);
   if (method === "PATCH" && contactMatch) {
+    window.__crmRequests ??= [];
+    window.__crmRequests.push({ method, url, status: body.status, name: body.name });
     const contact = contacts.find((item) => item.contactId === decodeURIComponent(contactMatch[1]));
     if (!contact) throw new ApiError("Contact not found", 404);
     Object.assign(contact, body, { updatedAt: new Date().toISOString() });
